@@ -1,0 +1,66 @@
+# 시장날씨 — 매일 자동 분석·알림·앱 배포 (GitHub 무료 클라우드)
+# 한국 시간 16:10(한국장 마감 뒤)과 07:30(미국장 마감 뒤)에 실행. Actions 탭에서 "Run workflow"로 바로 실행할 수도 있습니다.
+name: 매일 자동 분석·알림
+
+on:
+  schedule:
+    - cron: '10 7 * * 1-5'    # UTC 07:10 = 한국 16:10 (월~금)
+    - cron: '30 22 * * 1-5'   # UTC 22:30 = 한국 다음날 07:30 (화~토 아침)
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 알림 기록(data/alerts-state.json) 저장
+  pages: write      # 앱 배포
+  id-token: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 알림 발송 도구 설치
+        run: npm install --no-audit --no-fund
+      - name: 시장 데이터·공시 재무 받기
+        run: node connect/market.mjs
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
+      - name: 매수 후보 분석·푸시 알림
+        run: node connect/alerts.mjs
+        env:
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_EMAIL: ${{ secrets.VAPID_EMAIL }}
+          PUSH_SUBSCRIPTIONS: ${{ secrets.PUSH_SUBSCRIPTIONS }}
+      - name: 알림 기록 저장
+        run: |
+          git config user.name "sijangnalssi-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/alerts-state.json
+          git commit -m "알림 기록 $(date -u +%F)" || echo "변경 없음"
+          git push || echo "기록 저장 건너뜀"
+      - name: 앱 파일 모으기
+        run: |
+          mkdir -p _site
+          cp -r index.html styles.css manifest.webmanifest sw.js icons js _site/
+          rm -f _site/js/holdings-live.js
+          echo "window.SNW_CONFIG = { vapidPublicKey: '${VAPID_PUBLIC_KEY}' };" > _site/js/config.js
+        env:
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
