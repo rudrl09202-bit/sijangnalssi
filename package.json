@@ -1,0 +1,8 @@
+{
+  "name": "sijangnalssi",
+  "private": true,
+  "description": "시장날씨 — 매크로 트레이딩 노트 (자동 알림 발송에만 web-push 사용)",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
