@@ -624,3 +624,45 @@ html[data-theme="dark"] .hq-desk-top { fill: #3A3E45; } html[data-theme="dark"] 
 @media (prefers-reduced-motion: reduce) { .hq-p { animation: none; } }
 .stat p { white-space: normal; overflow: visible; text-overflow: clip; word-break: keep-all; }
 .stat .num { font-size: 15px; }
+
+/* 본부 캐릭터 움직임 — 직원마다 다르게 */
+.hq-p { animation: none; }
+.mc, .mc * { transform-box: fill-box; transform-origin: center bottom; }
+.mc-eyes { animation: mcblink 4.6s infinite; transform-origin: center; }
+.mv-bob .mc-bod, .mv-type .mc-bod, .mv-write .mc-bod { animation: mcbob 2.6s ease-in-out infinite; }
+.mv-type .mc-arm.l { animation: mctype .32s ease-in-out infinite alternate; }
+.mv-type .mc-arm.r { animation: mctype .32s ease-in-out infinite alternate-reverse; }
+.mv-write .mc-pen { animation: mcwrite .7s ease-in-out infinite; }
+.mv-nod .mc-bod { animation: mcnod 2.2s ease-in-out infinite; }
+.mv-breath .mc-bod { animation: mcbreath 3.4s ease-in-out infinite; }
+.mv-hop .mc-bod { animation: mchop 1.6s cubic-bezier(.3,.7,.4,1) infinite; }
+.mv-sway .mc-bod { animation: mcsway 3s ease-in-out infinite; }
+.mv-sway .mc-ring { animation: mcspin 2.4s linear infinite; transform-origin: center; }
+.mv-twinkle .mc-bod { animation: mcbob 2.4s ease-in-out infinite; }
+.mc-star { animation: mctwinkle 1.4s ease-in-out infinite; transform-origin: center; }
+.mv-jelly .mc-bod { animation: mcjelly 1.8s ease-in-out infinite; }
+.mv-scan .mc-torch { animation: mcscan 3s ease-in-out infinite; transform-origin: left center; }
+.mv-scan .mc-bod { animation: mcbob 3s ease-in-out infinite; }
+.mc-heart { animation: mcbeat 1.1s ease-in-out infinite; transform-origin: center; }
+.mv-sleep .mc-bod { animation: mcbreath 4s ease-in-out infinite; }
+.mc-zzz text { font-size: 9px; font-weight: 800; fill: var(--muted); animation: mczzz 2.6s ease-in-out infinite; }
+.mc-zzz .z2 { font-size: 7px; animation-delay: 1.3s; }
+.mc.alert .mc-bod { animation: mcshake .5s ease-in-out infinite; }
+.mc-sweat { animation: mcsweat 1.2s ease-in infinite; }
+@keyframes mcblink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes mcbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes mctype { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@keyframes mcwrite { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-2px, 2px); } }
+@keyframes mcnod { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-5deg); } 60% { transform: rotate(3deg); } }
+@keyframes mcbreath { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.04, .97); } }
+@keyframes mchop { 0%, 60%, 100% { transform: translateY(0) scale(1, 1); } 70% { transform: translateY(0) scale(1.08, .9); } 82% { transform: translateY(-7px) scale(.95, 1.06); } 92% { transform: translateY(0) scale(1.05, .95); } }
+@keyframes mcsway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes mcspin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes mctwinkle { 0%, 100% { transform: scale(1) rotate(0); opacity: 1; } 50% { transform: scale(.7) rotate(20deg); opacity: .6; } }
+@keyframes mcjelly { 0%, 100% { transform: scale(1, 1); } 25% { transform: scale(1.1, .9); } 50% { transform: scale(.93, 1.08); } 75% { transform: scale(1.04, .96); } }
+@keyframes mcscan { 0%, 100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
+@keyframes mcbeat { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.25); } 50% { transform: scale(1); } }
+@keyframes mczzz { 0% { opacity: 0; transform: translate(0, 0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -10px); } }
+@keyframes mcshake { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-1.5px) rotate(-3deg); } 75% { transform: translateX(1.5px) rotate(3deg); } }
+@keyframes mcsweat { 0% { opacity: 0; transform: translateY(-2px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .mc *, .mc { animation: none !important; } }

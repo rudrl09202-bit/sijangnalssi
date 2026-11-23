@@ -1725,6 +1725,64 @@
         <div class="lrow" style="cursor:default"><span class="ic">${IC.info}</span><span class="grow"><p class="t">시장날씨</p><p class="s">시세 ${ML ? esc(ML.asOf) + ' 기준' : '—'} · 투자 권유가 아닌 참고 정보예요</p></span></div></section>`;
   }
 
+  /* ---------- 본부 직원 캐릭터 (모두 직접 디자인한 오리지널) ----------
+   * 공통: 말랑한 젤리 몸 + 큰 눈(깜빡임) + 볼터치. 직원마다 색·소품·움직임이 다름.
+   * 상태: alert = 땀방울·빠른 흔들림, idle = 졸기(Zzz) */
+  const MASCOT = {
+    PRICE:  { c: '#8CC4F5', d: '#6AA8E0', look: 'headset', move: 'type',  w: 22, h: 26 },   // 시세 담당: 헤드셋 끼고 자판 두드림
+    CHIEF:  { c: '#B9A9F2', d: '#9B88E0', look: 'glasses', move: 'nod',   w: 24, h: 30 },   // 판단 담당: 동그란 안경, 끄덕끄덕
+    VAULT:  { c: '#A7B3C2', d: '#8796A8', look: 'lock',    move: 'breath',w: 28, h: 26 },   // 금고: 네모 단단한 몸, 팔짱
+    REPORT: { c: '#F6D27A', d: '#E3B954', look: 'clip',    move: 'write', w: 20, h: 24 },   // 보고: 클립보드에 받아 적기
+    ATLAS:  { c: '#F4A3A0', d: '#E2827E', look: 'fin',     move: 'hop',   w: 22, h: 28 },   // 추세 돌파: 로켓 지느러미, 통통 점프
+    ORBIT:  { c: '#94D8C6', d: '#6FC0AB', look: 'ring',    move: 'sway',  w: 22, h: 26 },   // 모멘텀 순환: 머리 위 고리가 빙글
+    NOVA:   { c: '#F2B8D6', d: '#E096BE', look: 'star',    move: 'twinkle', w: 20, h: 24 }, // 코인: 머리 위 별이 반짝
+    ECHO:   { c: '#C9CED6', d: '#AEB5BF', look: 'none',    move: 'sleep', w: 20, h: 24 },
+    RATE:   { c: '#F5B48A', d: '#E39566', look: 'thermo',  move: 'sway',  w: 22, h: 26 },   // 금리: 온도계
+    USD:    { c: '#9FD39B', d: '#7CBB77', look: 'bow',     move: 'nod',   w: 22, h: 26 },   // 달러: 나비넥타이
+    VIX:    { c: '#C3B3E8', d: '#A592D6', look: 'none',    move: 'jelly', w: 24, h: 24 },   // 변동성: 젤리처럼 출렁
+    MOOD:   { c: '#F7B6B6', d: '#E59393', look: 'heart',   move: 'hop',   w: 20, h: 24 },   // 심리: 하트
+    ORDER:  { c: '#B6C0CC', d: '#98A4B2', look: 'cap',     move: 'type',  w: 22, h: 26 },
+    GUARD:  { c: '#9EB2CC', d: '#7F96B5', look: 'guard',   move: 'scan',  w: 24, h: 28 },   // 감시: 경비 모자 + 손전등
+    COACH:  { c: '#F3C98B', d: '#DFAE66', look: 'whistle', move: 'nod',   w: 22, h: 28 }    // 코치: 호루라기
+  };
+  function mascot(code, x, y, tone, k) {
+    const m = MASCOT[code] || { c: '#B9C4D0', d: '#9AA7B5', look: 'none', move: 'bob', w: 22, h: 26 };
+    const move = tone === 'idle' ? 'sleep' : m.move, W = m.w, Hh = m.h, top = y - Hh, cx = x, ey = top + Hh * 0.42;
+    const delay = 'animation-delay:' + ((k * 0.43) % 2.2).toFixed(2) + 's';
+    const sq = code === 'VAULT' ? 7 : W / 2; // 금고는 네모난 몸
+    let acc = '', hands = '';
+    const armY = top + Hh * 0.66;
+    hands = `<g class="mc-arms"><ellipse class="mc-arm l" cx="${cx - W / 2 - 1}" cy="${armY}" rx="3.2" ry="4.2" fill="${m.d}"/><ellipse class="mc-arm r" cx="${cx + W / 2 + 1}" cy="${armY}" rx="3.2" ry="4.2" fill="${m.d}"/></g>`;
+    switch (m.look) {
+      case 'headset': acc = `<path d="M${cx - W / 2 + 1} ${ey - 2} Q${cx} ${top - 9} ${cx + W / 2 - 1} ${ey - 2}" fill="none" stroke="#4A5565" stroke-width="2"/><rect x="${cx - W / 2 - 2}" y="${ey - 4}" width="4" height="7" rx="2" fill="#4A5565"/><rect x="${cx + W / 2 - 2}" y="${ey - 4}" width="4" height="7" rx="2" fill="#4A5565"/><path d="M${cx + W / 2} ${ey + 2} q-2 7 -7 7" fill="none" stroke="#4A5565" stroke-width="1.4"/>`; break;
+      case 'glasses': acc = `<circle cx="${cx - 4.5}" cy="${ey}" r="4" fill="none" stroke="#3E4652" stroke-width="1.3"/><circle cx="${cx + 4.5}" cy="${ey}" r="4" fill="none" stroke="#3E4652" stroke-width="1.3"/><path d="M${cx - 0.6} ${ey} h1.2" stroke="#3E4652" stroke-width="1.3"/><path d="M${cx - 3} ${top + Hh - 6} l3 4 l3 -4 z" fill="#6E5FC9"/>`; break;
+      case 'lock': acc = `<rect x="${cx - 4}" y="${top + Hh * 0.62}" width="8" height="6" rx="1.5" fill="#6B7787"/><path d="M${cx - 2.5} ${top + Hh * 0.62} v-2 a2.5 2.5 0 0 1 5 0 v2" fill="none" stroke="#6B7787" stroke-width="1.3"/><path d="M${cx - 9} ${ey - 6} l5 2 M${cx + 9} ${ey - 6} l-5 2" stroke="#3E4652" stroke-width="1.4" stroke-linecap="round"/>`; hands = `<path d="M${cx - 10} ${armY} q10 5 20 0" fill="none" stroke="${m.d}" stroke-width="5" stroke-linecap="round"/>`; break;
+      case 'clip': acc = `<path d="M${cx - 1} ${top - 1} q-3 -6 2 -8" fill="none" stroke="${m.d}" stroke-width="2" stroke-linecap="round"/>`; hands = `<g class="mc-arms"><rect class="mc-clip" x="${cx + W / 2 - 3}" y="${armY - 7}" width="9" height="11" rx="1.5" fill="#fff" stroke="#9AA3AE" stroke-width="1"/><ellipse class="mc-arm r mc-pen" cx="${cx + W / 2 + 1}" cy="${armY}" rx="3" ry="4" fill="${m.d}"/><ellipse cx="${cx - W / 2 - 1}" cy="${armY}" rx="3" ry="4" fill="${m.d}"/></g>`; break;
+      case 'fin': acc = `<path d="M${cx} ${top - 7} l5 7 h-10 z" fill="#E2827E"/><circle cx="${cx}" cy="${top + Hh * 0.75}" r="2.4" fill="#fff" opacity=".85"/>`; break;
+      case 'ring': acc = `<g class="mc-ring"><ellipse cx="${cx}" cy="${top - 4}" rx="10" ry="3" fill="none" stroke="#5FAE98" stroke-width="2"/><circle cx="${cx + 10}" cy="${top - 4}" r="1.8" fill="#5FAE98"/></g>`; break;
+      case 'star': acc = `<path class="mc-star" d="M${cx} ${top - 12} l2 4.2 4.6 .6 -3.4 3.2 .9 4.6 -4.1 -2.3 -4.1 2.3 .9 -4.6 -3.4 -3.2 4.6 -.6z" fill="#F5C451"/>`; break;
+      case 'thermo': acc = `<rect x="${cx - 1.6}" y="${top - 10}" width="3.2" height="10" rx="1.6" fill="#fff" stroke="#C97B4E" stroke-width="1"/><circle cx="${cx}" cy="${top + 0.5}" r="2.6" fill="#E0664F"/><rect class="mc-merc" x="${cx - 0.8}" y="${top - 7}" width="1.6" height="7" fill="#E0664F"/>`; break;
+      case 'bow': acc = `<path d="M${cx} ${top + Hh * 0.68} l-5 -3 v6 z M${cx} ${top + Hh * 0.68} l5 -3 v6 z" fill="#3E8E5A"/><circle cx="${cx}" cy="${top + Hh * 0.68}" r="1.4" fill="#2F6E45"/>`; break;
+      case 'heart': acc = `<path class="mc-heart" d="M${cx} ${top - 3} c-2 -3 -6 -2 -5 1.5 c.6 2 5 4.5 5 4.5 s4.4 -2.5 5 -4.5 c1 -3.5 -3 -4.5 -5 -1.5z" fill="#E86B7A"/>`; break;
+      case 'cap': acc = `<path d="M${cx - W / 2 + 1} ${top + 4} q${W / 2 - 1} -9 ${W - 2} 0 z" fill="#6B7787"/><rect x="${cx - 2}" y="${top - 2}" width="12" height="3" rx="1.5" fill="#6B7787"/>`; break;
+      case 'guard': acc = `<path d="M${cx - W / 2} ${top + 5} q${W / 2} -11 ${W} 0 z" fill="#2F4058"/><rect x="${cx - W / 2 - 1}" y="${top + 3}" width="${W + 2}" height="3" rx="1.5" fill="#2F4058"/><circle cx="${cx}" cy="${top}" r="1.6" fill="#F5C451"/>`; hands = `<g class="mc-arms"><ellipse cx="${cx - W / 2 - 1}" cy="${armY}" rx="3.2" ry="4.2" fill="${m.d}"/><g class="mc-torch"><rect x="${cx + W / 2 - 1}" y="${armY - 2}" width="7" height="3.6" rx="1" fill="#4A5565"/><path d="M${cx + W / 2 + 6} ${armY - 1} l14 -6 v14 z" fill="#FFE9A6" opacity=".55"/></g></g>`; break;
+      case 'whistle': acc = `<path d="M${cx - 6} ${top + 6} q6 10 12 0" fill="none" stroke="#C9302C" stroke-width="1"/><rect x="${cx - 2}" y="${top + Hh * 0.6}" width="6" height="3.6" rx="1.6" fill="#9AA3AE"/><path d="M${cx - W / 2} ${top + 4} q${W / 2} -10 ${W} 0 z" fill="#E86B5A"/>`; break;
+    }
+    const eyes = `<g class="mc-eyes" style="${delay}"><ellipse cx="${cx - 4.5}" cy="${ey}" rx="2.3" ry="2.8" fill="#2B2F36"/><ellipse cx="${cx + 4.5}" cy="${ey}" rx="2.3" ry="2.8" fill="#2B2F36"/><circle cx="${cx - 3.7}" cy="${ey - 1}" r=".8" fill="#fff"/><circle cx="${cx + 5.3}" cy="${ey - 1}" r=".8" fill="#fff"/></g>`;
+    const sleepEyes = `<path d="M${cx - 7} ${ey} q2.5 2 5 0 M${cx + 2} ${ey} q2.5 2 5 0" fill="none" stroke="#2B2F36" stroke-width="1.4" stroke-linecap="round"/>`;
+    const mouth = tone === 'alert' ? `<ellipse cx="${cx}" cy="${ey + 6}" rx="1.8" ry="1.4" fill="#2B2F36"/>` : `<path d="M${cx - 2.4} ${ey + 5} q2.4 2.4 4.8 0" fill="none" stroke="#2B2F36" stroke-width="1.2" stroke-linecap="round"/>`;
+    const cheeks = `<ellipse cx="${cx - 8}" cy="${ey + 4}" rx="2.4" ry="1.4" fill="#FF9AA8" opacity=".55"/><ellipse cx="${cx + 8}" cy="${ey + 4}" rx="2.4" ry="1.4" fill="#FF9AA8" opacity=".55"/>`;
+    const extra = tone === 'alert' ? `<path class="mc-sweat" d="M${cx + W / 2 + 2} ${top + 2} q2.5 4 0 5.5 q-2.5 -1.5 0 -5.5z" fill="#8CC9F0"/>` : move === 'sleep' ? `<g class="mc-zzz"><text x="${cx + 10}" y="${top - 2}">z</text><text x="${cx + 15}" y="${top - 9}" class="z2">z</text></g>` : '';
+    return `<g class="mc mv-${move} ${tone || ''}" style="${delay}">
+      <ellipse cx="${cx}" cy="${y + 1}" rx="${W / 2 + 1}" ry="3.6" class="hq-shadow"/>
+      <g class="mc-bod">
+        ${hands}
+        <rect x="${cx - W / 2}" y="${top}" width="${W}" height="${Hh}" rx="${sq}" fill="${m.c}"/>
+        <ellipse cx="${cx}" cy="${top + Hh * 0.78}" rx="${W * 0.3}" ry="${Hh * 0.16}" fill="#fff" opacity=".35"/>
+        ${move === 'sleep' ? sleepEyes : eyes}${cheeks}${mouth}${acc}
+      </g>${extra}</g>`;
+  }
+
   /* ===================== 본부(HQ): 방 4개 ===================== */
   // 아이소메트릭 방 하나를 SVG 로 그림. staff: [{code, name, say, tone, i, j}] (i,j = 바닥 칸 0~3)
   function isoRoom(o) {
@@ -1747,13 +1805,12 @@
     const desk = (i, j) => { const a = P(i - 0.32, j - 0.32, 14), b = P(i + 0.32, j - 0.32, 14), c = P(i + 0.32, j + 0.32, 14), d = P(i - 0.32, j + 0.32, 14), e = P(i + 0.32, j + 0.32), f = P(i - 0.32, j + 0.32), g = P(i + 0.32, j - 0.32);
       return `<polygon class="hq-desk-top" points="${pt([a, b, c, d])}"/><polygon class="hq-desk-side" points="${pt([d, c, e, f])}"/><polygon class="hq-desk-side2" points="${pt([c, b, g, e])}"/>`; };
     const person = (s, k) => {
-      const [x, y] = P(s.i - 0.05, s.j + 0.5, 0);
-      return `<g class="hq-p ${s.tone || ''}" style="animation-delay:${(k * 0.37).toFixed(2)}s">
-        <ellipse cx="${x}" cy="${y + 1}" rx="10" ry="4" class="hq-shadow"/>
-        <rect x="${x - 9}" y="${y - 26}" width="18" height="24" rx="9" class="hq-body"/>
-        <circle cx="${x - 3.5}" cy="${y - 17}" r="1.8" class="hq-eye"/><circle cx="${x + 3.5}" cy="${y - 17}" r="1.8" class="hq-eye"/>
-        ${s.say ? `<g class="hq-say"><rect x="${x - Math.min(60, 8 + s.say.length * 5.6)}" y="${y - 50}" width="${Math.min(120, 16 + s.say.length * 11.2)}" height="18" rx="9"/><text x="${x}" y="${y - 37.5}" text-anchor="middle">${esc(s.say)}</text></g>` : ''}
-        <text x="${x}" y="${y + 15}" text-anchor="middle" class="hq-name">${esc(s.code)}</text></g>`;
+      const [x, y] = P(s.i - 0.05, s.j + 0.55, 0);
+      const bw = Math.min(120, 18 + s.say.length * 10.6);
+      return `<g class="hq-p ${s.tone || ''}">
+        <g transform="translate(${x} ${y}) scale(1.35) translate(${-x} ${-y})">${mascot(s.code, x, y, s.tone, k)}</g>
+        ${s.say ? `<g class="hq-say"><rect x="${x - bw / 2}" y="${y - 72}" width="${bw}" height="18" rx="9"/><text x="${x}" y="${y - 59.5}" text-anchor="middle">${esc(s.say)}</text></g>` : ''}
+        <text x="${x}" y="${y + 17}" text-anchor="middle" class="hq-name">${esc(s.code)}</text></g>`;
     };
     const staff = (o.staff || []).slice().sort((a, b) => (a.i + a.j) - (b.i + b.j));
     return `<svg class="hq-svg" viewBox="0 0 400 300" role="img" aria-label="${esc(o.title)} 방">
