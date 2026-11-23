@@ -102,16 +102,19 @@
     }).filter(Boolean);
     return (RANK_CACHE[mk] = R.rankList(items));
   }
-  const fxOf = (h) => (h.currency === 'USD' ? S.markets.usdkrw.value : 1);
+  const usdRate = () => (S.markets.usdkrw && S.markets.usdkrw.value > 500 ? S.markets.usdkrw.value : (REAL && REAL.usdkrw) || 1400);
+  const fxOf = (h) => (h.currency === 'USD' ? usdRate() : 1);
+  // 코인: 실시간 시세 → 없으면 동기화 때 받아 둔 가격
+  function coinPx(h) { const p = S.prices[h.market]; return p && p.krw ? p.krw : (h.syncPrice || null); }
   function holdingValue(h) {
-    if (h.type === 'coin') { const p = S.prices[h.market]; return p ? p.krw * h.qty : null; }
+    if (h.type === 'coin') { const p = coinPx(h); return p ? p * h.qty : null; }
     return h.price ? h.price * h.qty * fxOf(h) : null;
   }
   function holdingCost(h) { return h.avg * h.qty * fxOf(h); }
 
   // 직접 입력한 자산 + 동기화 프로그램이 가져온 자산(빗썸·토스증권)
   const COIN_KO = { BTC: '비트코인', ETH: '이더리움', SOL: '솔라나', XRP: '엑스알피(리플)', USDT: '테더', ONDO: '온도파이낸스', DOGE: '도지코인', ADA: '에이다', LINK: '체인링크', AVAX: '아발란체', SUI: '수이', TRX: '트론' };
-  const REAL = window.LIVE_HOLDINGS || null;
+  let REAL = window.LIVE_HOLDINGS || null;
   // 발표용 예시 데이터: 실제 보유 내역을 숨기고 보여 줄 때. 코인 평단은 지금 가격 대비 비율(f)로 정함
   const DEMO = { demo: true, syncedAt: new Date().toISOString(), sources: ['예시 데이터'], cashKrw: 3200000, notes: [], holdings: [
     { type: 'coin', source: '예시', symbol: 'BTC', market: 'KRW-BTC', qty: 0.085, f: 0.18 },
@@ -133,11 +136,16 @@
       if (x.type === 'coin') {
         const c = S.coinList.find((k) => k.symbol === x.symbol);
         const avg = x.f != null ? (S.prices[x.market] ? S.prices[x.market].krw / (1 + x.f) : 0) : x.avg;
-        return { id: 'live-coin-' + x.symbol, type: 'coin', live: true, source: x.source, name: c && c.name ? c.name : (COIN_KO[x.symbol] || x.symbol), symbol: x.symbol, market: x.market, qty: x.qty, avg };
+        return { id: 'live-coin-' + x.symbol, type: 'coin', live: true, source: x.source, name: c && c.name ? c.name : (COIN_KO[x.symbol] || x.symbol), symbol: x.symbol, market: x.market, qty: x.qty, avg, syncPrice: x.syncPrice, syncValue: x.syncValue };
       }
-      return { id: 'live-stock-' + x.symbol, type: 'stock', live: true, source: x.source, name: x.name || x.symbol, symbol: x.symbol, currency: x.currency, country: x.country, qty: x.qty, avg: x.avg, price: x.price, sector: S.sectorMap[x.symbol] || T.sectorOf(x.symbol), autoSector: !S.sectorMap[x.symbol] && !!T.sectorOf(x.symbol) };
+      const cur = x.currency || (/^(US|USA)$/i.test(x.country || '') || /^[A-Z][A-Z.\-]{0,9}$/.test(x.symbol || '') ? 'USD' : 'KRW');
+      return { id: 'live-stock-' + x.symbol, type: 'stock', live: true, source: x.source, name: x.name || x.symbol, symbol: x.symbol, currency: cur, country: x.country, qty: x.qty, avg: x.avg, price: x.price, syncValue: x.syncValue, sector: S.sectorMap[x.symbol] || T.sectorOf(x.symbol), autoSector: !S.sectorMap[x.symbol] && !!T.sectorOf(x.symbol) };
     }) : [];
-    return S.demo ? live : live.concat(S.holdings.map((h) => ({ ...h, source: '직접 입력' })));
+    if (S.demo) return live;
+    // 연동된 종목과 같은 종목을 직접 입력해 두었으면 두 번 세지 않음
+    const keyOf = (x) => x.type === 'coin' ? 'c:' + (x.market || 'KRW-' + x.symbol) : 's:' + String(x.symbol || x.name || '').toUpperCase();
+    const seen = new Set(live.flatMap((x) => [keyOf(x), x.type === 'stock' ? 's:' + String(x.name || '').toUpperCase() : '']));
+    return live.concat(S.holdings.filter((h) => !seen.has(keyOf(h))).map((h) => ({ ...h, source: '직접 입력' })));
   }
   function holdingScore(h) {
     if (h.type === 'coin') { if (R.STABLE.includes(h.symbol)) return R.scoreCoin2(coinCtx(h.market)); if (!S.candles[h.market]) return null; return R.scoreCoin2(coinCtx(h.market)); }
@@ -324,12 +332,75 @@
   function svgSearch() { return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'; }
 
   /* ---------- 화면: 내 자산 ---------- */
+  // 휴대폰: GitHub 에 올린 '잠긴 자산 파일'을 비밀번호로 열기 (복호화는 이 폰 안에서만)
+  function repoOf() {
+    const m = location.hostname.match(/^([^.]+)\.github\.io$/); if (!m) return null;
+    const name = location.pathname.split('/').filter(Boolean)[0]; return name ? m[1] + '/' + name : null;
+  }
+  async function fetchVault() {
+    const repo = repoOf(); if (!repo) return null;
+    const urls = ['https://api.github.com/repos/' + repo + '/contents/data/holdings.enc.json',
+      'https://raw.githubusercontent.com/' + repo + '/main/data/holdings.enc.json?t=' + Date.now()];
+    for (const u of urls) {
+      try {
+        const r = await fetch(u, { cache: 'no-store', headers: u.includes('api.github.com') ? { Accept: 'application/vnd.github.raw+json' } : {} });
+        if (r.ok) { const j = await r.json(); if (j && j.ct) return j; }
+      } catch (e) { /* 다음 주소 */ }
+    }
+    return null;
+  }
+  const b64 = (t) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
+  async function vaultKey(box, pw) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(box.salt), iterations: box.iter }, base, 256));
+  }
+  async function openVault(box, keyBytes) {
+    const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt']);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(box.iv) }, key, b64(box.ct));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  function useVault(data) {
+    REAL = data; data.fromPhone = true;
+    if (!S.demo) LIVE = REAL;
+    loadPrices([]).then(render); allHoldings().filter((h) => h.type === 'coin').forEach((h) => ensureCloses(h.market));
+  }
+  async function tryVault() {
+    if (REAL || !window.crypto || !crypto.subtle) return;
+    const box = await fetchVault(); if (!box) return;
+    S.vault = box;
+    const saved = store.get('snw.vaultKey', null);
+    if (saved && saved.salt === box.salt) { try { useVault(await openVault(box, b64(saved.key))); } catch (e) { store.set('snw.vaultKey', null); } }
+    render();
+  }
+  function vaultCard() {
+    if (REAL || !S.vault) return '';
+    return `<section class="card panel"><p class="kicker">LOCKED · 잠긴 내 자산</p>
+      <p class="sm">컴퓨터에서 동기화한 자산이 잠긴 채로 올라와 있습니다(${esc(new Date(S.vault.at).toLocaleString('ko-KR'))}). 동기화 때 정한 휴대폰 비밀번호를 넣으세요.</p>
+      <form id="vault-form" class="row" autocomplete="off"><input type="password" name="pw" placeholder="휴대폰 비밀번호" aria-label="휴대폰 비밀번호" required>
+      <button class="btn primary sm-btn" type="submit">열기</button></form>
+      <label class="xs muted"><input type="checkbox" id="vault-remember" checked> 이 휴대폰에서 기억하기</label>
+      ${S.ui.vaultMsg ? `<p class="xs warn">${esc(S.ui.vaultMsg)}</p>` : ''}</section>`;
+  }
   function syncInfo() {
+    if (!LIVE && S.vault) return vaultCard();
     if (!LIVE) return `<section class="card note"><p class="b">빗썸·토스증권 자동 연결</p><p class="muted sm">connect 폴더의 동기화 프로그램을 한 번 실행하면 보유 자산이 자동으로 들어옵니다. 방법은 README의 "계좌 연결"을 보세요.</p></section>`;
     const t = new Date(LIVE.syncedAt);
     return `<section class="card note"><p class="b">자동 연결: ${esc(LIVE.sources.join(' · ') || '없음')}</p>
-      <p class="muted sm">마지막 동기화 ${esc(t.toLocaleString('ko-KR'))} · 새로 받으려면 컴퓨터에서 동기화 프로그램을 다시 실행하세요.</p>
+      <p class="muted sm">마지막 동기화 ${esc(t.toLocaleString('ko-KR'))}${LIVE.fromPhone ? ' · 휴대폰(잠금 해제됨)' : ''} · 새로 받으려면 컴퓨터에서 동기화 프로그램을 다시 실행하세요.</p>
+      ${LIVE.fromPhone ? '<button class="btn sm-btn" data-act="vault-forget">이 휴대폰에서 잠그기</button>' : ''}
       ${(LIVE.notes || []).map((n) => `<p class="muted xs">· ${esc(n)}</p>`).join('')}</section>`;
+  }
+  // 동기화 프로그램이 계산한 총액과 앱 총액이 다르면 어느 종목이 다른지 보여 줌
+  function syncCheck(rows, all) {
+    if (S.demo || !REAL || !REAL.totalKrw) return '';
+    const live = rows.filter((r) => r.h.live && r.h.syncValue != null);
+    const liveSum = live.reduce((t, r) => t + (r.v || 0), 0) + (REAL.cashKrw || 0);
+    const gap = liveSum - REAL.totalKrw;
+    if (Math.abs(gap) < REAL.totalKrw * 0.1) return '';
+    const diff = live.filter((r) => r.v == null || Math.abs(r.v - r.h.syncValue) > Math.max(r.h.syncValue * 0.15, 100000))
+      .map((r) => esc(r.h.name) + ' ' + (r.v == null ? '가격 없음' : won(r.v)) + ' / 동기화 ' + won(r.h.syncValue));
+    return `<section class="card note"><p class="b">동기화 총액과 차이 ${won(gap)}</p>
+      <p class="muted sm">동기화 때 계산한 총액은 ${won(REAL.totalKrw)}입니다. 차이 나는 종목: ${diff.join(' · ') || '없음'}</p></section>`;
   }
   function viewAssets() {
     const hs = allHoldings();
@@ -368,6 +439,8 @@
           ${stat('종목 수', hs.length + '개', '', missing ? '가격 없음 ' + missing : '코인' + coins.length + ' 주식' + stocks.length)}
         </div>
       </section>
+      ${syncCheck(rows, all)}
+      ${missing ? `<section class="card note"><p class="b">총액에서 빠진 종목 ${missing}개</p><p class="muted sm">${esc(rows.filter((r) => r.v == null).map((r) => r.h.name).join(', '))} — 지금 가격을 받지 못해 합계에 들어가지 않았습니다. 잠시 뒤 새로고침하거나 동기화를 다시 실행해 주세요.</p></section>` : ''}
       <section class="card panel">
         <p class="kicker">RISK · 위험 점검</p>
         <div class="kv"><span>금리 민감 자산 비중</span><b class="num">${invest ? nf(sensV / invest * 100, 0) : 0}%</b></div>
@@ -396,7 +469,7 @@
 
     return `
       <header class="top"><div><p class="kicker">${esc((LIVE ? LIVE.sources : []).join(' · ') || '직접 입력')}</p><h1>내 자산</h1></div>${tools()}</header>${demoBanner()}
-      ${summary}${snowCard()}${calMini()}${reviewMini()}${guideBox()}${seg}
+      ${vaultCard()}${summary}${snowCard()}${calMini()}${reviewMini()}${guideBox()}${seg}
       ${tab !== 'stock' ? coinBlock : ''}${tab !== 'coin' ? stockBlock : ''}
       <p class="muted xs pad">금액 단위: 원 (현재가는 미국 주식만 달러). 업종은 분류표로 자동 지정되며, 주식 아래 칸에서 바꿀 수 있습니다. 점수 = 다중 조건 진단점수(100점). 누르면 근거를 볼 수 있습니다. ${S.priceSource ? '코인 시세: ' + esc(S.priceSource) + '.' : ''}</p>
       ${syncInfo()}${addBox()}`;
@@ -423,7 +496,7 @@
     const h = r.h, sc = holdingScore(h);
     const act = R.actionFor && sc ? R.actionFor({ score: sc, candles: h.type === 'coin' ? S.candles[h.market] : stockCandles(h.symbol), pnlPct: r.pr, weightPct: r.v == null || !all ? null : r.v / all * 100, held: true, fng: S.fng }) : null;
     const usd = h.currency === 'USD';
-    const cur = h.type === 'coin' ? (S.prices[h.market] ? S.prices[h.market].krw : null) : h.price;
+    const cur = h.type === 'coin' ? coinPx(h) : h.price;
     const px = (v) => (v == null ? '—' : usd ? '$' + nf(v, 2) : nf(v, v < 100 ? 2 : 0));
     const qty = nf(h.qty, h.type === 'coin' ? (h.qty < 1 ? 6 : 4) : (Number.isInteger(h.qty) ? 0 : 4));
     return `<div class="tr">
@@ -1372,6 +1445,7 @@
     else if (act === 'phase') { S.ui.phase = Number(v); render(); }
     else if (act === 'coin') { S.ui.coin = v; render(); ensureCloses(v); }
     else if (act === 'theme') { const d = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = d; try { localStorage.setItem('snw.theme', d); } catch (err) { /* 무시 */ } const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = d === 'dark' ? '#15171B' : '#F3F2EE'; render(); }
+    else if (act === 'vault-forget') { store.set('snw.vaultKey', null); location.reload(); }
     else if (act === 'demo') { S.demo = !S.demo; store.set('snw.demo', S.demo); LIVE = S.demo ? DEMO : REAL; S.ui.scoreResult = null; render(); loadPrices([]).then(render); allHoldings().filter((h) => h.type === 'coin').forEach((h) => ensureCloses(h.market)); }
     else if (act === 'chart') { S.ui.chartFrom = route(); S.ui.chart = { kind: b.dataset.kind, id: v, name: b.dataset.name }; if (b.dataset.kind === 'coin') ensureCloses(v); location.hash = '#chart'; }
     else if (act === 'push-on') { enablePush(); }
@@ -1410,6 +1484,17 @@
 
   document.addEventListener('submit', (e) => {
     const f = e.target;
+    if (f.id === 'vault-form') {
+      e.preventDefault();
+      const pw = new FormData(f).get('pw'), remember = document.getElementById('vault-remember');
+      S.ui.vaultMsg = '여는 중…'; render();
+      vaultKey(S.vault, String(pw)).then(async (kb) => {
+        const data = await openVault(S.vault, kb);
+        if (remember && remember.checked) store.set('snw.vaultKey', { salt: S.vault.salt, key: btoa(String.fromCharCode.apply(null, kb)) });
+        S.ui.vaultMsg = ''; useVault(data); render();
+      }).catch(() => { S.ui.vaultMsg = '비밀번호가 맞지 않습니다.'; render(); });
+      return;
+    }
     if (f.id === 'profile-form') {
       e.preventDefault();
       const fd = new FormData(f), ans = R.PROFILE_Q.map((_, i) => Number(fd.get('q' + i)));
@@ -1485,6 +1570,7 @@
   async function boot() {
     render();
     const jobs = [
+      tryVault(),
       loadPrices([]),
       A.fearGreed().then((r) => { S.fng = r.value; S.fngFrom = r._from === 'live' ? 'live' : 'cache'; }).catch(() => {}),
       A.cryptoGlobal().then((r) => { S.totalCapT = r.totalCapT; S.btcDominance = r.btcDominance; }).catch(() => {}),
