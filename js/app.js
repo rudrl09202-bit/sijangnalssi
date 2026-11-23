@@ -113,7 +113,7 @@
   // 원금(원화). 토스증권 해외주식은 토스가 '산 날 환율'로 계산한 원화 원금 합계(tossSum)에 맞춰 나눠 줌
   // (평단 달러 × 오늘 환율로만 계산하면 환율이 변한 만큼 손익이 토스 앱과 달라짐)
   function tossScale() {
-    const T = LIVE && LIVE.tossSum; if (!T || !T.costKrw) return 1;
+    const T = LIVE && LIVE.tossSum && LIVE.tossSum.costKrw ? LIVE.tossSum : (S.tossCost ? { costKrw: S.tossCost } : null); if (!T) return 1;
     const usd = (LIVE.holdings || []).filter((x) => x.type === 'stock' && x.source === '토스증권').reduce((t, x) => t + x.avg * x.qty * (x.currency === 'USD' ? usdRate() : 1), 0);
     const k = usd ? T.costKrw / usd : 1;
     return k > 0.7 && k < 1.4 ? k : 1; // 말이 안 되는 값이면 쓰지 않음
@@ -441,6 +441,17 @@
     return `<section class="card note"><p class="b">동기화 총액과 차이 ${won(gap)}</p>
       <p class="muted sm">동기화 때 계산한 총액은 ${won(REAL.totalKrw)}입니다. 차이 나는 종목: ${diff.join(' · ') || '없음'}</p></section>`;
   }
+  // 토스 해외주식 원금을 토스 앱과 맞추기 (토스가 원화 원금 합계를 안 보내 줄 때 직접 입력)
+  function tossCostCard(rows) {
+    const tr = rows.filter((r) => r.h.live && r.h.source === '토스증권' && r.h.type === 'stock');
+    if (!tr.length || (LIVE && LIVE.tossSum && LIVE.tossSum.costKrw)) return '';
+    const cost = tr.reduce((t, r) => t + (r.c || 0), 0);
+    return `<details class="card foldable"${S.tossCost ? '' : ' open'}><summary>토스 손익이 토스 앱과 다르면</summary>
+      <p class="muted sm">토스는 미국 주식 원금을 <b>산 날의 환율</b>로 계산해요. 토스 앱 <b>증권 → 내 투자</b>에서 평가금액에 손실 금액을 더하면 원금이에요(예: 평가 5,000만 + 손실 1,000만 = 원금 6,000만). 그 원금을 넣으면 이 앱도 토스와 같은 기준으로 계산해요.</p>
+      <form id="toss-cost-form" class="row" style="gap:8px;margin-top:10px"><input name="v" inputmode="numeric" placeholder="토스 원금 (원)" value="${S.tossCost || ''}" style="flex:1;min-height:50px;border:0;border-radius:14px;padding:0 14px;background:var(--sunk);font-size:16px">
+        <button class="btn primary" type="submit" style="min-height:50px">저장</button></form>
+      <p class="muted xs" style="margin-top:6px">지금 계산된 토스 원금 ${won(cost)} ${S.tossCost ? '(입력값 ' + won(S.tossCost) + ' 기준으로 맞춤)' : ''}</p></details>`;
+  }
   function viewAssets() {
     const hs = allHoldings();
     const cash = LIVE && LIVE.cashKrw ? LIVE.cashKrw : 0;
@@ -479,6 +490,7 @@
         </div>
       </section>
       ${syncCheck(rows, all)}
+      ${tossCostCard(rows)}
       ${missing ? `<section class="card note"><p class="b">총액에서 빠진 종목 ${missing}개</p><p class="muted sm">${esc(rows.filter((r) => r.v == null).map((r) => r.h.name).join(', '))} — 지금 가격을 받지 못해 합계에 들어가지 않았습니다. 잠시 뒤 새로고침하거나 동기화를 다시 실행해 주세요.</p></section>` : ''}
       <section class="card panel">
         <h2>위험 점검</h2>
@@ -1001,6 +1013,7 @@
   /* ---------- 자산 달력: 하루하루 기록 ---------- */
   // 실제 기록: 앱을 연 날의 총 자산을 기기에 저장 (발표 모드에서는 저장 안 함)
   S.assetLog = store.get('snw.assetLog', {});
+  S.tossCost = Number(store.get('snw.tossCost', 0)) || 0;
   const dkey = (d) => { const x = new Date(d.getTime() + 9 * 3600 * 1000); return x.toISOString().slice(0, 10); }; // 한국 날짜
   const todayKey = () => dkey(new Date());
   function liveTotals() {
@@ -1900,6 +1913,11 @@
 
   document.addEventListener('submit', (e) => {
     const f = e.target;
+    if (f.id === 'toss-cost-form') {
+      e.preventDefault();
+      const v = Math.round(Number(String(new FormData(f).get('v') || '').replace(/[^0-9.]/g, '')) || 0);
+      S.tossCost = v; store.set('snw.tossCost', v); render(); return;
+    }
     if (f.id === 'vault-form') {
       e.preventDefault();
       const pw = new FormData(f).get('pw'), remember = document.getElementById('vault-remember');

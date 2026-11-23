@@ -622,3 +622,5 @@ html[data-theme="dark"] .hq-desk-top { fill: #3A3E45; } html[data-theme="dark"] 
 .hq-dot.alert { background: var(--warn); }
 @keyframes hqbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
 @media (prefers-reduced-motion: reduce) { .hq-p { animation: none; } }
+.stat p { white-space: normal; overflow: visible; text-overflow: clip; word-break: keep-all; }
+.stat .num { font-size: 15px; }
