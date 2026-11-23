@@ -110,7 +110,17 @@
     if (h.type === 'coin') { const p = coinPx(h); return p ? p * h.qty : null; }
     return h.price ? h.price * h.qty * fxOf(h) : null;
   }
-  function holdingCost(h) { return h.avg * h.qty * fxOf(h); }
+  // 원금(원화). 토스증권 해외주식은 '산 날 환율'로 계산한 토스의 원화 손익률을 그대로 써서 토스 앱과 맞춤
+  // (평단 달러 × 오늘 환율로 계산하면 환율이 변한 만큼 손익이 토스와 달라짐)
+  function holdingCost(h) {
+    const usdCost = h.avg * h.qty * fxOf(h);
+    if (h.type === 'stock' && h.currency === 'USD' && h.rate != null && isFinite(h.rate) && h.price && h.avg) {
+      const u = h.price / h.avg - 1, r = Number(h.rate);
+      const frac = Math.abs(r / 100 - u) < Math.abs(r - u) ? r / 100 : r; // 토스가 %로 주는지 소수로 주는지 자동 판단
+      if (frac > -0.99) return h.price * h.qty * fxOf(h) / (1 + frac);
+    }
+    return usdCost;
+  }
 
   // 직접 입력한 자산 + 동기화 프로그램이 가져온 자산(빗썸·토스증권)
   const COIN_KO = { BTC: '비트코인', ETH: '이더리움', SOL: '솔라나', XRP: '엑스알피(리플)', USDT: '테더', ONDO: '온도파이낸스', DOGE: '도지코인', ADA: '에이다', LINK: '체인링크', AVAX: '아발란체', SUI: '수이', TRX: '트론' };
@@ -139,7 +149,7 @@
         return { id: 'live-coin-' + x.symbol, type: 'coin', live: true, source: x.source, name: c && c.name ? c.name : (COIN_KO[x.symbol] || x.symbol), symbol: x.symbol, market: x.market, qty: x.qty, avg, syncPrice: x.syncPrice, syncValue: x.syncValue };
       }
       const cur = x.currency || (/^(US|USA)$/i.test(x.country || '') || /^[A-Z][A-Z.\-]{0,9}$/.test(x.symbol || '') ? 'USD' : 'KRW');
-      return { id: 'live-stock-' + x.symbol, type: 'stock', live: true, source: x.source, name: x.name || x.symbol, symbol: x.symbol, currency: cur, country: x.country, qty: x.qty, avg: x.avg, price: x.price, syncValue: x.syncValue, sector: S.sectorMap[x.symbol] || T.sectorOf(x.symbol), autoSector: !S.sectorMap[x.symbol] && !!T.sectorOf(x.symbol) };
+      return { id: 'live-stock-' + x.symbol, type: 'stock', live: true, source: x.source, name: x.name || x.symbol, symbol: x.symbol, currency: cur, country: x.country, qty: x.qty, avg: x.avg, price: x.price, rate: x.rate, syncValue: x.syncValue, sector: S.sectorMap[x.symbol] || T.sectorOf(x.symbol), autoSector: !S.sectorMap[x.symbol] && !!T.sectorOf(x.symbol) };
     }) : [];
     if (S.demo) return live;
     // 연동된 종목과 같은 종목을 직접 입력해 두었으면 두 번 세지 않음

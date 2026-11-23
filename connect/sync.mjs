@@ -98,10 +98,13 @@ async function syncToss() {
   console.log('  토스증권 계좌 ' + accounts.length + '개: ' + accounts.map((a) => a.accountType || '종류 미표시').join(', '));
   const holdings = [];
   let shownKeys = false;
+  const tossSum = { costKrw: 0, valueKrw: 0 };
   for (const a of accounts) {
     await new Promise((r) => setTimeout(r, 1100)); // 계좌 API는 초당 1회 제한
     const h = await http(base + '/api/v1/holdings', { headers: { ...auth, 'X-Tossinvest-Account': String(a.accountSeq) } }, '토스증권 보유 주식');
     const items = (h.result && h.result.items) || [];
+    // 토스가 계산한 계좌 합계(원화 기준 원금·평가금) — 앱 숫자와 맞춰 보는 용도
+    try { const tp = h.result.totalPurchaseAmount, mv = h.result.marketValue && h.result.marketValue.amount; tossSum.costKrw += num(tp && tp.krw); tossSum.valueKrw += num(mv && mv.krw); } catch (e) { /* 없으면 생략 */ }
     console.log('  · 계좌(' + (a.accountType || '?') + '): 종목 ' + items.length + '개');
     if (items.length && !shownKeys) { shownKeys = true; console.log('    (토스 응답 항목 이름: ' + Object.keys(items[0]).join(', ') + ')'); }
     for (const it of items) {
@@ -126,7 +129,8 @@ async function syncToss() {
     }
   }
   console.log('  · 토스증권 예수금: 원화 ' + Math.round(cashKrw).toLocaleString('ko-KR') + '원, 달러 $' + cashUsd.toLocaleString('en-US'));
-  return { holdings, cashKrw, cashUsd };
+  if (tossSum.costKrw) console.log('  · 토스 계산 기준: 원금 ' + Math.round(tossSum.costKrw).toLocaleString('ko-KR') + '원 · 평가 ' + Math.round(tossSum.valueKrw).toLocaleString('ko-KR') + '원 (토스 앱 "내 투자"와 같아야 함)');
+  return { holdings, cashKrw, cashUsd, tossSum };
 }
 
 /* ---------- 실행 ---------- */
