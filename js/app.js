@@ -110,16 +110,17 @@
     if (h.type === 'coin') { const p = coinPx(h); return p ? p * h.qty : null; }
     return h.price ? h.price * h.qty * fxOf(h) : null;
   }
-  // 원금(원화). 토스증권 해외주식은 '산 날 환율'로 계산한 토스의 원화 손익률을 그대로 써서 토스 앱과 맞춤
-  // (평단 달러 × 오늘 환율로 계산하면 환율이 변한 만큼 손익이 토스와 달라짐)
+  // 원금(원화). 토스증권 해외주식은 토스가 '산 날 환율'로 계산한 원화 원금 합계(tossSum)에 맞춰 나눠 줌
+  // (평단 달러 × 오늘 환율로만 계산하면 환율이 변한 만큼 손익이 토스 앱과 달라짐)
+  function tossScale() {
+    const T = LIVE && LIVE.tossSum; if (!T || !T.costKrw) return 1;
+    const usd = (LIVE.holdings || []).filter((x) => x.type === 'stock' && x.source === '토스증권').reduce((t, x) => t + x.avg * x.qty * (x.currency === 'USD' ? usdRate() : 1), 0);
+    const k = usd ? T.costKrw / usd : 1;
+    return k > 0.7 && k < 1.4 ? k : 1; // 말이 안 되는 값이면 쓰지 않음
+  }
   function holdingCost(h) {
-    const usdCost = h.avg * h.qty * fxOf(h);
-    if (h.type === 'stock' && h.currency === 'USD' && h.rate != null && isFinite(h.rate) && h.price && h.avg) {
-      const u = h.price / h.avg - 1, r = Number(h.rate);
-      const frac = Math.abs(r / 100 - u) < Math.abs(r - u) ? r / 100 : r; // 토스가 %로 주는지 소수로 주는지 자동 판단
-      if (frac > -0.99) return h.price * h.qty * fxOf(h) / (1 + frac);
-    }
-    return usdCost;
+    const c = h.avg * h.qty * fxOf(h);
+    return h.live && h.type === 'stock' && h.source === '토스증권' ? c * tossScale() : c;
   }
 
   // 직접 입력한 자산 + 동기화 프로그램이 가져온 자산(빗썸·토스증권)

@@ -144,6 +144,7 @@ for (const [name, fn] of [['빗썸', syncBithumb], ['토스증권', syncToss]]) 
     out.cashKrw += r.cashKrw || 0;
     if (r.cashKrw) (out.cashParts = out.cashParts || {})[name + ' 원화'] = r.cashKrw;
     if (r.cashUsd) out.cashUsd = (out.cashUsd || 0) + r.cashUsd;
+    if (r.tossSum && r.tossSum.costKrw) out.tossSum = { costKrw: Math.round(r.tossSum.costKrw), valueKrw: Math.round(r.tossSum.valueKrw) };
     console.log('✓ ' + name + ': ' + r.holdings.length + '개 종목');
   } catch (e) {
     out.notes.push(name + ' 오류: ' + e.message);
