@@ -448,3 +448,5 @@ button.lb-r { cursor: pointer; } button.lb-r:hover { background: var(--sunk); }
 .yb-row .ptrack { height: 12px; }
 .yb-row .ptrack .pos, .yb-row .ptrack .neg { height: 12px; }
 .kv b.up { color: var(--up); } .kv b.down { color: var(--down); }
+.lb .st-r, .lb .lb-r.st-r { grid-template-columns: minmax(0, 1.7fr) repeat(4, minmax(0, .8fr)) minmax(0, 1fr); }
+@media (max-width: 480px) { .lb-r { font-size: 12px; gap: 4px; padding: 9px 9px; } .lb-r.th { font-size: 10.5px; padding: 6px 9px; } }
