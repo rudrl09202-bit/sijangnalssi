@@ -233,6 +233,7 @@
     return `
       <header class="top"><div><p class="kicker">${esc(todayLabel())}</p><h1>시장날씨</h1></div>${tools()}</header>${demoBanner()}
       ${hero}
+      <a class="card link-card hq-entry" href="#hq"><div class="card-head"><div><p class="kicker">본부</p><p class="b">내 자산 · 모의투자 · 시장 · 실전 대기실을 한눈에</p></div>${CHEV}</div></a>
       <section class="card">
         <div class="row gap center"><span class="wx">${ICON[w.icon]}</span>
           <div class="grow"><p class="kicker">오늘의 시장날씨</p><p class="big-title">${esc(w.title)}</p></div></div>
@@ -1543,7 +1544,7 @@
   }
   function viewPaper() {
     const P = paperData();
-    const head = `<header class="top"><div><p class="kicker">가상 1억 원씩 · 매일 자동 · 실제 돈 아님</p><h1>투자봇</h1></div>${tools()}</header>`;
+    const head = `<header class="top"><div><p class="kicker">가상 1억 원씩 · 매일 자동 · 실제 돈 아님</p><h1>투자봇</h1></div><div class="tools"><a class="icon-btn" href="#hq" title="본부" aria-label="본부 보기">${SV('<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>')}</a></div></header>`;
     if (!P) { loadRemotePaper(); return head + `<section class="card empty"><p class="h-md">아직 봇 결과가 없어요</p><p class="muted sm">GitHub 자동 실행(평일 오후 4시 10분·오전 7시 30분)이 한 번 돌면 이 화면이 채워집니다. 바로 보려면 GitHub → Actions → "매일 자동 분석·알림" → Run workflow.</p></section>`; }
     const sel = S.ui.paperBot || 'team', tab = S.ui.paperTab || 'live';
     const all = P.bots.filter((b) => !b.empty), bots = all.filter((b) => !b.retired), retired = all.filter((b) => b.retired);
@@ -1711,8 +1712,114 @@
         <div class="lrow" style="cursor:default"><span class="ic">${IC.info}</span><span class="grow"><p class="t">시장날씨</p><p class="s">시세 ${ML ? esc(ML.asOf) + ' 기준' : '—'} · 투자 권유가 아닌 참고 정보예요</p></span></div></section>`;
   }
 
-  const VIEWS = { explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
-  const TAB_OF = { compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  /* ===================== 본부(HQ): 방 4개 ===================== */
+  // 아이소메트릭 방 하나를 SVG 로 그림. staff: [{code, name, say, tone, i, j}] (i,j = 바닥 칸 0~3)
+  function isoRoom(o) {
+    const P = (i, j, z) => [200 + (i - j) * 34, 112 + (i + j) * 17 - (z || 0)];
+    const pt = (a) => a.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const floor = [P(-0.5, -0.5), P(4.5, -0.5), P(4.5, 4.5), P(-0.5, 4.5)];
+    const H = 86;
+    const wallL = [P(-0.5, 4.5), P(-0.5, -0.5), P(-0.5, -0.5, H), P(-0.5, 4.5, H)];
+    const wallR = [P(-0.5, -0.5), P(4.5, -0.5), P(4.5, -0.5, H), P(-0.5, -0.5, H)];
+    // 오른쪽 벽 모니터 + 그래프
+    const s0 = P(1.0, -0.5, 74), s1 = P(3.8, -0.5, 74), s2 = P(3.8, -0.5, 38), s3 = P(1.0, -0.5, 38);
+    let spark = '';
+    const ys = (o.series || []).filter((v) => isFinite(v));
+    if (ys.length > 2) {
+      const mn = Math.min(...ys), mx = Math.max(...ys), rg = mx - mn || 1;
+      spark = ys.map((v, k) => { const t = k / (ys.length - 1); const x = s3[0] + (s2[0] - s3[0]) * t, yb = s3[1] + (s2[1] - s3[1]) * t; return x.toFixed(1) + ',' + (yb - 8 - (v - mn) / rg * 28).toFixed(1); }).join(' ');
+    }
+    // 왼쪽 벽 방 이름 (벽 기울기에 맞춰 기울임)
+    const n0 = P(-0.5, 4.0, 62);
+    const desk = (i, j) => { const a = P(i - 0.32, j - 0.32, 14), b = P(i + 0.32, j - 0.32, 14), c = P(i + 0.32, j + 0.32, 14), d = P(i - 0.32, j + 0.32, 14), e = P(i + 0.32, j + 0.32), f = P(i - 0.32, j + 0.32), g = P(i + 0.32, j - 0.32);
+      return `<polygon class="hq-desk-top" points="${pt([a, b, c, d])}"/><polygon class="hq-desk-side" points="${pt([d, c, e, f])}"/><polygon class="hq-desk-side2" points="${pt([c, b, g, e])}"/>`; };
+    const person = (s, k) => {
+      const [x, y] = P(s.i - 0.05, s.j + 0.5, 0);
+      return `<g class="hq-p ${s.tone || ''}" style="animation-delay:${(k * 0.37).toFixed(2)}s">
+        <ellipse cx="${x}" cy="${y + 1}" rx="10" ry="4" class="hq-shadow"/>
+        <rect x="${x - 9}" y="${y - 26}" width="18" height="24" rx="9" class="hq-body"/>
+        <circle cx="${x - 3.5}" cy="${y - 17}" r="1.8" class="hq-eye"/><circle cx="${x + 3.5}" cy="${y - 17}" r="1.8" class="hq-eye"/>
+        ${s.say ? `<g class="hq-say"><rect x="${x - Math.min(60, 8 + s.say.length * 5.6)}" y="${y - 50}" width="${Math.min(120, 16 + s.say.length * 11.2)}" height="18" rx="9"/><text x="${x}" y="${y - 37.5}" text-anchor="middle">${esc(s.say)}</text></g>` : ''}
+        <text x="${x}" y="${y + 15}" text-anchor="middle" class="hq-name">${esc(s.code)}</text></g>`;
+    };
+    const staff = (o.staff || []).slice().sort((a, b) => (a.i + a.j) - (b.i + b.j));
+    return `<svg class="hq-svg" viewBox="0 0 400 300" role="img" aria-label="${esc(o.title)} 방">
+      <polygon class="hq-floor" points="${pt(floor)}"/>
+      <polygon class="hq-wall-l" points="${pt(wallL)}"/><polygon class="hq-wall-r" points="${pt(wallR)}"/>
+      <polygon class="hq-screen" points="${pt([s0, s1, s2, s3])}"/>
+      ${spark ? `<polyline class="hq-spark ${o.sparkCls || ''}" points="${spark}"/>` : ''}
+      <text class="hq-room-name" transform="translate(${n0[0]},${n0[1]}) skewY(-26.57)">${esc(o.wallName || '')}</text>
+      ${o.locked ? `<g class="hq-lock"><rect x="176" y="150" width="48" height="30" rx="8"/><path d="M188 150v-8a12 12 0 0 1 24 0v8" fill="none"/><circle cx="200" cy="165" r="3.5"/></g>` : ''}
+      ${staff.map((s) => desk(s.i, s.j)).join('')}
+      ${staff.map(person).join('')}
+    </svg>`;
+  }
+  function hqCard(o) {
+    return `<a class="hq-card ${o.locked ? 'locked' : ''}" href="${o.href}">
+      <div class="hq-head"><div><p class="hq-kick">${esc(o.kick)}</p><p class="hq-title">${esc(o.title)}</p></div>
+        <div class="right"><p class="hq-num num ${o.numCls || ''}">${o.num}</p><p class="hq-sub ${o.subCls || ''}">${o.sub || ''}</p></div></div>
+      ${isoRoom(o)}
+      <div class="hq-log">${(o.log || []).slice(0, 3).map((l) => `<p><span class="hq-dot ${l.cls || ''}"></span>${l.html}</p>`).join('') || '<p class="muted">기록 없음</p>'}</div></a>`;
+  }
+  function viewHQ() {
+    // 1) 내 자산 방
+    const Pf = portfolio(), cnt = actCounts(Pf.rows);
+    const top = Pf.rows.slice().sort((a, b) => (b.v || 0) - (a.v || 0))[0];
+    const topW = top && Pf.all ? top.v / Pf.all * 100 : 0;
+    const guide = Pf.rows.filter((r) => r.act && r.act.action !== 'hold').sort((a, b) => ACTION_ORDER.indexOf(a.act.action) - ACTION_ORDER.indexOf(b.act.action)).slice(0, 3);
+    const cal = (() => { try { return Object.entries(S.assetLog || {}).sort().slice(-30).map(([, v]) => v && v.t); } catch (e) { return []; } })();
+    const syncT = LIVE && LIVE.syncedAt ? new Date(LIVE.syncedAt) : null;
+    const asset = {
+      href: '#assets', kick: 'ROOM 1', title: '내 자산 방', wallName: 'PORTFOLIO', series: cal,
+      num: Pf.rows.length ? wonShort(Pf.all) : '—', sub: Pf.rows.length ? `${Pf.pnl >= 0 ? '+' : ''}${wonShort(Pf.pnl)} (${Pf.cost ? sign(Pf.pnl / Pf.cost * 100, 1) : '—'}%)` : '자산 연결 전', subCls: dirClass(Pf.pnl),
+      staff: [
+        { code: 'PRICE', i: 0, j: 0, say: syncT ? syncT.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' 동기화' : '연결 대기' },
+        { code: 'CHIEF', i: 3, j: 0, say: cnt.check ? '손절 점검 ' + cnt.check : cnt.buy ? '매수 검토 ' + cnt.buy : '유지', tone: cnt.check ? 'alert' : '' },
+        { code: 'VAULT', i: 3, j: 3, say: topW > 40 ? '한 종목 ' + topW.toFixed(0) + '%' : '비중 양호', tone: topW > 40 ? 'alert' : '' },
+        { code: 'REPORT', i: 0, j: 3, say: '할 일 ' + (cnt.buy + cnt.sell + cnt.check) }],
+      log: guide.map((r) => ({ cls: r.act.action === 'stop' ? 'alert' : '', html: `<b>${esc(r.h.name)}</b> ${esc(r.act.label)}` }))
+    };
+    // 2) 모의투자 방
+    const PP = window.SNW_PAPER;
+    let paper;
+    if (PP) {
+      const bots = PP.bots.filter((b) => !b.empty && !b.retired), start = PP.startCash * bots.length, nowV = bots.reduce((t, b) => t + (b.live ? b.live.equity : PP.startCash), 0);
+      const r = (nowV / start - 1) * 100;
+      const pos = [[0, 0], [3, 0], [0, 3], [3, 3]];
+      paper = {
+        href: '#paper', kick: 'ROOM 2', title: '모의투자 방', wallName: 'PAPER BOTS', series: (PP.team.live && PP.team.live.curve.length > 2 ? PP.team.live.curve : PP.team.bt.curve.slice(-120)).map((x) => x[1]),
+        num: (r >= 0 ? '+' : '') + r.toFixed(2) + '%', numCls: dirClass(r), sub: '가상 ' + bots.length + '억 · ' + esc(PP.inception) + '~',
+        staff: bots.slice(0, 4).map((b, k) => { const st = b.live ? b.live.status : 'ok'; const n = b.live ? b.live.positions.length : 0, o = b.live ? b.live.orders.length : 0;
+          return { code: b.code, i: pos[k][0], j: pos[k][1], tone: st === 'paused' ? 'alert' : '', say: st === 'paused' ? '금고 정지' : n ? '보유 ' + n : o ? '주문 ' + o : '대기' }; }),
+        log: (PP.today || []).slice(-3).reverse().map((e) => ({ cls: e.side === 'vault' ? 'alert' : '', html: `<b>${esc(e.botCode || '')}</b> ${e.side === 'buy' ? '매수' : e.side === 'sell' ? '매도' : '금고'} ${esc(e.name || '')} <span class="muted">${esc((e.d || '').slice(5))}</span>` }))
+      };
+    } else paper = { href: '#paper', kick: 'ROOM 2', title: '모의투자 방', wallName: 'PAPER BOTS', num: '—', sub: '결과 불러오는 중', staff: [{ code: 'ATLAS', i: 0, j: 0, say: '대기' }, { code: 'ORBIT', i: 3, j: 0, say: '대기' }, { code: 'NOVA', i: 0, j: 3, say: '대기' }, { code: 'CHIEF', i: 3, j: 3, say: '대기' }], log: [] };
+    // 3) 시장 관제실
+    const w = weather(), ev = SNAP.events.map((e) => ({ ...e, d: R.daysUntil(e.date, now()) })).filter((e) => e.d >= 0);
+    const wind = (lbl) => (w.winds || []).find((x) => x.label.indexOf(lbl) >= 0);
+    const spx = ML && ML.macroSeries && ML.macroSeries.spx && ML.macroSeries.spx.c ? ML.macroSeries.spx.c.slice(-90) : [];
+    const market = {
+      href: '#explore', kick: 'ROOM 3', title: '시장 관제실', wallName: 'MARKET', series: spx,
+      num: esc(w.title), numCls: 'hq-weather', sub: esc(w.sub || ''),
+      staff: [['금리', 'RATE', 0, 0], ['달러', 'USD', 3, 0], ['변동성', 'VIX', 3, 3], ['심리', 'MOOD', 0, 3]].map(([l, c, i, j]) => { const x = wind(l); return { code: c, i, j, say: x ? (x.on ? '역풍' : '양호') : '—', tone: x && x.on ? 'alert' : '' }; }),
+      log: ev.slice(0, 3).map((e) => ({ cls: e.d <= 3 ? 'alert' : '', html: `<b>${e.d === 0 ? 'D-DAY' : 'D-' + e.d}</b> ${esc(e.title)}` }))
+    };
+    // 4) 실전 대기실
+    let bestRd = { passed: 0, total: 6 }, bestBot = null;
+    if (PP) PP.bots.filter((b) => !b.retired && b.ready).forEach((b) => { if (b.ready.passed > bestRd.passed || !bestBot) { bestRd = b.ready; bestBot = b; } });
+    const sat = (() => { const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); return (d.getMonth() + 1) + '/' + d.getDate(); })();
+    const live = {
+      href: '#paper', kick: 'ROOM 4', title: '실전 대기실', wallName: 'LIVE', locked: !bestRd.ready, series: [],
+      num: bestRd.passed + '/' + bestRd.total, sub: '실전 전환 조건' + (bestBot ? ' · ' + esc(bestBot.code) : ''),
+      staff: [{ code: 'ORDER', i: 0, j: 0, say: bestRd.ready ? '준비됨' : '잠김', tone: bestRd.ready ? '' : 'idle' }, { code: 'GUARD', i: 3, j: 0, say: '감시 대기', tone: 'idle' }, { code: 'COACH', i: 0, j: 3, say: sat + ' 보고' }],
+      log: [{ html: '모의투자 60거래일 · 거래 20번 · 손익비 1.3 이상 통과 후 열림' }, { html: '열리면 1천만 원부터 시작 · 하루 손실 한도 · 전체 정지 버튼' }]
+    };
+    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">방을 누르면 자세히 볼 수 있어요</p><h1>본부</h1></div>${tools()}</header>
+      <div class="hq-grid">${[asset, paper, market, live].map(hqCard).join('')}</div>`;
+  }
+
+  const VIEWS = { hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
+  const TAB_OF = { hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { const h = (location.hash || '#home').slice(1); return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
@@ -1724,6 +1831,7 @@
     const r = route();
     const el = document.getElementById('view');
     el.innerHTML = VIEWS[r]();
+    if (document.body && document.body.classList) document.body.classList.toggle('wide', r === 'hq');
     document.querySelectorAll('.tabbar a').forEach((a) => {
       const on = a.dataset.tab === (TAB_OF[r] || r);
       a.classList.toggle('on', on);
