@@ -268,14 +268,15 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
       trades: L.trades.slice(-40).reverse(), status: L.paused ? 'paused' : L.probation ? 'probation' : L.dayBlock ? 'dayblock' : L.halve ? 'halve' : 'ok', streak: L.streak, peak: Math.round(L.peak), lastDate: L.lastDate
     } : null;
     return {
-      id: b.id, code: b.code, name: b.name, role: b.role, method: b.method, edge: b.edge, kinds: b.kinds, bench: benchFor(b),
+      id: b.id, code: b.code, name: b.name, role: b.role, method: b.method, edge: b.edge, kinds: b.kinds, bench: benchFor(b), retired: b.retired || null,
       bt: { full, is: isM, oos, vs, mc, curve: sampleCurve(a.equity, btEvery), recent: a.trades.slice(-25).reverse(), robust: robust && robust[b.id] ? { ...robust[b.id], dropped: robust.dropped } : null },
       live,
       ready: Q.readiness(liveM ? { days: L.equity.length, trades: L.trades.length, pf: liveM.pf, mdd: liveM.mdd } : { days: L ? L.equity.length : 0, trades: 0 }, { mdd: full && full.mdd, oosCagr: oos && oos.cagr, sharpe: full && full.sharpe })
     };
   });
-  const teamBt = Q.combine(Q.BOTS.map((b) => bt.accounts[b.id] && bt.accounts[b.id].equity));
-  const teamLive = Q.combine(Q.BOTS.map((b) => state.accounts[b.id] && state.accounts[b.id].equity));
+  const active = Q.BOTS.filter((b) => !b.retired); // 퇴출된 봇은 팀 계좌에서 뺌
+  const teamBt = Q.combine(active.map((b) => bt.accounts[b.id] && bt.accounts[b.id].equity));
+  const teamLive = Q.combine(active.map((b) => state.accounts[b.id] && state.accounts[b.id].equity));
   const team = { bt: { full: Q.metrics(teamBt, []), oos: Q.metrics(sliceByDate(teamBt, split, null), []), vs: Q.versus(teamBt, benches.spx), mc: Q.monteCarlo(teamBt, 500), curve: sampleCurve(teamBt, btEvery) },
     live: teamLive.length > 1 ? { metrics: Q.metrics(teamLive, []), curve: teamLive.slice(-400) } : null };
   const benchOut = {}; Object.entries(benches).forEach(([k, c]) => { if (c) benchOut[k] = { curve: sampleCurve(c, btEvery * 2), metrics: Q.metrics(c, []) }; });
@@ -296,7 +297,7 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
   bots.forEach((b) => { if (b.bt && b.bt.full) log('  ' + b.code.padEnd(6) + ' 10년 CAGR ' + b.bt.full.cagr + '% · MDD ' + b.bt.full.mdd + '% · 샤프 ' + b.bt.full.sharpe + ' · 표본 밖 ' + (b.bt.oos ? b.bt.oos.cagr + '%' : '—') + ' · 모의 ' + (b.live ? b.live.ret + '%' : '—')); });
 
   // ── 4) 푸시: 새 체결 요약
-  const fills = fresh.filter((e) => e.side === 'buy' || e.side === 'sell');
+  const fills = fresh.filter((e) => (e.side === 'buy' || e.side === 'sell') && !(Q.BOTS.find((b) => b.id === e.bot) || {}).retired); // 퇴출 봇은 알림 안 함
   if (sendPush && fills.length) {
     const code = (id) => (Q.BOTS.find((b) => b.id === id) || {}).code;
     const lines = fills.slice(-6).map((e) => code(e.bot) + ' ' + (e.side === 'buy' ? '매수 ' : '매도 ') + e.name + (e.pnl != null ? ' (' + (e.pnl >= 0 ? '+' : '') + Math.round(e.pnl / 10000).toLocaleString('ko-KR') + '만)' : ''));
