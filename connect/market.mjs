@@ -40,6 +40,9 @@ export const MACRO = {
   silver: 'SI=F', usdjpy: 'JPY=X', usdcny: 'CNY=X', eurusd: 'EURUSD=X'
 };
 
+// 코인 10년치(달러) — 모의투자 백테스트용. 앱은 원화 시세를 따로 씀
+export const COINS = { BTC: 'BTC-USD', ETH: 'ETH-USD', XRP: 'XRP-USD', SOL: 'SOL-USD', DOGE: 'DOGE-USD', ADA: 'ADA-USD', LINK: 'LINK-USD', AVAX: 'AVAX-USD', TRX: 'TRX-USD', SUI: 'SUI20947-USD' };
+
 function loadUniverse() {
   const ctx = { window: {} };
   vm.runInNewContext(readFileSync(join(HERE, '..', 'js', 'universe.js'), 'utf8'), ctx);
@@ -113,6 +116,12 @@ export async function run({ fetchImpl = fetch, log = console.log, out = OUT, his
     await sleep(150);
   }
   log('거시 지표 ' + Object.keys(result.macro).length + '/' + Object.keys(MACRO).length);
+
+  // 1-2) 코인 (모의투자용 10년치)
+  for (const [sym, y] of Object.entries(COINS)) {
+    try { const k = await chart(y, fetchImpl); writeHist(histDir, 'c_' + sym, k); } catch (e) { result.errors.push('coin ' + sym + ': ' + e.message); }
+    await sleep(150);
+  }
 
   // 2) 종목 (시장 간 중복은 한 번만)
   const jobs = [];
