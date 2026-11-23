@@ -1835,12 +1835,12 @@
     };
     const say = async (svgSel, text, warn, code) => {
       const svg = document.querySelectorAll('.hq-svg')[svgSel]; if (!svg) return;
-      const g = getBoss(svg), b = g.querySelector('.boss-say'), w = Math.min(130, 22 + text.length * 10.5);
+      const g = getBoss(svg), b = g.querySelector('.boss-say'), w = Math.min(150, 22 + text.length * 10.5);
       b.querySelector('rect').setAttribute('x', -w / 2); b.querySelector('rect').setAttribute('width', w);
-      b.querySelector('text').textContent = text; b.classList.toggle('warn', !!warn); b.style.opacity = 1;
+      b.querySelector('text').textContent = text; b.classList.toggle('warn', warn === 'warn'); b.classList.toggle('fail', warn === 'fail'); b.style.opacity = 1;
       g.classList.add('check');
       const st = code && svg.querySelector(`.hq-p[data-code="${code}"]`); if (st) st.classList.add('checked');
-      await PATROL.wait(1700);
+      await PATROL.wait(2600);
       b.style.opacity = 0; g.classList.remove('check'); if (st) st.classList.remove('checked');
       await PATROL.wait(250);
     };
@@ -1860,15 +1860,16 @@
           if (!alive()) break;
           const [x, y] = P(s.i + 1.3, s.j + 0.9);
           await walk(k, x, y);
-          let t = '열일 중! 좋아', w = false;
-          if (s.locked) { t = s.code === 'ORDER' ? '아직 대기 중' : '준비 잘해둬'; }
-          else if (s.tone === 'alert') { t = '이거 확인해!'; w = true; warn++; }
-          else if (s.tone === 'idle') { t = '졸지 마~'; sleep++; }
-          await say(k, `${s.code} ${t}`.length > 12 ? t : `${s.code} ${t}`, w, s.code);
+          const a = HQ_AUDIT[name + '|' + s.code];
+          status(`${name} · ${s.code} 점검: ${a ? a.ev : '맡은 일 정보 없음'}`);
+          let t = a ? (a.st === 'ok' ? '확인 ✓ ' : a.st === 'fail' ? '일 안 됨! ' : a.st === 'warn' ? '사장님 확인! ' : '') + a.short : '정보 없음', w = a && (a.st === 'fail' || a.st === 'warn') ? a.st : '';
+          if (a && a.st === 'fail') warn++; else if (a && a.st === 'warn') sleep++;
+          await PATROL.wait(400);
+          await say(k, t, w, s.code);
         }
         await walk(k, ex, ey);
         const gg = getBoss(document.querySelectorAll('.hq-svg')[k] || svg); gg.style.opacity = 0;
-        status(`${name} 점검 끝 · ${warn ? '확인 필요 ' + warn + '명' : sleep ? '조는 직원 ' + sleep + '명' : '모두 열일 중'} → 다음 방으로`);
+        status(`${name} 점검 끝 · ${warn ? '문제 ' + warn + '명' : ''}${warn && sleep ? ' · ' : ''}${sleep ? '확인 필요 ' + sleep + '명' : ''}${!warn && !sleep ? '모두 맡은 일 정상' : ''} → 다음 방으로`);
         await PATROL.wait(1400);
         PATROL.room++;
       }
@@ -1925,6 +1926,103 @@
       ${isoRoom(o)}
       <div class="hq-log">${(o.log || []).slice(0, 3).map((l) => `<p><span class="hq-dot ${l.cls || ''}"></span>${l.html}</p>`).join('') || '<p class="muted">기록 없음</p>'}</div></a>`;
   }
+  /* ---------- BOSS 업무 점검: 직원마다 맡은 일 + 실제 데이터로 확인 ----------
+   * 결과: ok(제대로 함) · warn(일은 했고, 사장님이 볼 것을 찾음) · fail(맡은 일을 못 함) · wait(아직 차례 아님)
+   * 모든 판정에는 근거(evidence)를 남김. 형식적인 "좋아"는 없음. */
+  const HQ_AUDIT = {};
+  function bizDaysSince(d) { // 데이터 날짜 이후 지난 평일 수 (주말 제외)
+    if (!d) return 99; const a = new Date(String(d).slice(0, 10) + 'T00:00:00'), b = new Date(); let n = 0;
+    for (const x = new Date(a); x < b && n < 99; x.setDate(x.getDate() + 1)) { if (x > a && x.getDay() % 6) n++; }
+    return n;
+  }
+  const agoTxt = (ms) => ms < 3600e3 ? Math.max(1, Math.round(ms / 60e3)) + '분 전' : ms < 86400e3 ? Math.round(ms / 3600e3) + '시간 전' : Math.round(ms / 86400e3) + '일 전';
+  const md = (d) => d ? String(d).slice(5, 10).replace('-', '/') : '—';
+  function auditHQ(ctx) {
+    const A = [], add = (room, o) => { o.room = room; A.push(o); HQ_AUDIT[room + '|' + o.code] = o; return o; };
+    const { Pf, PP, w } = ctx;
+    // ROOM 1 — 내 자산 방
+    const R1 = '내 자산 방';
+    if (!Pf.rows.length) {
+      ['PRICE', 'CHIEF', 'VAULT', 'REPORT'].forEach((c) => add(R1, { code: c, duty: '자산 연결 후 시작', st: 'wait', short: '자산 연결 전', ev: '연결된 보유 자산이 없어요' }));
+    } else {
+      const syncT = LIVE && LIVE.syncedAt ? new Date(LIVE.syncedAt) : null, age = syncT ? Date.now() - syncT : Infinity;
+      const noPx = Pf.rows.filter((r) => r.v == null);
+      const pSt = S.demo ? 'ok' : !syncT || age > 6 * 3600e3 || noPx.length ? 'fail' : age > 90 * 60e3 ? 'warn' : 'ok';
+      add(R1, { code: 'PRICE', duty: '보유 자산 시세를 1시간마다 받아오기', st: pSt, href: '#assets',
+        short: !syncT ? '동기화 없음' : noPx.length ? '가격 빠짐 ' + noPx.length : agoTxt(age) + ' 동기화',
+        ev: `마지막 동기화 ${syncT ? syncT.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' (' + agoTxt(age) + ')' : '기록 없음'} · 가격 빠진 종목 ${noPx.length ? noPx.map((r) => r.h.name).slice(0, 3).join(', ') : '0개'}${pSt === 'fail' && syncT && age > 6 * 3600e3 ? ' · 1시간마다 해야 하는데 6시간 넘게 끊김 → 서버 확인 필요' : ''}` });
+      const noAct = Pf.rows.filter((r) => !r.act), chk = Pf.rows.filter((r) => r.act && ['stop', 'reduce', 'trim'].indexOf(r.act.action) >= 0);
+      add(R1, { code: 'CHIEF', duty: '보유 종목마다 유지·매수·점검 판단 내리기', st: noAct.length ? 'fail' : chk.length ? 'warn' : 'ok', href: '#assets',
+        short: noAct.length ? '판단 누락 ' + noAct.length : chk.length ? '점검 ' + chk.length + '건' : '판단 완료',
+        ev: `${Pf.rows.length}종목 중 ${Pf.rows.length - noAct.length}개 판단 완료${noAct.length ? ' · 누락: ' + noAct.map((r) => r.h.name).slice(0, 3).join(', ') : ''}${chk.length ? ' · 사장님 확인 필요: ' + chk.slice(0, 3).map((r) => r.h.name + '(' + r.act.label + ')').join(', ') : ''}` });
+      const top = Pf.rows.slice().sort((a, b) => (b.v || 0) - (a.v || 0))[0], topW = top && Pf.all ? top.v / Pf.all * 100 : 0;
+      add(R1, { code: 'VAULT', duty: '한 종목이 자산의 40%를 넘지 않게 감시', st: topW > 40 ? 'warn' : 'ok', href: '#assets',
+        short: topW > 40 ? '쏠림 ' + topW.toFixed(0) + '%' : '비중 양호',
+        ev: `가장 큰 종목 ${top ? top.h.name : '—'} ${topW.toFixed(1)}% (한도 40%)${topW > 40 ? ' → 한도 초과, 나눠 담기 검토' : ' → 한도 안'}` });
+      const keys = Object.keys(S.assetLog || {}).sort(), last = keys[keys.length - 1], lag = last ? Math.round((new Date(todayKey()) - new Date(last)) / 864e5) : 99;
+      add(R1, { code: 'REPORT', duty: '매일 자산 기록 남기기 (달력·성적표용)', st: lag <= 1 ? 'ok' : lag <= 6 ? 'warn' : 'fail', href: '#calendar',
+        short: lag <= 1 ? '기록 ' + keys.length + '일' : lag + '일 빠짐',
+        ev: `기록 ${keys.length}일치 · 마지막 기록 ${md(last)}${lag > 1 ? ' · ' + lag + '일 동안 기록 안 됨' : ''}` });
+    }
+    // ROOM 2 — 모의투자 방
+    const R2 = '모의투자 방';
+    if (!PP) ['ATLAS', 'ORBIT', 'NOVA', 'CHIEF'].forEach((c) => add(R2, { code: c, duty: '모의투자 매매', st: 'fail', short: '결과 없음', ev: '모의투자 결과 파일을 못 불러왔어요 (매일 자동 분석 확인 필요)', href: '#paper' }));
+    else PP.bots.filter((b) => !b.empty && !b.retired).slice(0, 4).forEach((b) => {
+      const L = b.live, lagD = L ? bizDaysSince(L.lastDate) : 99, maxW = (PP.vault && PP.vault.maxPosPct) || 15;
+      const over = L ? L.positions.filter((p) => p.w > maxW + 1) : [];
+      const noStop = L ? L.positions.filter((p) => b.code !== 'ORBIT' && p.stop == null) : [];
+      let st = 'ok', short = '규칙대로 운용';
+      if (!L) { st = 'fail'; short = '기록 없음'; }
+      else if (lagD > 3) { st = 'fail'; short = lagD + '일째 멈춤'; }
+      else if (over.length) { st = 'fail'; short = '비중 위반'; }
+      else if (noStop.length) { st = 'fail'; short = '손절선 없음'; }
+      else if (L.status === 'paused') { st = 'warn'; short = '금고 규칙 정지'; }
+      else if (lagD > 2) { st = 'warn'; short = '업데이트 늦음'; }
+      add(R2, { code: b.code, duty: (b.role || b.name || ''), st, short, href: '#paper',
+        ev: L ? `마지막 처리 ${md(L.lastDate)} · 보유 ${L.positions.length} · 대기 주문 ${L.orders.length} · 최대 비중 ${L.positions.length ? Math.max(...L.positions.map((p) => p.w || 0)).toFixed(1) : 0}% (한도 ${maxW}%)${b.code !== 'ORBIT' ? ' · 손절선 ' + (L.positions.length - noStop.length) + '/' + L.positions.length : ' · 월 1회 교체형(손절선 없음이 정상)'}${over.length ? ' · 위반: ' + over.map((p) => p.name + ' ' + p.w + '%').join(', ') : ''}${L.status === 'paused' ? ' · 낙폭이 커져 규칙대로 쉬는 중' : ''}` : '이 봇의 모의투자 기록이 없어요' });
+    });
+    // ROOM 3 — 시장 관제실
+    const R3 = '시장 관제실';
+    const wind = (lbl) => (w.winds || []).find((x) => x.label.indexOf(lbl) >= 0);
+    [['RATE', 'us10y', '금리', '미국 10년 금리 감시'], ['USD', 'usdkrw', '달러', '원/달러 환율 감시'], ['VIX', 'vix', '변동성', '공포지수(VIX) 감시']].forEach(([c, k, lbl, duty]) => {
+      const m = S.markets[k], d = ML && ML.macro && ML.macro[k] ? ML.macro[k].date : null, lagD = d ? bizDaysSince(d) : 99, x = wind(lbl);
+      const st = !m || m.value == null || lagD > 3 ? 'fail' : x && x.on ? 'warn' : 'ok';
+      add(R3, { code: c, duty, st, href: '#explore', short: st === 'fail' ? (d ? lagD + '일 묵은 값' : '데이터 없음') : x && x.on ? '역풍 감지' : '정상 감시',
+        ev: `현재 ${m && m.value != null ? fmtMarket(m).v : '—'} · 데이터 날짜 ${d ? md(d) : '스냅샷(자동 갱신 아님)'}${x ? ' · 판정: ' + (x.on ? '역풍' : '양호') + (x.why ? ' (' + x.why + ')' : '') : ''}` });
+    });
+    {
+      const live = S.fngFrom === 'live', x = wind('심리');
+      add(R3, { code: 'MOOD', duty: '코인 시장 심리(공포·탐욕) 감시', st: live ? (x && x.on ? 'warn' : 'ok') : 'warn', href: '#explore',
+        short: live ? (x && x.on ? '역풍 감지' : '정상 감시') : '옛날 값 사용',
+        ev: `공포·탐욕 ${S.fng != null ? S.fng : '—'} · ${live ? '실시간으로 받음' : '실시간 연결 실패 → 저장된 값 사용 중'}${x ? ' · 판정: ' + (x.on ? '역풍' : '양호') : ''}` });
+    }
+    // ROOM 4 — 실전 대기실
+    const R4 = '실전 대기실';
+    let best = null;
+    if (PP) PP.bots.filter((b) => !b.retired && b.ready).forEach((b) => { if (!best || b.ready.passed > best.ready.passed) best = b; });
+    const rd = best ? best.ready : null, open = rd && rd.ready;
+    add(R4, { code: 'ORDER', duty: '실전 주문 — 조건 6개 통과 전에는 절대 주문 안 함', st: open ? 'warn' : 'ok', href: '#paper',
+      short: open ? '전환 준비됨' : '규칙대로 잠금', ev: open ? '조건을 모두 통과 — 사장님 결정 후 1천만 원부터' : `실전 주문 0건 · 잠금 유지 (최고 ${rd ? rd.passed : 0}/${rd ? rd.total : 6})` });
+    const fails = rd && rd.items ? rd.items.filter((i) => !i.ok) : [];
+    add(R4, { code: 'GUARD', duty: '실전 전환 조건 6가지를 매일 다시 계산', st: !PP ? 'fail' : bizDaysSince(PP.asOf) > 3 ? 'fail' : 'ok', href: '#paper',
+      short: !PP ? '계산 못 함' : (best ? best.code + ' ' + rd.passed + '/' + rd.total : '계산 완료'),
+      ev: PP ? `계산 날짜 ${md(PP.asOf)} · 1위 ${best ? best.code : '—'} ${rd ? rd.passed + '/' + rd.total : ''}${fails.length ? ' · 남은 조건: ' + fails.slice(0, 2).map((i) => i.label + '(' + i.val + ')').join(', ') : ''}` : '모의투자 결과가 없어 계산 못 함' });
+    const sat = (() => { const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); return (d.getMonth() + 1) + '/' + d.getDate(); })();
+    add(R4, { code: 'COACH', duty: '토요일 아침 주간 보고와 코칭', st: 'wait', short: sat + ' 보고',
+      ev: `다음 보고 ${sat}(토) 오전 8:49 · 보고는 앱 밖(Claude)에서 만들어져 앱에서 완료 여부를 확인할 수 없어요` });
+    return A;
+  }
+  const toneOf = (a) => !a ? '' : a.st === 'fail' ? 'alert' : a.st === 'warn' ? 'warn' : a.st === 'wait' ? 'idle' : '';
+  const ST_TXT = { ok: '정상', warn: '확인 필요', fail: '문제', wait: '대기' };
+  function auditLog(A) {
+    const cnt = { ok: 0, warn: 0, fail: 0, wait: 0 }; A.forEach((a) => cnt[a.st]++);
+    const rooms = [...new Set(A.map((a) => a.room))];
+    return `<section class="card hq-audit"><div class="row between"><p class="b">BOSS 점검 일지</p><p class="muted sm">${A.length}명 중 정상 ${cnt.ok} · 확인 ${cnt.warn} · 문제 ${cnt.fail}</p></div>
+      ${rooms.map((r) => `<p class="hq-audit-room">${esc(r)}</p>${A.filter((a) => a.room === r).map((a) => `<${a.href ? 'a href="' + a.href + '"' : 'div'} class="hq-audit-row">
+        <span class="hq-chip ${a.st}">${ST_TXT[a.st]}</span>
+        <div><p><b>${esc(a.code)}</b> <span class="muted">${esc(a.duty)}</span></p><p class="sm">${esc(a.ev)}</p></div></${a.href ? 'a' : 'div'}>`).join('')}`).join('')}
+      <p class="muted xs" style="margin-top:8px">정상 = 맡은 일을 했고 문제 없음 · 확인 필요 = 일은 했고 사장님이 볼 것을 찾음 · 문제 = 맡은 일을 못 함</p></section>`;
+  }
   function viewHQ() {
     // 1) 내 자산 방
     const Pf = portfolio(), cnt = actCounts(Pf.rows);
@@ -1978,9 +2076,12 @@
       staff: [{ code: 'ORDER', i: 0, j: 0, say: bestRd.ready ? '준비됨' : '잠김', tone: bestRd.ready ? '' : 'idle' }, { code: 'GUARD', i: 3, j: 0, say: '감시 대기', tone: 'idle' }, { code: 'COACH', i: 0, j: 3, say: sat + ' 보고' }],
       log: [{ html: '모의투자 60거래일 · 거래 20번 · 손익비 1.3 이상 통과 후 열림' }, { html: '열리면 1천만 원부터 시작 · 하루 손실 한도 · 전체 정지 버튼' }]
     };
+    const AUD = auditHQ({ Pf, PP, w });
+    [asset, paper, market, live].forEach((o) => (o.staff || []).forEach((s) => { const a = HQ_AUDIT[o.title + '|' + s.code]; if (a) { s.say = a.short; s.tone = toneOf(a); } }));
     return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">방을 누르면 자세히 볼 수 있어요</p><h1>본부</h1></div>${tools()}</header>
       <div class="hq-patrol"><span class="hq-patrol-dog">${bossSvg(true)}</span><div><p class="hq-patrol-t">총책임자 <b>BOSS</b></p><p class="hq-patrol-s" id="hq-patrol">${esc(PATROL.msg || "방을 돌며 직원들이 일하는지 점검하고 있어요")}</p></div></div>
-      <div class="hq-grid">${[asset, paper, market, live].map(hqCard).join('')}</div>`;
+      <div class="hq-grid">${[asset, paper, market, live].map(hqCard).join('')}</div>
+      ${auditLog(AUD)}`;
   }
 
   const VIEWS = { hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };

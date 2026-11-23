@@ -697,3 +697,18 @@ html[data-theme="dark"] .hq-desk-top { fill: #3A3E45; } html[data-theme="dark"] 
 @keyframes bossear { from { transform: rotate(0); } to { transform: rotate(-10deg); } }
 @keyframes bossglass { from { transform: rotate(-8deg) translate(0, 0); } to { transform: rotate(8deg) translate(1px, -2px); } }
 @media (prefers-reduced-motion: reduce) { .hq-boss *, .hq-patrol * { animation: none !important; } }
+.hq-p.warn .hq-say rect { fill: var(--warn-soft); stroke: transparent; } .hq-p.warn .hq-say text { fill: var(--warn); }
+.hq-p.alert .hq-say rect { fill: #FDECEC; } .hq-p.alert .hq-say text { fill: #D64545; }
+.boss-say.fail rect { fill: #FDECEC; stroke: #F4C7C7; } .boss-say.fail text { fill: #D64545; }
+/* BOSS 점검 일지 */
+.hq-audit { margin-top: 12px; }
+.hq-audit-room { margin: 14px 0 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.hq-audit-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.hq-audit-row p { margin: 0; line-height: 1.45; }
+.hq-audit-row p + p { margin-top: 2px; color: var(--ink2); }
+.hq-chip { flex: none; min-width: 58px; text-align: center; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 8px; margin-top: 1px; }
+.hq-chip.ok { background: var(--sunk); color: var(--ink2); }
+.hq-chip.warn { background: var(--warn-soft); color: var(--warn); }
+.hq-chip.fail { background: #FDECEC; color: #D64545; }
+.hq-chip.wait { background: var(--sunk); color: var(--muted); }
+.hq-patrol-s { line-height: 1.4; }
