@@ -1560,9 +1560,26 @@
         ${T.bt.vs ? `<p class="muted xs">S&P500 대비 — 베타 ${T.bt.vs.beta} · 상관 ${T.bt.vs.corr} · 연 알파 ${pct(T.bt.vs.alphaYr)}. 베타가 1보다 작으면 시장보다 덜 흔들림.</p>` : ''}
       </section>
       <section class="card"><h2>봇 순위표 (10년 검증 · 표본 밖 = 최근 30% 구간)</h2>${board}
-        <p class="muted xs">"표본 밖"은 규칙을 만들 때 보지 않은 최근 구간의 연 수익률입니다. 여기서도 버는 봇이 진짜에 가깝습니다.</p></section>
+        <p class="muted xs">"표본 밖"은 규칙을 만들 때 보지 않은 최근 구간의 연 수익률입니다. 여기서도 버는 봇이 진짜에 가깝습니다.</p>
+        ${bots.some((b) => b.bt.robust) ? `<p class="muted xs">승자 제외 검사: 10년 동안 가장 많이 오른 종목 ${bots.find((b) => b.bt.robust).bt.robust.dropped}개(${esc((P.robustNames || []).slice(0, 5).join(', '))} 등)를 빼고 다시 돌린 연 수익률 — ${bots.filter((b) => b.bt.robust).map((b) => esc(b.code) + ' ' + pct(b.bt.robust.cagr)).join(' · ')}. 원래 숫자와 차이가 클수록 "지금 와서 아는 승자" 덕을 본 것입니다.</p>` : ''}</section>
+      ${studyCard(P)}
       ${T.bt.mc ? mcCard(T.bt.mc, '팀') : ''}
       ${T.live && T.live.curve.length >= 5 ? `<section class="card"><h2>모의 계좌 · 팀</h2>${lineSvg([{ name: '팀 모의', pts: T.live.curve, cls: 'l1' }], { label: '팀 모의 곡선' })}${T.live.curve.length >= 20 ? metricGrid(T.live.metrics, { noTrades: true }) : '<p class="muted xs">20거래일이 지나면 성적표가 나옵니다.</p>'}</section>` : ''}`;
+  }
+  // 앱 점수 검증: 어떤 점수가 실제로 이후 수익과 이어졌나
+  function studyCard(P) {
+    const S2 = P.study; if (!S2 || !S2.factors || !S2.factors.length) return '';
+    const verdict = (ic) => (ic >= 0.05 ? ['쓸모 큼', 'pos'] : ic >= 0.02 ? ['조금 쓸모', 'neu'] : ic > -0.02 ? ['쓸모없음', 'neu'] : ['거꾸로 작동', 'neg']);
+    const A = S2.alert || {};
+    return `<section class="card"><h2>앱 점수 검증 · 10년 (${esc(S2.from.slice(0, 4))}~${esc(S2.to.slice(0, 4))})</h2>
+      <p class="muted xs">${S2.dates}개 시점마다 모든 종목을 채점하고, 그 뒤 60거래일(약 3개월) 동안 같은 날 평균보다 얼마나 더 올랐는지 비교했습니다 — 총 ${nf(S2.obs)}건.</p>
+      <div class="lb"><div class="lb-r th st-r"><span>점수 항목</span><span class="right">IC</span><span class="right">적중</span><span class="right">상위</span><span class="right">하위</span><span class="right">판정</span></div>
+      ${S2.factors.map((f) => { const v = verdict(f.ic60); return `<div class="lb-r st-r"><span class="xs">${esc(f.name)}</span><span class="right num">${f.ic60.toFixed(3)}</span><span class="right num">${f.hit}%</span>
+        <span class="right num ${dirClass(f.q[4])}">${pct(f.q[4])}</span><span class="right num ${dirClass(f.q[0])}">${pct(f.q[0])}</span><span class="right"><span class="act ${v[1]}">${v[0]}</span></span></div>`; }).join('')}</div>
+      <p class="muted xs">IC = 점수 순위와 이후 수익 순위의 상관. 0.05 넘으면 월가에서도 쓸 만한 신호, 0 근처면 동전 던지기. 적중 = 시점별로 IC가 플러스였던 비율. 상위·하위 = 점수 상위 20%·하위 20% 종목의 3개월 초과수익.</p>
+      <div class="kv"><span>지금 알림 조건 (70점 이상 + 분할 매수 검토)<br><span class="muted xs">${nf(A.n || 0)}번 해당 · 3개월 뒤 평균보다 높았던 비율 ${A.win60 == null ? '—' : A.win60 + '%'}</span></span>
+        <b class="num ${dirClass(A.x60)}">${pct(A.x60, 2)}<br><span class="muted xs">나머지 ${pct(A.restX60, 2)}</span></b></div>
+      <p class="muted xs">${esc(S2.note || '')}</p></section>`;
   }
   function mcCard(mc, who) {
     return `<section class="card"><h2>몬테카를로 · 앞으로 1년 (과거 수익을 500번 섞어 본 결과)</h2>
@@ -1603,8 +1620,9 @@
           ${B.vs ? `<p class="muted xs">${esc(BENCH_NAME[b.bench])} 대비 — 베타 ${B.vs.beta} · 상관 ${B.vs.corr} · 연 알파 ${pct(B.vs.alphaYr)}</p>` : ''}</section>
         <section class="card"><h2>표본 안 vs 표본 밖 (과최적화 점검)</h2>
           <div class="lb"><div class="lb-r th"><span>구간</span><span class="right">연수익</span><span class="right">낙폭</span><span class="right">샤프</span><span class="right">승률</span><span class="right">PF</span></div>
-          ${row('앞 70% (' + (B.is ? B.is.from.slice(0, 4) + '~' + B.is.to.slice(2, 4) : '') + ')', B.is)}${row('뒤 30% (' + (B.oos ? B.oos.from.slice(0, 4) + '~' + B.oos.to.slice(2, 4) : '') + ')', B.oos)}${row('전체', B.full)}</div>
-          <p class="muted xs">뒤 30%에서 성적이 크게 무너지면 과거에만 맞춘 규칙일 가능성이 큽니다.</p></section>
+          ${row('앞 70% (' + (B.is ? B.is.from.slice(0, 4) + '~' + B.is.to.slice(2, 4) : '') + ')', B.is)}${row('뒤 30% (' + (B.oos ? B.oos.from.slice(0, 4) + '~' + B.oos.to.slice(2, 4) : '') + ')', B.oos)}${row('전체', B.full)}
+          ${B.robust ? row('승자 ' + B.robust.dropped + '개 제외', B.robust) : ''}</div>
+          <p class="muted xs">뒤 30%에서 성적이 크게 무너지면 과거에만 맞춘 규칙일 가능성이 큽니다.${B.robust ? ' "승자 제외"는 10년 동안 가장 많이 오른 종목들(지금 와서야 아는 승자)을 빼고 돌린 결과 — 이 줄이 실제 기대치에 더 가깝습니다.' : ''}</p></section>
         ${B.mc ? mcCard(B.mc, b.code) : ''}
         <section class="card"><h2>연도별 수익</h2>${yearBars(B.full && B.full.yearly, benchYear)}</section>
         <section class="card"><h2>월별 수익 (%)</h2>${heatMonths(B.full && B.full.monthly)}</section>
@@ -1612,7 +1630,7 @@
           ${B.full && B.full.best ? `<p class="muted xs">최고 거래: ${esc(B.full.best.name)} ${pct(B.full.best.pct)} · 최악 거래: ${esc(B.full.worst.name)} ${pct(B.full.worst.pct)}</p>` : ''}</section>`;
     } else {
       const rd = b.ready;
-      body = `<section class="card"><h2>어떻게 사고파나</h2><p class="sm">${esc(b.method)}</p><p class="muted xs">왜 통하나: ${esc(b.edge)}</p></section>
+      body = `<section class="card"><h2>어떻게 사고파나</h2><p class="sm">${esc(b.method)}</p><p class="muted xs">왜 통하나: ${esc(b.edge)}</p></section>${b.id === 'chief' ? studyCard(P) : ''}
         <section class="card"><h2>실전 전환 조건 ${rd.passed}/${rd.total}</h2>
           <ul class="scr-list">${rd.items.map((x) => `<li class="${x.ok ? 'ok' : 'no'}"><span aria-hidden="true">${x.ok ? '✓' : '·'}</span>${esc(x.label)} <span class="muted xs num">${esc(String(x.val))}</span></li>`).join('')}</ul>
           <p class="muted xs">${rd.ready ? '모든 조건 통과 — 아주 작은 금액(전체 자산의 1~2%)으로 실전 검증을 시작해도 됩니다.' : '아직 실전 전환 전입니다. 모의 기록이 더 쌓여야 합니다.'}</p></section>`;

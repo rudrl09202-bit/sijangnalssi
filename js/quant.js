@@ -122,10 +122,10 @@
       edge: '추세는 생각보다 오래 간다(모멘텀 효과). 대신 승률이 낮고 큰 수익 몇 번이 성적을 만듦.'
     },
     {
-      id: 'echo', code: 'ECHO', name: '눌림목 반등', kinds: ['stock'], maxPos: 8, posPct: 12,
-      role: '오르는 종목이 잠깐 과하게 빠졌을 때 짧게 받음',
-      method: '코너스 RSI(2) 전략: 200일선 위(장기 상승)인데 2일 RSI가 10 아래로 급락하면 다음 날 시가 매수, 더 빠지면 한 번 더 추가. 종가가 5일선 위로 올라오면 정리, 최대 10거래일 보유, 비상 손절 −3ATR.',
-      edge: '대형주는 짧은 급락 뒤 되돌림이 잦음(단기 평균회귀). 승률은 높고 한 번 수익은 작음.'
+      id: 'echo', code: 'ECHO', name: '눌림목 반등', kinds: ['stock'], maxPos: 8, posPct: 12, usOnly: true,
+      role: '미국 대형주가 잠깐 과하게 빠졌을 때 짧게 받음',
+      method: '코너스 RSI(2) 전략(2차 수정판): 미국 주식만(국내는 매도세 0.20%가 짧은 매매 수익을 다 먹어서 제외). 200일선 위인데 2일 RSI가 5 아래로 급락하면 다음 날 시가 매수, 더 빠지면 한 번 더 추가. 종가가 5일선 위로 오르거나 RSI(2)가 70을 넘으면 정리, 최대 10거래일 보유, 비상 손절 −3ATR.',
+      edge: '대형주는 짧은 급락 뒤 되돌림이 잦음(단기 평균회귀). 승률은 높고 한 번 수익은 작아서 비용이 낮은 시장에서만 의미가 있음.'
     },
     {
       id: 'orbit', code: 'ORBIT', name: '모멘텀 순환', kinds: ['stock', 'gold'], maxPos: 10,
@@ -407,19 +407,21 @@
       const p = acc.pos[id], a = W.A[id], i = a.idx[d]; if (i == null) continue;
       const I = a.ind, c = a.c[i];
       if (I.sma5[i] && c > I.sma5[i]) { sell(acc, id, '종가가 5일선 위로 회복 — 반등 완료'); continue; }
+      if (I.rsi2[i] > 70) { sell(acc, id, 'RSI(2) 70 돌파 — 반등 완료'); continue; }
       if (dayDiff(p.entryDate, d) >= 14) { sell(acc, id, '보유 10거래일 초과 — 시간 청산'); continue; }
       // 한 번 더 빠지면 추가(최대 2단위)
-      if ((p.units || 1) < 2 && c < p.entry && I.rsi2[i] < 10 && canEnter && !hasOrder(acc, id, 'buy'))
+      if ((p.units || 1) < 2 && c < p.entry && I.rsi2[i] < 5 && canEnter && !hasOrder(acc, id, 'buy'))
         acc.orders.push({ id, side: 'buy', type: 'moo', weight: bot.posPct / 100, maxPct: bot.posPct * 2, reason: '추가 하락 — 2차 매수(코너스 분할)' });
     }
     if (!canEnter) return;
     const cands = [];
     for (const id in W.A) {
       const a = W.A[id]; if (a.kind !== 'stock' || acc.pos[id] || hasOrder(acc, id)) continue;
+      if (bot.usOnly && a.cur !== 'USD') continue;
       const i = a.idx[d]; if (i == null || i < 210) continue;
       const I = a.ind, c = a.c[i];
       if (!(I.sma200[i] && c > I.sma200[i])) continue;
-      if (!(I.rsi2[i] != null && I.rsi2[i] < 10)) continue;
+      if (!(I.rsi2[i] != null && I.rsi2[i] < 5)) continue;
       if (!regimeOn(W, a, d)) continue;
       if (I.vol20[i] > 70) continue; // 지나치게 요동치는 종목 제외
       cands.push({ id, a, r: I.rsi2[i], atr: I.atr[i], c, dv: I.dvol50[i] || 0 });
