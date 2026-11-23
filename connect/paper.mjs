@@ -104,6 +104,79 @@ function makeChief(app, Q, getW, liveFrom) {
   };
 }
 
+/* ---------- 앱 점수 검증: 과거 시점마다 채점 → 그 뒤 20·60거래일 수익과 비교 ----------
+ * IC(정보 계수) = 점수 순위와 이후 수익 순위의 상관. 0.03 넘으면 쓸모, 0.05 넘으면 꽤 좋음, 0 근처면 쓸모없음.
+ * 5분위 = 점수 높은 20% ~ 낮은 20% 묶음의 이후 평균 초과수익. 알림 조건 = 70점 이상 & "분할 매수 검토". */
+export function scoreStudy(app, Q, W, opt = {}) {
+  const W0 = app.window || app, R = W0.Rules, SNAP = W0.SNAPSHOT;
+  const base = { markets: JSON.parse(JSON.stringify(SNAP.markets)), rates: SNAP.rates, sectors: SNAP.sectors, events: [], now: Date.now() };
+  const spx = W.A.IDX_spx; if (!spx) return null;
+  const every = opt.every || 20, H1 = 20, H2 = 60;
+  const dates = spx.t.filter((d, k) => k >= 260 && k % every === 0 && k + H2 < spx.t.length);
+  const stocks = Object.values(W.A).filter((a) => a.kind === 'stock');
+  const rows = [], SCRN = {}; // {d, f:{...}, r20, r60, alert}
+  for (const d of dates) {
+    const rs = Q.rsRanks(W, d), batch = [];
+    for (const a of stocks) {
+      const i = Q.lastIdx(a, d); if (i < 260 || i + H2 >= a.c.length || Q._.dayDiff(a.t[i], d) > 4) continue;
+      const sl = (x) => x.slice(i - 259, i + 1);
+      const candles = { c: sl(a.c), h: sl(a.h), l: sl(a.l), v: sl(a.v || a.c.map(() => 0)) };
+      const ridx = W.A[W.regimeOf[a.market]]; let bench = null;
+      if (ridx) { const bi = Q.lastIdx(ridx, d); if (bi > 0) bench = ridx.c.slice(Math.max(0, bi - 259), bi + 1); }
+      let sc; try { sc = R.screenStock({ ...base, candles, bench, rs: rs[a.id], sectorId: a.sec, currency: a.cur }); } catch (e) { continue; }
+      if (!sc || sc.total == null) continue;
+      const act = R.actionFor({ score: sc, candles, held: false, fng: null });
+      const f = { total: sc.total, rs: rs[a.id] };
+      (sc.axes || []).forEach((x) => { if (x.score != null) f[x.key] = x.score; });
+      (sc.screens || []).forEach((x) => { if (x.total) { f['scr_' + x.id] = x.pass / x.total * 100; SCRN['scr_' + x.id] = x.name || x.id; } });
+      batch.push({ d, f, r20: a.c[i + H1] / a.c[i] - 1, r60: a.c[i + H2] / a.c[i] - 1, alert: sc.total >= 70 && (act.action === 'add' || act.action === 'add-small') });
+    }
+    if (batch.length < 15) continue;
+    // 같은 날 평균을 빼서 '초과수익'으로 (시장 전체 상승·하락 효과 제거)
+    const m20 = batch.reduce((t, x) => t + x.r20, 0) / batch.length, m60 = batch.reduce((t, x) => t + x.r60, 0) / batch.length;
+    batch.forEach((x) => { x.x20 = x.r20 - m20; x.x60 = x.r60 - m60; rows.push(x); });
+  }
+  if (!rows.length) return null;
+  const rank = (arr) => { const o = arr.map((v, k) => [v, k]).sort((a, b) => a[0] - b[0]); const r = new Array(arr.length); o.forEach(([, k], j) => { r[k] = j; }); return r; };
+  const corr = (a, b) => { const n = a.length, ma = a.reduce((t, x) => t + x, 0) / n, mb = b.reduce((t, x) => t + x, 0) / n; let c = 0, va = 0, vb = 0; for (let k = 0; k < n; k++) { c += (a[k] - ma) * (b[k] - mb); va += (a[k] - ma) ** 2; vb += (b[k] - mb) ** 2; } return va && vb ? c / Math.sqrt(va * vb) : 0; };
+  const byDate = {}; rows.forEach((x) => { (byDate[x.d] = byDate[x.d] || []).push(x); });
+  const keys = Array.from(new Set(rows.flatMap((x) => Object.keys(x.f))));
+  const NAME = { total: '종합 점수', rs: '상대강도(RS)', value: '가치', growth: '성장', quality: '퀄리티', momentum: '모멘텀', risk: '위험(안정성)' };
+  (W0.Rules.SCREEN_NAME ? Object.entries(W0.Rules.SCREEN_NAME) : []).forEach(([k, v]) => { NAME[k] = v; });
+  Object.entries(SCRN).forEach(([k, v]) => { NAME[k] = v + ' 통과율'; });
+  const factors = keys.map((k) => {
+    const ics20 = [], ics60 = [], q = [[], [], [], [], []];
+    Object.values(byDate).forEach((b) => {
+      const xs = b.filter((x) => x.f[k] != null); if (xs.length < 15) return;
+      const fr = rank(xs.map((x) => x.f[k]));
+      ics20.push(corr(fr, rank(xs.map((x) => x.x20)))); ics60.push(corr(fr, rank(xs.map((x) => x.x60))));
+      xs.forEach((x, j) => { q[Math.min(4, Math.floor(fr[j] / xs.length * 5))].push(x.x60); });
+    });
+    if (ics60.length < 10) return null;
+    const mean = (a) => a.reduce((t, x) => t + x, 0) / a.length, sd = (a) => { const m = mean(a); return Math.sqrt(a.reduce((t, x) => t + (x - m) ** 2, 0) / Math.max(1, a.length - 1)); };
+    const ic60 = mean(ics60);
+    return { key: k, name: NAME[k] || (k.startsWith('scr_') ? k.slice(4) : k), ic20: +mean(ics20).toFixed(3), ic60: +ic60.toFixed(3), t60: +(ic60 / (sd(ics60) / Math.sqrt(ics60.length) || 1)).toFixed(1),
+      hit: +(ics60.filter((x) => x > 0).length / ics60.length * 100).toFixed(0), q: q.map((g) => (g.length ? +(mean(g) * 100).toFixed(2) : null)), n: ics60.length };
+  }).filter(Boolean).sort((a, b) => b.ic60 - a.ic60);
+  const al = rows.filter((x) => x.alert), no = rows.filter((x) => !x.alert);
+  const avg = (a, k) => (a.length ? +(a.reduce((t, x) => t + x[k], 0) / a.length * 100).toFixed(2) : null);
+  return { dates: Object.keys(byDate).length, obs: rows.length, from: dates[0], to: dates[dates.length - 1], factors,
+    alert: { n: al.length, x20: avg(al, 'x20'), x60: avg(al, 'x60'), win60: al.length ? +(al.filter((x) => x.x60 > 0).length / al.length * 100).toFixed(1) : null, restX60: avg(no, 'x60') },
+    note: '과거 재무제표가 없어 가치·성장·퀄리티 축은 검증에서 빠졌습니다(가격·추세 축만).' };
+}
+
+// 견고성: 10년 동안 가장 많이 오른 종목 상위 10%(지금 와서 아는 승자)를 빼고 다시 돌림
+export function robustRun(Q, assets, opts, bots) {
+  const stocks = assets.filter((a) => a.kind === 'stock' && a.c.length > 260);
+  const tr = stocks.map((a) => [a.id, a.c[a.c.length - 1] / a.c[0], a.name]).sort((x, y) => y[1] - x[1]);
+  const cut = Math.max(1, Math.round(tr.length * 0.1)), drop = new Set(tr.slice(0, cut).map((x) => x[0]));
+  const W2 = Q.buildWorld(assets.filter((a) => !drop.has(a.id)).map((a) => ({ ...a })), opts);
+  const st = Q.backtest(W2, { only: bots, from: W2.cal[Math.min(W2.cal.length - 1, 260)] });
+  const out = { dropped: cut, names: tr.slice(0, 8).map((x) => x[2]) };
+  bots.forEach((b) => { const a = st.accounts[b]; const m = a && Q.metrics(a.equity, a.trades); if (m) out[b] = { cagr: m.cagr, mdd: m.mdd, sharpe: m.sharpe }; });
+  return out;
+}
+
 const sampleCurve = (eq, every) => eq.filter((x, i) => i % every === 0 || i === eq.length - 1);
 const sliceByDate = (eq, from, to) => eq.filter(([d]) => (!from || d >= from) && (!to || d <= to));
 function benchCurve(W, id, from, krw) {
@@ -158,6 +231,12 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
   const split = W.cal[Math.floor(W.cal.indexOf(btFrom) + (W.cal.length - W.cal.indexOf(btFrom)) * 0.7)];
   log('백테스트 ' + btFrom + ' ~ ' + last + ' · 표본 밖 시작 ' + split + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
 
+  // ── 1-2) 견고성(승자 빼고) · 앱 점수 검증
+  const wopts = { usdkrw, regimeOf: { spx: 'IDX_spx', nasdaq: 'IDX_spx', kospi: 'IDX_kospi', kosdaq: 'IDX_kospi', coin: 'C_BTC' } };
+  let robust = null, study = null;
+  try { robust = robustRun(Q, assets, wopts, ['atlas', 'echo', 'orbit']); log('견고성 검사(승자 ' + robust.dropped + '개 제외) 완료 · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초'); } catch (e) { log('견고성 검사 실패: ' + e.message); }
+  try { study = scoreStudy(app, Q, W); if (study) log('앱 점수 검증: ' + study.dates + '시점 × 종목 = ' + study.obs + '건 · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초'); } catch (e) { log('앱 점수 검증 실패: ' + e.message); }
+
   // ── 2) 모의투자 (이어서)
   if (!state) { state = { v: 1, inception: last, accounts: {} }; log('모의투자 계좌를 새로 엽니다: ' + last + ' 종가부터 판단, 다음 거래일 시가부터 체결'); }
   const todo = W.cal.filter((d) => d >= state.inception);
@@ -190,7 +269,7 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
     } : null;
     return {
       id: b.id, code: b.code, name: b.name, role: b.role, method: b.method, edge: b.edge, kinds: b.kinds, bench: benchFor(b),
-      bt: { full, is: isM, oos, vs, mc, curve: sampleCurve(a.equity, btEvery), recent: a.trades.slice(-25).reverse() },
+      bt: { full, is: isM, oos, vs, mc, curve: sampleCurve(a.equity, btEvery), recent: a.trades.slice(-25).reverse(), robust: robust && robust[b.id] ? { ...robust[b.id], dropped: robust.dropped } : null },
       live,
       ready: Q.readiness(liveM ? { days: L.equity.length, trades: L.trades.length, pf: liveM.pf, mdd: liveM.mdd } : { days: L ? L.equity.length : 0, trades: 0 }, { mdd: full && full.mdd, oosCagr: oos && oos.cagr, sharpe: full && full.sharpe })
     };
@@ -203,7 +282,7 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
   const out = {
     v: 1, generatedAt: now.toISOString(), asOf: last, cutoff, inception: state.inception, split, btFrom,
     universe: { stocks: assets.filter((a) => a.kind === 'stock').length, coins: assets.filter((a) => a.kind === 'coin').length },
-    vault: Q.VAULT, costs: Q.COST, startCash: Q.START_CASH, bots, team, bench: benchOut,
+    vault: Q.VAULT, costs: Q.COST, startCash: Q.START_CASH, bots, team, bench: benchOut, study, robustNames: robust ? robust.names : null,
     today: fresh.slice(-60).map((e) => ({ ...e, botCode: (Q.BOTS.find((b) => b.id === e.bot) || {}).code })),
     caveats: [
       '종목 목록은 "지금" 대표 종목이라, 지난 10년 동안 사라지거나 추락한 종목이 빠져 있습니다(생존 편향) — 백테스트가 실제보다 좋게 나올 수 있습니다.',
