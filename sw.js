@@ -1,5 +1,5 @@
 // 시장날씨 — 서비스 워커: 오프라인 캐시 + 푸시 알림 수신
-const VERSION = 'snw-v3.0.0';
+const VERSION = 'snw-v3.0.1';
 const FILES = ['./', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg', './icons/apple-touch-icon.png', './icons/icon-192.png',
   './js/config.js', './js/snapshot.js', './js/rules.js', './js/api.js', './js/tickers.js', './js/universe.js', './js/ta.js', './js/chart.js', './js/app.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES).catch(() => {}))); self.skipWaiting(); });
@@ -12,10 +12,10 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin || e.request.method !== 'GET') return; // 외부 시세 API는 건드리지 않음
   const live = /(holdings-live|market-live|alerts-live|paper-live)\.js$/.test(url.pathname) || url.pathname.includes('/js/history/');
-  e.respondWith(fetch(e.request).then((res) => {
+  e.respondWith(fetch(e.request, { cache: 'no-cache' }).then((res) => { // 브라우저 임시 저장본 말고 서버에 새 버전 확인
     if (res.ok && !live) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
     return res;
-  }).catch(() => caches.match(e.request, { ignoreSearch: live })));
+  }).catch(() => caches.match(e.request, { ignoreSearch: true })));
 });
 // 푸시 알림 받기: { title, body, url, tag }
 self.addEventListener('push', (e) => {
