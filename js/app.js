@@ -1783,6 +1783,99 @@
       </g>${extra}</g>`;
   }
 
+
+  /* ---------- 총책임자 BOSS: 오리지널 강아지 캐릭터 ----------
+   * 크림색 몸 + 갈색 늘어진 귀 + 한쪽 눈 얼룩 + 남색 넥타이 + 돋보기. 꼬리는 늘 살랑살랑. */
+  function bossSvg(icon) {
+    const dog = `<g class="boss-dog">
+      <ellipse cx="0" cy="1" rx="12" ry="3.4" class="hq-shadow"/>
+      <path class="boss-tail" d="M9 -11 q8 -3 7 -10 q-1 -3 -3 -1" fill="none" stroke="#C99A6B" stroke-width="3.2" stroke-linecap="round"/>
+      <rect class="boss-leg a" x="-8" y="-6" width="4.6" height="7" rx="2.3" fill="#EAD6B8"/>
+      <rect class="boss-leg b" x="3.6" y="-6" width="4.6" height="7" rx="2.3" fill="#EAD6B8"/>
+      <ellipse cx="0" cy="-10" rx="11" ry="8.5" fill="#F4E6CF"/>
+      <path d="M-2.4 -17 h4.8 l-1 2 l1.6 6 l-3 2.4 l-3 -2.4 l1.6 -6 z" fill="#3B4A6B"/>
+      <circle cx="0" cy="-25" r="11.5" fill="#F8EEDC"/>
+      <ellipse class="boss-ear l" cx="-10.5" cy="-24" rx="4.2" ry="7.5" fill="#B98A5E" transform="rotate(18 -10.5 -24)"/>
+      <ellipse class="boss-ear r" cx="10.5" cy="-24" rx="4.2" ry="7.5" fill="#B98A5E" transform="rotate(-18 10.5 -24)"/>
+      <ellipse cx="4.6" cy="-26.4" rx="4.4" ry="3.8" fill="#E6CBA5"/>
+      <g class="boss-eyes"><ellipse cx="-4.2" cy="-26" rx="1.9" ry="2.3" fill="#2B2F36"/><ellipse cx="4.6" cy="-26" rx="1.9" ry="2.3" fill="#2B2F36"/><circle cx="-3.6" cy="-26.8" r=".7" fill="#fff"/><circle cx="5.2" cy="-26.8" r=".7" fill="#fff"/></g>
+      <ellipse cx="0.3" cy="-21.6" rx="2.3" ry="1.6" fill="#3A3030"/>
+      <path d="M-2.4 -19.4 q1.3 1.4 2.7 0 q1.4 1.4 2.7 0" fill="none" stroke="#3A3030" stroke-width="1" stroke-linecap="round"/>
+      <ellipse cx="-8" cy="-21" rx="2.3" ry="1.3" fill="#FF9AA8" opacity=".55"/><ellipse cx="8.4" cy="-21" rx="2.3" ry="1.3" fill="#FF9AA8" opacity=".55"/>
+      <g class="boss-glass"><path d="M9 -8 l5 -4" stroke="#6B7787" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="-14" r="4.6" fill="#E6F2FF" fill-opacity=".7" stroke="#6B7787" stroke-width="1.6"/></g>
+    </g>`;
+    if (icon) return `<svg viewBox="-22 -40 44 44" width="46" height="46" aria-hidden="true">${dog}</svg>`;
+    return dog;
+  }
+  const PATROL = { on: false, room: 0, wait: (ms) => new Promise((r) => setTimeout(r, ms)) };
+  function startPatrol() {
+    if (PATROL.on) return;
+    PATROL.on = true;
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const P = (i, j) => [200 + (i - j) * 34, 112 + (i + j) * 17];
+    const alive = () => route() === 'hq' && document.querySelector('.hq-svg');
+    const status = (t) => { PATROL.msg = t; const e = document.getElementById("hq-patrol"); if (e) e.textContent = t; };
+    const getBoss = (svg) => {
+      let g = svg.querySelector('.hq-boss');
+      if (!g) {
+        g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'hq-boss');
+        g.innerHTML = `<g class="boss-flip"><g transform="scale(1.4)">${bossSvg()}</g></g><g class="boss-say" style="opacity:0"><rect x="-44" y="-78" width="88" height="19" rx="9.5"/><text x="0" y="-64.5" text-anchor="middle"></text></g><text class="hq-name boss-name" x="0" y="15" text-anchor="middle">BOSS</text>`;
+        svg.appendChild(g);
+      }
+      return g;
+    };
+    const place = (g, x, y, ms) => { g.style.transition = ms ? `transform ${ms}ms linear, opacity .4s` : 'opacity .4s'; g.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`; g._x = x; g._y = y; };
+    const walk = async (svgSel, x, y) => {
+      const svg = document.querySelectorAll('.hq-svg')[svgSel]; if (!svg) return;
+      const g = getBoss(svg), dx = x - (g._x ?? x), dy = y - (g._y ?? y);
+      const ms = reduce ? 0 : Math.max(300, Math.hypot(dx, dy) / 0.075);
+      g.querySelector('.boss-flip').style.transform = dx < -1 ? 'scaleX(-1)' : 'scaleX(1)';
+      g.classList.add('walk'); place(g, x, y, ms); await PATROL.wait(ms + 60); g.classList.remove('walk');
+    };
+    const say = async (svgSel, text, warn, code) => {
+      const svg = document.querySelectorAll('.hq-svg')[svgSel]; if (!svg) return;
+      const g = getBoss(svg), b = g.querySelector('.boss-say'), w = Math.min(130, 22 + text.length * 10.5);
+      b.querySelector('rect').setAttribute('x', -w / 2); b.querySelector('rect').setAttribute('width', w);
+      b.querySelector('text').textContent = text; b.classList.toggle('warn', !!warn); b.style.opacity = 1;
+      g.classList.add('check');
+      const st = code && svg.querySelector(`.hq-p[data-code="${code}"]`); if (st) st.classList.add('checked');
+      await PATROL.wait(1700);
+      b.style.opacity = 0; g.classList.remove('check'); if (st) st.classList.remove('checked');
+      await PATROL.wait(250);
+    };
+    (async () => {
+      await PATROL.wait(700);
+      while (alive()) {
+        const svgs = document.querySelectorAll('.hq-svg');
+        const k = PATROL.room % svgs.length, svg = svgs[k];
+        const name = svg.dataset.room || '';
+        const staff = (svg.dataset.patrol || '').split('|').filter(Boolean).map((t) => { const [code, i, j, tone, locked] = t.split(':'); return { code, i: +i, j: +j, tone, locked: locked === '1' }; });
+        const g = getBoss(svg), [ex, ey] = P(2, 4.3);
+        place(g, ex, ey + 10, 0); g.style.opacity = 0; await PATROL.wait(50); g.style.opacity = 1;
+        status(`${name} 점검 중…`);
+        await walk(k, ex, ey);
+        let warn = 0, sleep = 0;
+        for (const s of staff) {
+          if (!alive()) break;
+          const [x, y] = P(s.i + 1.3, s.j + 0.9);
+          await walk(k, x, y);
+          let t = '열일 중! 좋아', w = false;
+          if (s.locked) { t = s.code === 'ORDER' ? '아직 대기 중' : '준비 잘해둬'; }
+          else if (s.tone === 'alert') { t = '이거 확인해!'; w = true; warn++; }
+          else if (s.tone === 'idle') { t = '졸지 마~'; sleep++; }
+          await say(k, `${s.code} ${t}`.length > 12 ? t : `${s.code} ${t}`, w, s.code);
+        }
+        await walk(k, ex, ey);
+        const gg = getBoss(document.querySelectorAll('.hq-svg')[k] || svg); gg.style.opacity = 0;
+        status(`${name} 점검 끝 · ${warn ? '확인 필요 ' + warn + '명' : sleep ? '조는 직원 ' + sleep + '명' : '모두 열일 중'} → 다음 방으로`);
+        await PATROL.wait(1400);
+        PATROL.room++;
+      }
+      PATROL.on = false;
+    })();
+  }
+
   /* ===================== 본부(HQ): 방 4개 ===================== */
   // 아이소메트릭 방 하나를 SVG 로 그림. staff: [{code, name, say, tone, i, j}] (i,j = 바닥 칸 0~3)
   function isoRoom(o) {
@@ -1807,13 +1900,14 @@
     const person = (s, k) => {
       const [x, y] = P(s.i - 0.05, s.j + 0.55, 0);
       const bw = Math.min(120, 18 + s.say.length * 10.6);
-      return `<g class="hq-p ${s.tone || ''}">
+      return `<g class="hq-p ${s.tone || ''}" data-code="${esc(s.code)}">
         <g transform="translate(${x} ${y}) scale(1.35) translate(${-x} ${-y})">${mascot(s.code, x, y, s.tone, k)}</g>
         ${s.say ? `<g class="hq-say"><rect x="${x - bw / 2}" y="${y - 72}" width="${bw}" height="18" rx="9"/><text x="${x}" y="${y - 59.5}" text-anchor="middle">${esc(s.say)}</text></g>` : ''}
         <text x="${x}" y="${y + 17}" text-anchor="middle" class="hq-name">${esc(s.code)}</text></g>`;
     };
     const staff = (o.staff || []).slice().sort((a, b) => (a.i + a.j) - (b.i + b.j));
-    return `<svg class="hq-svg" viewBox="0 0 400 300" role="img" aria-label="${esc(o.title)} 방">
+    const route = (o.staff || []).map((s) => [s.code, s.i, s.j, s.tone || '', o.locked ? 1 : 0].join(':')).join('|');
+    return `<svg class="hq-svg" viewBox="0 0 400 300" role="img" aria-label="${esc(o.title)} 방" data-room="${esc(o.title)}" data-patrol="${esc(route)}">
       <polygon class="hq-floor" points="${pt(floor)}"/>
       <polygon class="hq-wall-l" points="${pt(wallL)}"/><polygon class="hq-wall-r" points="${pt(wallR)}"/>
       <polygon class="hq-screen" points="${pt([s0, s1, s2, s3])}"/>
@@ -1885,6 +1979,7 @@
       log: [{ html: '모의투자 60거래일 · 거래 20번 · 손익비 1.3 이상 통과 후 열림' }, { html: '열리면 1천만 원부터 시작 · 하루 손실 한도 · 전체 정지 버튼' }]
     };
     return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">방을 누르면 자세히 볼 수 있어요</p><h1>본부</h1></div>${tools()}</header>
+      <div class="hq-patrol"><span class="hq-patrol-dog">${bossSvg(true)}</span><div><p class="hq-patrol-t">총책임자 <b>BOSS</b></p><p class="hq-patrol-s" id="hq-patrol">${esc(PATROL.msg || "방을 돌며 직원들이 일하는지 점검하고 있어요")}</p></div></div>
       <div class="hq-grid">${[asset, paper, market, live].map(hqCard).join('')}</div>`;
   }
 
@@ -1902,6 +1997,7 @@
     const el = document.getElementById('view');
     el.innerHTML = VIEWS[r]();
     if (document.body && document.body.classList) document.body.classList.toggle('wide', r === 'hq');
+    if (r === 'hq') startPatrol();
     document.querySelectorAll('.tabbar a').forEach((a) => {
       const on = a.dataset.tab === (TAB_OF[r] || r);
       a.classList.toggle('on', on);

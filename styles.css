@@ -666,3 +666,34 @@ html[data-theme="dark"] .hq-desk-top { fill: #3A3E45; } html[data-theme="dark"] 
 @keyframes mcshake { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-1.5px) rotate(-3deg); } 75% { transform: translateX(1.5px) rotate(3deg); } }
 @keyframes mcsweat { 0% { opacity: 0; transform: translateY(-2px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .mc *, .mc { animation: none !important; } }
+
+/* 총책임자 BOSS 순찰 */
+.hq-patrol { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: var(--r); padding: 12px 16px; margin: 0 0 12px; }
+.hq-patrol-dog svg { display: block; }
+.hq-patrol-t { margin: 0; font-size: 13px; color: var(--muted); }
+.hq-patrol-t b { color: var(--text); }
+.hq-patrol-s { margin: 2px 0 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.hq-boss { pointer-events: none; }
+.hq-boss .boss-flip { transition: transform .2s; }
+.boss-tail { transform-box: fill-box; transform-origin: left bottom; animation: bosswag .5s ease-in-out infinite alternate; }
+.boss-dog { animation: mcbob 2.4s ease-in-out infinite; }
+.hq-boss.walk .boss-dog { animation: bosswalk .34s ease-in-out infinite; }
+.hq-boss.walk .boss-leg.a { animation: mctype .17s ease-in-out infinite alternate; transform-box: fill-box; }
+.hq-boss.walk .boss-leg.b { animation: mctype .17s ease-in-out infinite alternate-reverse; transform-box: fill-box; }
+.boss-eyes { transform-box: fill-box; transform-origin: center; animation: mcblink 4s infinite; }
+.boss-ear { transform-box: fill-box; transform-origin: center top; }
+.hq-boss.check .boss-ear { animation: bossear .4s ease-in-out 2 alternate; }
+.boss-glass { transform-box: fill-box; transform-origin: left bottom; }
+.hq-boss.check .boss-glass { animation: bossglass .8s ease-in-out infinite alternate; }
+.boss-say { transition: opacity .25s; }
+.boss-say rect { fill: var(--card); stroke: var(--line); }
+.boss-say text { font-size: 11px; font-weight: 700; fill: var(--text); }
+.boss-say.warn rect { fill: #FFF4E5; stroke: #F5D9B0; }
+.boss-say.warn text { fill: #D9730D; }
+.boss-name { fill: #9A7650; }
+.hq-p.checked .mc-bod { animation: mchop .7s ease-out 1 !important; }
+@keyframes bosswag { from { transform: rotate(-10deg); } to { transform: rotate(14deg); } }
+@keyframes bosswalk { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
+@keyframes bossear { from { transform: rotate(0); } to { transform: rotate(-10deg); } }
+@keyframes bossglass { from { transform: rotate(-8deg) translate(0, 0); } to { transform: rotate(8deg) translate(1px, -2px); } }
+@media (prefers-reduced-motion: reduce) { .hq-boss *, .hq-patrol * { animation: none !important; } }
