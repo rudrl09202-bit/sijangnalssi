@@ -1961,8 +1961,8 @@
         ev: `가장 큰 종목 ${top ? top.h.name : '—'} ${topW.toFixed(1)}% (한도 40%)${topW > 40 ? ' → 한도 초과, 나눠 담기 검토' : ' → 한도 안'}` });
       const keys = Object.keys(S.assetLog || {}).sort(), last = keys[keys.length - 1], lag = last ? Math.round((new Date(todayKey()) - new Date(last)) / 864e5) : 99;
       add(R1, { code: 'REPORT', duty: '매일 자산 기록 남기기 (달력·성적표용)', st: lag <= 1 ? 'ok' : lag <= 6 ? 'warn' : 'fail', href: '#calendar',
-        short: lag <= 1 ? '기록 ' + keys.length + '일' : lag + '일 빠짐',
-        ev: `기록 ${keys.length}일치 · 마지막 기록 ${md(last)}${lag > 1 ? ' · ' + lag + '일 동안 기록 안 됨' : ''}` });
+        short: !last ? '기록 없음' : lag <= 1 ? '기록 ' + keys.length + '일' : lag + '일 빠짐',
+        ev: `기록 ${keys.length}일치 · 마지막 기록 ${md(last)}${!last ? ' · 아직 한 번도 기록 안 됨' : lag > 1 ? ' · ' + lag + '일 동안 기록 안 됨' : ''}` });
     }
     // ROOM 2 — 모의투자 방
     const R2 = '모의투자 방';
