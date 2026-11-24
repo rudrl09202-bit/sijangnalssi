@@ -70,7 +70,9 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
     const o = await B.call('POST', '/fapi/v1/algoOrder', { algoType: 'CONDITIONAL', symbol: sym, side: side === 'long' ? 'SELL' : 'BUY', type: 'STOP_MARKET', triggerPrice: px, closePosition: 'true', workingType: 'MARK_PRICE', priceProtect: 'true' });
     st.map[sym] = Object.assign(st.map[sym] || {}, { stop: px, algoId: o.algoId }); return px;
   };
-  const market = async (sym, side, qty, reduce) => B.call('POST', '/fapi/v1/order', { symbol: sym, side, type: 'MARKET', quantity: qty, reduceOnly: reduce ? 'true' : null, newOrderRespType: 'RESULT' });
+  const market = async (sym, side, qty, reduce) => { const o = await B.call('POST', '/fapi/v1/order', { symbol: sym, side, type: 'MARKET', quantity: qty, reduceOnly: reduce ? 'true' : null, newOrderRespType: 'RESULT' });
+    if (!Number(o.avgPrice) && o.orderId) { try { const q = await B.call('GET', '/fapi/v1/order', { symbol: sym, orderId: o.orderId }); if (Number(q.avgPrice)) o.avgPrice = q.avgPrice; } catch (e) { /* 체결가 조회 실패 — 표시만 빠짐 */ } }
+    return o; };
 
   for (const sym of new Set([...Object.keys(tgt), ...Object.keys(cur), ...Object.keys(st.map)])) {
     const T = tgt[sym], C = cur[sym], R = info[sym];
@@ -160,6 +162,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       step(L.some((x) => String(x.algoId) === String(a.algoId)), '거래소에 손절 주문이 걸려 있는지 확인');
       await B.call('DELETE', '/fapi/v1/algoOrder', { symbol: sym, algoId: a.algoId }); step(1, '손절 주문 취소');
       const c = await B.call('POST', '/fapi/v1/order', { symbol: sym, side: 'SELL', type: 'MARKET', quantity: qty, reduceOnly: 'true', newOrderRespType: 'RESULT' });
+      if (!Number(c.avgPrice) && c.orderId) { try { await new Promise((r) => setTimeout(r, 500)); c.avgPrice = (await B.call('GET', '/fapi/v1/order', { symbol: sym, orderId: c.orderId })).avgPrice; } catch (e) { /* 표시만 */ } }
       step(1, '시장가 정리 @' + (Number(c.avgPrice) || '?'));
       const P = (await B.call('GET', '/fapi/v3/positionRisk')).filter((p) => p.symbol === sym && Number(p.positionAmt));
       step(!P.length, '포지션이 깨끗하게 정리됐는지 확인');
