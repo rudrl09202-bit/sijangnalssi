@@ -111,7 +111,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
     SC.simulate(W, P, A, i, i, { collect: true, vote: true, log: true });
     for (const o of A.pending.filter((x) => x.kind === 'open' && x.needVote && x.approved == null)) {
       const age = now.getTime() - (W.T[i] + BAR), rec = { t: isoT(W.T[i]), sym: o.sym, name: o.name, side: o.side, kind: o.setup, why: o.why, price: o.ref };
-      const recent = st.decisions.slice().reverse().find((d) => d.sym === o.sym && d.side === o.side && d.decision !== 'enter');
+      const recent = st.decisions.slice().reverse().find((d) => d.sym === o.sym && d.side === o.side && d.decision === 'skip'); // 건너뜀만 1시간 쉼 (실패는 바로 다시)
       if (recent && W.T[i] - Date.parse(recent.t.replace(' ', 'T') + ':00Z') < 60 * 60e3) { o.approved = false; continue; } // 같은 후보는 1시간 안에 다시 안 물음
       if (age > 2 * 3600e3) { o.approved = false; st.decisions.push({ ...rec, decision: 'late', reason: '실행이 늦어 2시간 지난 신호 — 건너뜀' }); continue; }
       if (!key) { o.approved = false; st.decisions.push({ ...rec, decision: 'nokey', reason: 'Claude 키 없음' }); continue; }
