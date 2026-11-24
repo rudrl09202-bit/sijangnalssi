@@ -105,6 +105,7 @@ export async function run({ root = ROOT, env = loadEnv(), now = Date.now(), log 
   const out = { generatedAt: new Date(now).toISOString(), items: items.sort((x, y) => y.bad - x.bad || y.good - x.good) };
   mkdirSync(join(root, 'data'), { recursive: true });
   writeFileSync(join(root, 'data', 'filings-live.json'), JSON.stringify(out));
+  items.filter((x) => x.bad).forEach((x) => log('  주의 ' + x.name + ' (' + x.id + '): ' + x.filings.filter((f) => f.level === 'bad').map((f) => f.date + ' ' + (f.note ? f.note + ' · ' : '') + f.title).join(' | ')));
   log('공시 확인: ' + items.length + '종목 (한국 ' + kr.length + ' · 미국 ' + us.length + ') · 위험 공시 있는 종목 ' + items.filter((x) => x.bad).length + '개');
   return out;
 }
