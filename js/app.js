@@ -456,6 +456,7 @@
       <p class="muted xs" style="margin-top:6px">지금 계산된 토스 원금 ${won(cost)} ${S.tossCost ? '(입력값 ' + won(S.tossCost) + ' 기준으로 맞춤)' : ''}</p></details>`;
   }
   function viewAssets() {
+    loadFilings();
     const hs = allHoldings();
     const cash = LIVE && LIVE.cashKrw ? LIVE.cashKrw : 0;
     const rows = hs.map((h) => { const v = holdingValue(h); const c = holdingCost(h); return { h, v, c, pnl: v == null ? null : v - c, pr: v == null || !c ? null : (v - c) / c * 100 }; })
@@ -524,7 +525,7 @@
     return `
       <header class="top"><div><p class="kicker">${esc((LIVE ? LIVE.sources : []).join(' · ') || '직접 입력')}</p><h1>내 자산</h1></div>${tools()}</header>${demoBanner()}
       ${vaultCard()}${summary}${guideBox()}${seg}
-      ${tab !== 'stock' ? coinBlock : ''}${tab !== 'coin' ? stockBlock : ''}
+      ${tab !== 'stock' ? coinBlock : ''}${tab !== 'coin' ? stockBlock + myFilCard(stocks) : ''}
       ${snowCard()}${calMini()}${reviewMini()}
       <p class="muted xs pad">금액 단위: 원 (현재가는 미국 주식만 달러). 업종은 분류표로 자동 지정되며, 주식 아래 칸에서 바꿀 수 있습니다. 점수 = 다중 조건 진단점수(100점). 누르면 근거를 볼 수 있습니다. ${S.priceSource ? '코인 시세: ' + esc(S.priceSource) + '.' : ''}</p>
       ${syncInfo()}${addBox()}`;
@@ -558,7 +559,7 @@
       <div class="cell-name">
         <p class="b"><button class="link-btn" data-act="chart" data-kind="${h.type === 'coin' ? 'coin' : 'stock'}" data-v="${esc(h.type === 'coin' ? h.market : h.symbol)}" data-name="${esc(h.name)}">${esc(h.name)}</button>${h.symbol && h.symbol !== h.name ? ` <span class="sym num">${esc(h.symbol)}</span>` : ''}</p>
         <p class="muted xs num">${qty}${h.type === 'coin' ? '' : '주'}${h.source === '직접 입력' ? ' · 직접' : ''}</p>
-        <p class="muted xs num">평단 ${px(h.avg)}</p>${actBadge(act)}
+        <p class="muted xs num">평단 ${px(h.avg)}</p>${actBadge(act)}${filChip(h)}
         ${h.type === 'stock' && h.live ? `<select class="mini-select" aria-label="${esc(h.name)} 업종${h.autoSector ? ' (자동)' : ''}" data-sector-for="${esc(h.symbol)}"><option value="">업종 선택</option>${SNAP.sectors.map((s) => `<option value="${s.id}" ${h.sector === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}
       </div>
       <div class="right"><p class="num b">${r.v == null ? '가격 없음' : nf(Math.round(r.v))}</p><p class="num xs muted">${px(cur)}</p><p class="num xs muted">비중 ${r.v == null ? '—' : nf(r.v / all * 100, 1) + '%'}</p></div>
@@ -2322,14 +2323,39 @@
   function loadFilings() {
     if (S.filLoading || S.fil) return;
     S.filLoading = true;
-    fetch('data/filings-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => { S.filLoading = false; if (j && j.items) { S.fil = j; if (['paper', 'hq'].indexOf(route()) >= 0) render(); } });
+    fetch('data/filings-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => { S.filLoading = false; if (j && j.items) { S.fil = j; if (['paper', 'hq', 'assets'].indexOf(route()) >= 0) render(); } });
+  }
+  const filLine = (f) => `<p class="xs news-line"><span class="act ${f.level === 'bad' ? 'warn' : f.level === 'good' ? 'live' : 'neu'}">${f.level === 'bad' ? '주의' : f.level === 'good' ? '호재' : '공시'}</span> ${esc(f.date.slice(5).replace('-', '/'))} ${esc(f.note ? f.note + ' · ' + f.title : f.title)}${f.url ? ` <a href="${esc(f.url)}" target="_blank" rel="noopener">원문</a>` : ''}</p>`;
+  const normFid = (id) => String(id || '').toUpperCase().replace(/^A(?=\d{6})/, '').replace(/[-.](KS|KQ)$/, '');
+  // 내 보유 종목 공시: 서버 동기화가 잠가서 보낸 결과(LIVE.filings)를 먼저, 없으면 매일 분석 결과(공개 종목만)
+  function myFil(sym) {
+    const id = normFid(sym), mine = LIVE && LIVE.filings && LIVE.filings.items ? LIVE.filings.items.find((x) => x.id === id) : null;
+    return mine || filOf(id) || null;
+  }
+  function filChip(h) {
+    if (h.type !== 'stock') return '';
+    const x = myFil(h.symbol); if (!x || (!x.bad && !x.good)) return '';
+    const list = x.filings.filter((f) => f.level !== 'info').slice(0, 4);
+    return `<details class="fil-chip"><summary><span class="act ${x.bad ? 'warn' : 'live'}">${x.bad ? '공시 주의 ' + x.bad : '호재 공시'}</span></summary>${list.map(filLine).join('')}</details>`;
+  }
+  function myFilCard(stocks) {
+    if (S.demo || !stocks.length) return '';
+    const F = LIVE && LIVE.filings;
+    if (!F) return REAL ? `<section class="card note"><p class="b">내 주식 공시 확인</p><p class="muted xs">서버 동기화에 공시 확인을 켜면, 갖고 있는 주식의 최근 30일 공시(유상증자·전환사채·감사의견·상장폐지 등)를 매번 같이 확인해요.</p></section>` : '';
+    const bad = F.items.filter((x) => x.bad), got = F.items.filter((x) => x.checked).length;
+    const when = new Date(F.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    return `<section class="card"><h2>내 주식 공시 확인</h2>
+      ${bad.length ? bad.map((x) => `<div class="fil"><div class="row between"><p class="b">${esc(x.name)} <span class="muted xs">${esc(x.id)} · ${x.src}</span></p><span class="act warn">위험 공시 ${x.bad}</span></div>${x.filings.filter((f) => f.level === 'bad').slice(0, 3).map(filLine).join('')}</div>`).join('')
+        : '<p class="sm">최근 30일 동안 주가에 나쁠 수 있는 공시는 없어요 ✓</p>'}
+      <p class="muted xs" style="margin-top:6px">${when} 확인 · ${F.items.length}종목 중 ${got}종목 공시 받음${got < F.items.length ? ' (한국 주식은 서버에 DART 키가 있어야 확인돼요)' : ''}</p>
+      <p class="muted xs">공시가 있다고 꼭 팔아야 하는 건 아니에요. 원문을 읽고, 이유를 모르겠으면 비중을 늘리지 않는 게 안전해요.</p></section>`;
   }
   const filOf = (id) => S.fil && S.fil.items.find((x) => x.id === String(id).toUpperCase().replace(/^A(?=\d{6})/, '').replace(/[-.](KS|KQ)$/, ''));
   function filingsCard() {
     loadFilings();
     const F = S.fil; if (!F || !F.items.length) return '';
     const bad = F.items.filter((x) => x.bad), good = F.items.filter((x) => !x.bad && x.good), checked = F.items.filter((x) => x.checked).length;
-    const line = (f) => `<p class="xs news-line"><span class="act ${f.level === 'bad' ? 'warn' : f.level === 'good' ? 'live' : 'neu'}">${f.level === 'bad' ? '주의' : f.level === 'good' ? '호재' : '공시'}</span> ${esc(f.date.slice(5).replace('-', '/'))} ${esc(f.note ? f.note + ' · ' + f.title : f.title)}${f.url ? ` <a href="${esc(f.url)}" target="_blank" rel="noopener">원문</a>` : ''}</p>`;
+    const line = filLine;
     const item = (x) => `<div class="fil"><div class="row between"><p class="b">${esc(x.name)} <span class="muted xs">${esc(x.id)} · ${x.src}</span></p>${x.bad ? `<span class="act warn">위험 공시 ${x.bad}</span>` : x.good ? '<span class="act live">호재 공시</span>' : ''}</div>
       <p class="muted xs" style="margin:2px 0 0">${esc(x.why.join(' · '))}</p>${x.filings.filter((f) => f.level !== 'info').slice(0, 3).map(line).join('')}</div>`;
     return `<section class="card"><h2>살 만한 종목 공시 확인</h2>

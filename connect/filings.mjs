@@ -100,14 +100,23 @@ async function secList(list, { fetchImpl, ua, now, log }) {
   return out;
 }
 
-export async function run({ root = ROOT, env = loadEnv(), now = Date.now(), log = console.log, fetchImpl = fetch } = {}) {
-  const list = targets(root);
+// 종목 목록({id,name,why})의 최근 30일 공시를 받아 정리 — 매일 분석(run)과 서버의 내 종목 동기화(sync.mjs)가 같이 씀
+export function normId(id) { return String(id || '').toUpperCase().replace(/^A(?=\d{6})/, '').replace(/[-.](KS|KQ)$/, ''); }
+export async function checkFilings(list, { env = {}, now = Date.now(), log = console.log, fetchImpl = fetch } = {}) {
   const kr = list.filter((t) => /^\d{6}$/.test(t.id)), us = list.filter((t) => !/^\d{6}$/.test(t.id));
   let a = {}, b = {};
   if (kr.length && env.DART_API_KEY) { try { a = await dartList(env.DART_API_KEY, kr, { fetchImpl, cacheDir: join(HERE, '.cache'), now, log }); } catch (e) { log('DART 공시 실패: ' + e.message); } }
+  else if (kr.length) log('· 한국 종목 공시: DART_API_KEY 가 없어 건너뜀');
   if (us.length) { try { b = await secList(us, { fetchImpl, ua: 'sijangnalssi-app/1.0 (' + (env.SEC_CONTACT || 'personal research') + ')', now, log }); } catch (e) { log('SEC 공시 실패: ' + e.message); } }
   const items = list.map((t) => { const f = (a[t.id] || b[t.id] || []); const bad = f.filter((x) => x.level === 'bad'), good = f.filter((x) => x.level === 'good');
-    return { id: t.id, name: t.name, why: t.why, src: /^\d{6}$/.test(t.id) ? 'DART' : 'SEC', checked: !!(a[t.id] || b[t.id]), bad: bad.length, good: good.length, filings: f.slice(0, 8) }; });
+    return { id: t.id, name: t.name, why: t.why || [], src: /^\d{6}$/.test(t.id) ? 'DART' : 'SEC', checked: !!(a[t.id] || b[t.id]), bad: bad.length, good: good.length, filings: f.slice(0, 8) }; });
+  return { items: items.sort((x, y) => y.bad - x.bad || y.good - x.good), kr: kr.length, us: us.length };
+}
+
+export async function run({ root = ROOT, env = loadEnv(), now = Date.now(), log = console.log, fetchImpl = fetch } = {}) {
+  const list = targets(root);
+  const { items, kr: krN, us: usN } = await checkFilings(list, { env, now, log, fetchImpl });
+  const kr = { length: krN }, us = { length: usN };
   const out = { generatedAt: new Date(now).toISOString(), items: items.sort((x, y) => y.bad - x.bad || y.good - x.good) };
   mkdirSync(join(root, 'data'), { recursive: true });
   writeFileSync(join(root, 'data', 'filings-live.json'), JSON.stringify(out));

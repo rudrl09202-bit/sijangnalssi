@@ -827,3 +827,6 @@ html.big body { zoom: 1.15; }
 .news-line .act { margin: 0 2px 0 0; }
 .fpos.pend { background: var(--warn-soft); border-radius: 12px; padding: 12px; border-top: 0; margin-top: 8px; }
 .fil { padding: 12px 0; border-top: 1px solid var(--line); } .fil:first-of-type { border-top: 0; } .fil p { margin: 0; } .fil .news-line { margin-top: 6px; }
+/* 내 주식 공시 칩 */
+.fil-chip { margin-top: 4px; } .fil-chip summary { list-style: none; cursor: pointer; display: inline-block; } .fil-chip summary::-webkit-details-marker { display: none; }
+.fil-chip[open] { background: var(--bg-soft, rgba(0,0,0,.03)); border-radius: 8px; padding: 4px 6px 6px; }

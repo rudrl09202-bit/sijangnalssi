@@ -151,6 +151,7 @@ for (const [name, fn] of [['빗썸', syncBithumb], ['토스증권', syncToss]]) 
     console.error('✗ ' + name + ' — ' + e.message);
   }
 }
+await checkMyFilings(out); // 내 보유 주식의 최근 30일 공시(DART·SEC) — 결과는 보유 내역과 함께 잠가서 보냄
 await printSummary(out); // 동기화 시점 가격·환율·총액을 결과에 함께 저장 (앱에서 시세를 못 받을 때 대신 씀)
 writeFileSync(OUT, '/* 자동 생성 파일 — connect/sync.mjs 가 만듭니다. 인터넷에 올리지 마세요(내 보유 자산이 들어 있음). */\nwindow.LIVE_HOLDINGS = ' + JSON.stringify(out, null, 2) + ';\n');
 console.log('\n저장: ' + OUT + '\n앱을 새로고침하면 "내 자산"에 반영됩니다.');
@@ -188,6 +189,36 @@ async function sendToPhone(o) {
       body: JSON.stringify({ message: '내 자산(암호화) 갱신', content: Buffer.from(JSON.stringify(box)).toString('base64'), ...(sha ? { sha } : {}) }) }, 'GitHub 업로드');
     console.log('\n✓ 휴대폰 보내기: 잠근 자산 파일을 올렸습니다. 휴대폰 앱에서 1~5분 뒤 새로고침하세요.');
   } catch (e) { console.log('\n✗ 휴대폰 보내기 실패: ' + e.message); }
+}
+
+/* ---------- 내 종목 공시 확인: 유상증자·전환사채·감사의견·상장폐지 등 ----------
+ * - 한국 주식은 DART(DART_API_KEY 필요, 조회 전용 키), 미국 주식은 SEC(키 필요 없음)
+ * - 결과는 out.filings 에 넣어 보유 내역과 같이 암호화됨(공개 저장소에 종목이 드러나지 않음)
+ * - 새로 생긴 위험 공시만 휴대폰 알림(같은 공시는 한 번만) */
+async function checkMyFilings(o) {
+  if (env.SNW_SKIP_FILINGS) return;
+  const stocks = o.holdings.filter((h) => h.type === 'stock' && h.symbol);
+  if (!stocks.length) return;
+  try {
+    const { checkFilings, normId } = await import('./filings.mjs');
+    const seen = new Set(), list = [];
+    for (const h of stocks) { const id = normId(h.symbol); if (!seen.has(id) && (/^\d{6}$/.test(id) || /^[A-Z][A-Z.\-]{0,5}$/.test(id))) { seen.add(id); list.push({ id, name: h.name || id, why: ['내 보유'] }); } }
+    const r = await checkFilings(list, { env, log: (m) => console.log('  ' + m) });
+    o.filings = { at: new Date().toISOString(), items: r.items.map((x) => ({ id: x.id, name: x.name, src: x.src, checked: x.checked, bad: x.bad, good: x.good, filings: x.filings })) };
+    const bad = r.items.filter((x) => x.bad);
+    console.log('✓ 내 종목 공시: ' + r.items.length + '종목 확인 (받음 ' + r.items.filter((x) => x.checked).length + ') · 위험 공시 ' + bad.length + '종목');
+    bad.forEach((x) => console.log('  주의 ' + x.name + ': ' + x.filings.filter((f) => f.level === 'bad').map((f) => f.date + ' ' + (f.note || f.title)).join(' | ')));
+    // 새 위험 공시만 알림
+    const sf = join(HERE, '.cache', 'my-filings-seen.json');
+    let old = []; try { old = JSON.parse(readFileSync(sf, 'utf8')); } catch (e) { /* 처음 */ }
+    const fresh = [];
+    bad.forEach((x) => x.filings.filter((f) => f.level === 'bad').forEach((f) => { const k = x.id + '|' + f.url; if (old.indexOf(k) < 0) { old.push(k); fresh.push(x.name + ' ' + (f.note || f.title)); } }));
+    mkdirSync(join(HERE, '.cache'), { recursive: true }); writeFileSync(sf, JSON.stringify(old.slice(-500)));
+    if (fresh.length) {
+      try { const { push } = await import('./paper.mjs'); await push(env, { title: '내 종목 공시 주의', body: fresh.slice(0, 3).join(' · ') + (fresh.length > 3 ? ' 외 ' + (fresh.length - 3) + '건' : ''), url: './#assets' }, console.log); }
+      catch (e) { console.log('  · 알림 건너뜀: ' + e.message); }
+    }
+  } catch (e) { o.notes.push('공시 확인 오류: ' + e.message); console.log('✗ 내 종목 공시 — ' + e.message); }
 }
 
 /* ---------- 확인용 요약: 앱과 증권사 앱의 총액을 비교할 수 있게 ---------- */
