@@ -6,7 +6,7 @@
  */
 export const VOTERS = [
   { id: 'claude', name: 'Claude', key: 'ANTHROPIC_API_KEY', model: 'ANTHROPIC_MODEL', def: 'claude-sonnet-5-5' },
-  { id: 'gemini', name: 'Gemini', key: 'GEMINI_API_KEY', model: 'GEMINI_MODEL', def: 'gemini-flash-latest' },
+  { id: 'gemini', name: 'Gemini', key: 'GEMINI_API_KEY', model: 'GEMINI_MODEL', def: 'gemini-3.6-flash', backup: ['gemini-flash-latest', 'gemini-3.5-flash-lite'] },
   { id: 'gpt', name: 'GPT', key: 'OPENAI_API_KEY', model: 'OPENAI_MODEL', def: 'gpt-5.5' }
 ];
 
@@ -38,7 +38,7 @@ async function askClaude(key, model, user, fetchImpl) {
   } finally { to.done(); }
 }
 async function askGemini(key, model, user, fetchImpl) {
-  const to = withTimeout(150000);
+  const to = withTimeout(70000);
   try {
     const r = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
@@ -68,10 +68,18 @@ export async function vote(env, brief, fetchImpl = fetch) {
     const key = env[v.key], model = env[v.model] || v.def;
     if (!key) return { ai: v.id, name: v.name, model, vote: 'none', confidence: 0, reason: '키 등록 전' };
     const t0 = Date.now();
-    for (let k = 0; k < 2; k++) {
-      try { const t = await ASK[v.id](key, model, user, fetchImpl); return { ai: v.id, name: v.name, model, sec: Math.round((Date.now() - t0) / 1000), ...parseVote(t) }; }
-      catch (e) { const msg = e && e.name === 'AbortError' ? '시간 초과' : String(e.message || e); if (k === 1) return { ai: v.id, name: v.name, model, sec: Math.round((Date.now() - t0) / 1000), vote: 'error', confidence: 0, reason: '응답 실패: ' + msg.slice(0, 80) }; }
+    // 같은 회사의 다른 모델로 넘어가며 시도 (바쁨 503·시간 초과 대비). 첫 모델은 한 번 더 재시도
+    const tries = [model, model].concat((v.backup || []).filter((m) => m !== model));
+    let msg = '';
+    for (let k = 0; k < tries.length; k++) {
+      try { const t = await ASK[v.id](key, tries[k], user, fetchImpl); return { ai: v.id, name: v.name, model: tries[k], sec: Math.round((Date.now() - t0) / 1000), ...parseVote(t) }; }
+      catch (e) {
+        msg = e && e.name === 'AbortError' ? '시간 초과' : String(e.message || e);
+        if (/HTTP 40[13]/.test(msg)) break; // 키 문제면 다른 모델도 소용없음
+        if (/HTTP (429|5\d\d)/.test(msg)) await new Promise((r) => setTimeout(r, 3000));
+      }
     }
+    return { ai: v.id, name: v.name, model, sec: Math.round((Date.now() - t0) / 1000), vote: 'error', confidence: 0, reason: '응답 실패: ' + msg.slice(0, 80) };
   }));
   const yes = res.filter((x) => x.vote === 'yes').length;
   const result = res.some((x) => x.vote === 'none') ? 'nokey' : yes === VOTERS.length ? 'approved' : 'rejected';
