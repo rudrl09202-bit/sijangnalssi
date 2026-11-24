@@ -2019,10 +2019,31 @@
       <section class="card"><h2>시장 공부</h2>
         ${lrow('#world', IC.world, '세계 돈의 지도', '부동산·금·달러·비트코인의 크기와 환율')}
         ${lrow('#cycle', IC.cycle, '테마 사이클', '돈은 지금 어디서 어디로')}
-        ${lrow('#compare', IC.compare, '1년 성적표', '1년 전 1,000만 원을 넣었다면')}</section>
+        ${lrow('#compare', IC.compare, '1년 성적표', '1년 전 1,000만 원을 넣었다면')}
+        ${lrow('#quants', IC.info, '월가 퀀트는 어떻게 하나', '르네상스·투시그마·제인스트리트 방식과 이 앱')}</section>
       ${policyCard()}`;
   }
   /* ---------- 화면: 더보기 ---------- */
+
+
+  /* ---------- 월가 퀀트 회사들은 어떻게 하나 (공개된 원칙 → 우리 앱에서 따라 한 것) ---------- */
+  const QUANTS = [
+    { name: '르네상스 테크놀로지', what: '수학자·물리학자가 아주 작은 통계 패턴을 수천 개 찾아 짧게 많이 거래해요. 하나하나는 약해도 합치면 강해요.', open: '모델은 완전 비공개 (외부 투자자도 못 들어감)', ours: '규칙을 만들 때 안 본 기간으로 다시 시험(표본 밖 검증), 크게 오른 종목을 빼고도 버는지 확인(승자 제외 검사)', href: '#paper' },
+    { name: '투 시그마', what: '뉴스·위성사진·날씨 같은 다양한 데이터를 AI로 분석해요.', open: '일부 연구 도구만 공개, 매매 모델은 비공개', ours: '가격 말고도 금리·물가(FRED·ECOS)·환율·공포지수를 같이 봐요. 여러 AI(Claude·Gemini·GPT)에게 같은 자료를 주고 의견을 모아요.', href: '#explore' },
+    { name: 'D.E. 쇼 · 시타델', what: '전략을 여러 개 동시에 돌리고, 전략마다 잃어도 되는 한도를 엄격하게 정해요.', open: '비공개', ours: '봇 여러 개를 나눠 돌리고, 모든 봇에 같은 안전 규칙(한 종목 15%, 하루 -3%, 낙폭 정지)을 걸었어요.', href: '#paper' },
+    { name: '추세추종 펀드 (AQR · 맨 AHL 등)', what: '오르는 건 따라 사고 꺾이면 빠지는 단순한 규칙을 수십 년 지켜요. 논문으로 방법이 공개돼 있어요.', open: '방법은 논문으로 공개', ours: 'ATLAS·ORBIT·NOVA·FLUX가 이 방식이에요. 흔들림이 크면 크기를 줄이는 것(변동성 조절)도 넣었어요.', href: '#paper' },
+    { name: '제인 스트리트 · 초단타(HFT)', what: '100만 분의 1초 단위로 사고팔며 호가 차이에서 조금씩 벌어요. 거래소 바로 옆에 서버를 둬요.', open: '비공개 · 개인은 따라 할 수 없음', ours: '따라 하지 않아요. 개인은 속도로 이길 수 없어서, 대신 15분봉 단타에서 "수수료를 이기는가"를 솔직하게 시험해요.', href: '#scalp' }
+  ];
+  function viewQuants() {
+    return `<header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">공개된 원칙만 따라 했어요</p><h1>월가 퀀트는 어떻게 하나</h1></div>${tools()}</header>
+      <section class="card note"><p class="sm">이 회사들의 매매 프로그램과 학습된 AI는 <b>모두 비공개</b>라 돈을 내도 쓸 수 없어요. 대신 논문·인터뷰로 알려진 원칙을 이 앱에 넣었어요.</p></section>
+      ${QUANTS.map((q) => `<section class="card"><h2>${esc(q.name)}</h2>
+        <p class="sm">${esc(q.what)}</p>
+        <div class="kv"><span>공개 여부</span><b class="sm">${esc(q.open)}</b></div>
+        <p class="sm" style="margin-top:8px"><b>이 앱에서는</b> ${esc(q.ours)}</p>
+        <a class="lrow-mini" href="${q.href}" style="margin:8px 0 0">관련 화면 보기 ›</a></section>`).join('')}
+      <section class="card note"><p class="b">결론</p><p class="muted sm">이 회사들의 진짜 강점은 비밀 공식보다 <b>철저한 검증과 손실 관리</b>예요. 그래서 이 앱도 "얼마 벌까"보다 "규칙이 진짜인지, 얼마나 잃을 수 있는지"를 먼저 보여줘요.</p></section>`;
+  }
 
   /* ---------- 처음 안내 · 쉬운 용어 사전 ---------- */
   function guideCard() {
@@ -2484,8 +2505,8 @@
       ${auditLog(AUD)}`;
   }
 
-  const VIEWS = { words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
-  const TAB_OF = { words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
+  const TAB_OF = { quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { const h = (location.hash || '#home').slice(1); return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
