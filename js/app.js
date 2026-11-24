@@ -2110,17 +2110,17 @@
     const judge = BK.length ? `<section class="card"><h2>학습 점수가 실제로 맞았나</h2>
       <p class="muted xs">시험 기간의 추세 돌파 후보를 학습 점수 순서로 5묶음으로 나눠, 실제 결과(평균 R)를 봤어요. 위로 갈수록 숫자가 커지면 모델이 좋은 후보를 골라낸다는 뜻이에요.</p>
       <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>학습 점수</th><th>후보 수</th><th>이익 비율</th><th>평균 결과</th></tr></thead><tbody>${BK.slice().reverse().map((b, k) => `<tr><td>${['상위 20%', '60~80%', '40~60%', '20~40%', '하위 20%'][k]}</td><td>${b.n}</td><td>${b.win}%</td><td class="${dirClass(b.avgR)}">${rr(b.avgR)}</td></tr>`).join('')}</tbody></table></div></section>` : '';
-    const dec = (D.decisions || []).length ? `<section class="card"><h2>최근 판단</h2>${D.decisions.slice(0, 10).map((d) => `<div class="kv"><span><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 240)}</span></span><b class="sm">${d.ok ? (d.big ? '진입 (크게)' : '진입') : '건너뜀'} <span class="muted xs">점수 ${d.p ?? '—'}</span></b></div>`).join('')}</section>` : '';
+    const dec = (D.decisions || []).length ? `<section class="card"><h2>최근 판단</h2>${D.decisions.slice(0, 10).map((d) => `<div class="kv"><span><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 240)}</span></span><b class="sm">${d.ok ? '진입' : '건너뜀'} <span class="muted xs">점수 ${d.p ?? '—'}</span></b></div>`).join('')}</section>` : '';
     const watch = (D.watch || []).length ? `<section class="card"><h2>지금 코인별 상황</h2><p class="muted xs">40봉(약 7일) 고점·저점을 뚫으면 후보가 돼요.</p>
       <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>코인</th><th>추세</th><th>고점까지</th><th>저점까지</th><th>난류</th></tr></thead><tbody>${D.watch.map((w) => `<tr><td>${esc(w.name)}</td><td>${w.trend === '상승 추세' ? '<span class="up">상승</span>' : '<span class="down">하락</span>'}</td><td>${w.toHi == null ? '—' : w.toHi <= 0 ? '<b>돌파</b>' : '+' + w.toHi + '%'}</td><td>${w.toLo == null ? '—' : w.toLo <= 0 ? '<b>이탈</b>' : '-' + w.toLo + '%'}</td><td>${w.ti == null ? '—' : Math.round(w.ti * 100) + '%'}</td></tr>`).join('')}</tbody></table></div></section>` : '';
     const trades = L.trades.length ? `<section class="card"><h2>최근 거래</h2>${futTrades(L.trades, 8)}</section>` : '';
     const Mo = D.model;
     const learned = `<section class="card"><h2>어떻게 판단하나</h2>
       <p class="sm">① <b>추세 돌파 규칙</b>이 후보를 뽑아요 (40봉 고점 돌파 + 50/200EMA 정배열, 숏은 BTC 하락장일 때만). 지난 수년간 수익이 확인된 규칙이에요.</p>
-      <p class="sm">② <b>학습 모델</b>이 후보마다 "이익으로 끝날 확률"을 매겨요. 과거 후보 ${nf(Mo.n)}개(이익 ${Mo.rate}%)로 배웠어요. 하위 30%는 건너뛰고, 상위 30%는 1.5배 크게 들어가요.</p>
+      <p class="sm">② <b>학습 모델</b>이 후보마다 "이익으로 끝날 확률"을 매겨요. 과거 후보 ${nf(Mo.n)}개(이익 ${Mo.rate}%)로 배웠어요. 점수가 <b>하위 절반인 후보는 건너뛰어요</b>. 6년 시험에서 점수가 높다고 더 잘 되지는 않아서, 크게 들어가는 건 뺐어요.</p>
       <p class="sm">③ 리만(파동 정렬·균형선)·나비에-스토크스(난류) 지표, 펀딩비, 테이커 매수 쏠림, 비트코인 분위기 등 ${FEATS3_N}개 재료를 봐요.</p>
       <p class="sm" style="margin:8px 0 4px">많이 본 재료</p>${Mo.imp.slice(0, 6).map((x) => `<div class="kv"><span>${esc(x.label)}</span><b class="num">${x.v}%</b></div>`).join('')}
-      <p class="muted xs" style="margin-top:6px">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 매주 다시 학습 · 안전 규칙: 한 번에 ${D.cfg.riskPct}%(크게 ${D.cfg.riskPct * 1.5}%) · 동시 ${D.cfg.maxPos}개 · 전체 ${D.cfg.maxLevTotal}배 이하 · 하루 ${D.cfg.dayLoss}% 정지 · ${D.cfg.ddHalve}% 위험 절반 · ${D.cfg.ddKill}% 킬</p></section>`;
+      <p class="muted xs" style="margin-top:6px">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 매주 다시 학습 · 안전 규칙: 한 번에 ${D.cfg.riskPct}% · 동시 ${D.cfg.maxPos}개 · 전체 ${D.cfg.maxLevTotal}배 이하 · 하루 ${D.cfg.dayLoss}% 정지 · ${D.cfg.ddHalve}% 위험 절반 · ${D.cfg.ddKill}% 킬</p></section>`;
     return head + hero + pos + execCard() + verdict + judge + dec + watch + trades + learned + older;
   }
   const FEATS3_N = 24;
@@ -2263,7 +2263,7 @@
     if (done) return '';
     return `<section class="card guide"><p class="b">처음 오셨나요? 이렇게 보면 돼요</p>
       <ol class="guide-list"><li><b>AI 자동매매</b> — 봇들이 코인 선물(롱·숏)을 24시간 가상 돈 1억으로 자동 매매해요. 실제 돈은 움직이지 않아요.</li>
-      <li><b>민경기 봇</b> — 검증된 추세 규칙에 학습 모델을 더한 대표 봇이에요. 시험에 합격해야만 크게 들어가요.</li>
+      <li><b>민경기 봇</b> — 추세 돌파 규칙이 고른 후보 중, 학습 모델이 질 나쁜 절반을 걸러내는 대표 봇이에요.</li>
       <li><b>포지션</b> — 지금 들고 있는 롱·숏과 손익이에요. 손절선이 미리 정해져 있어요.</li>
       <li><b>시장</b>·<b>내 자산</b> — 코인 선물 시장 분위기, 내 실제 자산과 할 일을 봐요.</li></ol>
       <p class="muted xs">모르는 말은 더보기 → <a href="#words">쉬운 용어 사전</a>에서 찾아보세요.</p>
@@ -3032,6 +3032,7 @@
     return out;
   }
   const CHANGES = [
+    ['11/24', '민경기 3세대 정책 변경', '바이낸스 6년치(2021~) 시험: FLUX 혼자 연 3.1%·낙폭 -36% vs 하위 30% 건너뛰기+크게 연 10.1% vs 하위 50% 건너뛰기 연 13.9%·낙폭 -22%. 점수 상위가 더 낫지 않아 "크게"를 빼고 하위 50% 건너뛰기로 바꿈', null],
     ['11/24', '민경기 봇 3세대', '추세 돌파(검증된 규칙) 후보에 학습 필터를 더함. FLUX 혼자와 매주 비교', 'mk3'],
     ['11/24', '선물 데이터 수집', '서울 서버가 바이낸스 펀딩비·미결제약정·롱숏 비율·4시간봉 6년치를 모음', null],
     ['11/24', '긴급 탈출 (단타)', '거래량 3배 + 반대 장대봉 + 20EMA 돌파 시 즉시 정리 → 시험 -44.2% → -54.7%로 나빠져 꺼 둠', null],

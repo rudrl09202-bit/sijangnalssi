@@ -22,7 +22,7 @@ const isoT = (t) => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
 const thin = (eq, n = 500) => { const k = Math.max(1, Math.ceil(eq.length / n)); return eq.filter((e, i) => i % k === 0 || i === eq.length - 1).map(([t, v]) => [isoT(t), v]); }; // 자산 곡선: 처음부터 끝까지 최대 500점
 const r2 = (x, n = 2) => (x == null || !isFinite(x) ? null : Math.round(x * 10 ** n) / 10 ** n);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-export const MK3_V = 1;
+export const MK3_V = 2; // 2: 기본 정책 = 하위 50% 건너뜀(크게 들어가기 없음) — 6년 시험에서 상위 점수 묶음이 더 낫지 않았음
 
 export const FEATS3 = [
   ['side', '방향 (롱/숏)'], ['str', '돌파 세기'], ['atrP', '변동성(ATR %)'], ['atrR', '변동성 순위'], ['dS', '200EMA 거리 (진행 방향)'], ['slope', '50EMA 기울기 (진행 방향)'],
@@ -166,17 +166,20 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
   if (retrain || !st.model || st.model.v !== MK3_V || st.model.src !== src || age > 7 * DAY) {
     const tA = Date.now(), iStart = Math.max(P.regime + 2, 0), tStart = W.T[iStart];
     const warm = Math.max(tStart + 365 * DAY, W.T[0] + 540 * DAY), step = 90 * DAY;
-    const pred = new Map(), folds = [];
+    // 펀딩비는 2024-11 부터만 있어서, 펀딩비 재료를 뺀 모델도 같이 시험 (펀딩비가 진짜 도움이 되는지 확인)
+    const FI = [FEATS3.findIndex((f) => f[0] === 'fr'), FEATS3.findIndex((f) => f[0] === 'fz')];
+    const noF = samples.map((z) => ({ ...z, row: z.row.map((v, k) => (FI.includes(k) ? null : v)) }));
+    const pred = new Map(), predNF = new Map(), folds = [];
     for (let ts = warm; ts < W.T[last]; ts += step) {
-      const m = trainOn(samples, ts); if (!m) continue;
+      const m = trainOn(samples, ts), m2 = trainOn(noF, ts); if (!m) continue;
       folds.push({ from: isoT(ts).slice(0, 10), n: m.n, rate: r2(m.rate * 100, 1) });
-      samples.forEach((z) => { if (z.t >= ts && z.t < ts + step) pred.set(keyOf(z.s, z.i, z.side), { p: predict(m, z.row), qs: m.qs }); });
+      samples.forEach((z, k) => { if (z.t >= ts && z.t < ts + step) { pred.set(keyOf(z.s, z.i, z.side), { p: predict(m, z.row), qs: m.qs }); if (m2) predNF.set(keyOf(z.s, z.i, z.side), { p: predict(m2, noF[k].row), qs: m2.qs }); } });
     }
     const iA = W.T.findIndex((t) => t >= (folds.length ? Date.parse(folds[0].from) : warm)), half = Math.floor((iA + last) / 2);
-    const mkJudge = (skipQ, boost) => (o, i) => { const z = pred.get(keyOf(o.sym, i, o.side)); if (!z) return { ok: false };
+    const mkJudge = (skipQ, boost, PM) => (o, i) => { const z = (PM || pred).get(keyOf(o.sym, i, o.side)); if (!z) return { ok: false };
       const thr = skipQ ? z.qs[skipQ] : -1, ok = z.p >= thr; return { ok, p: z.p, risk: ok ? cfg.riskPct * (boost && z.p >= z.qs[70] ? 1.5 : 1) : null }; };
     const study = [];
-    for (const [name, judge] of [['FLUX 혼자 (비교 기준)', () => ({ ok: true })], ['민경기 봇 (하위 30% 건너뜀 + 상위 30% 크게)', mkJudge(30, true)], ['하위 30%만 건너뜀', mkJudge(30, false)], ['하위 50% 건너뜀', mkJudge(50, false)], ['하위 20% 건너뜀', mkJudge(20, false)]]) {
+    for (const [name, judge] of [['FLUX 혼자 (비교 기준)', () => ({ ok: true })], ['민경기 봇 (하위 50% 건너뜀)', mkJudge(50, false)], ['하위 30% 건너뜀', mkJudge(30, false)], ['하위 30% 건너뜀 + 상위 크게', mkJudge(30, true)], ['하위 20% 건너뜀', mkJudge(20, false)], ['펀딩비 재료 빼고 (하위 50%)', mkJudge(50, false, predNF)]]) {
       const row = { name };
       for (const [k, a, b] of [['all', iA, last], ['h1', iA, half], ['h2', half, last]]) {
         const ac = runWith(F, W, P, cfg, a, b, judge), dc = F.daily(ac.equity), mt = Q.metrics(dc, ac.trades) || {};
@@ -202,8 +205,8 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
 
   // ── 2) 실시간 모의 계좌 (새 4시간봉마다)
   const M = st.model, liveJudge = (o, i) => { const z = sIdx.get(keyOf(o.sym, i, o.side)); if (!z) return { ok: false };
-    const p = predict(M, z.row), ok = p >= M.qs[30], big = p >= M.qs[70];
-    return { ok, p, risk: ok ? cfg.riskPct * (big ? 1.5 : 1) : null, why: o.why + ' · 학습 점수 ' + Math.round(p * 100) + (ok ? (big ? ' (상위 — 크게)' : ' (통과)') : ' (하위 — 건너뜀)') }; };
+    const p = predict(M, z.row), ok = p >= M.qs[50];
+    return { ok, p, risk: ok ? cfg.riskPct : null, why: o.why + ' · 학습 점수 ' + Math.round(p * 100) + (ok ? ' (상위 절반 — 진입)' : ' (하위 절반 — 건너뜀)') }; };
   const decisions = st.decisions || [];
   if (!st.acc) { st.acc = F.newAccount(cfg); st.acc.lastT = W.T[last]; st.inception = W.T[last]; log('민경기 봇 3세대 모의 계좌를 새로 엽니다'); }
   const from = W.T.findIndex((t) => t > st.acc.lastT);
