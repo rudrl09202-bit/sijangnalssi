@@ -22,7 +22,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const fileKey = (key) => String(key).replace(/[^A-Za-z0-9_-]/g, '_');
 
-function loadEnv() {
+export function loadEnv() {
   const env = { ...process.env }, p = join(HERE, '.env');
   if (existsSync(p)) for (const line of readFileSync(p, 'utf8').split(/\r?\n/)) { const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !line.trim().startsWith('#') && !env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
   return env;
@@ -201,7 +201,7 @@ function positionsView(W, acc, d) {
   }).sort((x, y) => y.val - x.val);
 }
 
-async function push(env, payload, log) {
+export async function push(env, payload, log) {
   let subs; try { subs = JSON.parse(env.PUSH_SUBSCRIPTIONS || '[]'); } catch (e) { return 0; }
   const list = Array.isArray(subs) ? subs : [subs];
   if (!list.length || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return 0;
