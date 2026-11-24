@@ -756,3 +756,9 @@ body.tv-open { overflow: hidden; }
 .sc-coin b { font-weight: 500; text-align: right; }
 /* 폰 상단(시계·배터리) 아래로 내용이 비치지 않게 */
 body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 900; pointer-events: none; }
+.sc-accts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.sc-acct { background: var(--sunk); border-radius: 14px; padding: 12px; min-width: 0; }
+.sc-acct p { margin: 0; overflow-wrap: anywhere; }
+.sc-acct .b { font-size: 17px; margin-top: 4px; }
+.sc-acct.main { background: var(--accent-soft); }
+.safe-top { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 950; pointer-events: none; }

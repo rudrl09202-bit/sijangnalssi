@@ -1,5 +1,5 @@
 // 시장날씨 — 서비스 워커: 오프라인 캐시 + 푸시 알림 수신
-const VERSION = 'snw-v3.6.2';
+const VERSION = 'snw-v3.6.3';
 const FILES = ['./', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg', './icons/apple-touch-icon.png', './icons/icon-192.png',
   './js/config.js', './js/snapshot.js', './js/rules.js', './js/api.js', './js/tickers.js', './js/universe.js', './js/ta.js', './js/chart.js', './js/app.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES).catch(() => {}))); self.skipWaiting(); });

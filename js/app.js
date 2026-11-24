@@ -1924,11 +1924,18 @@
     const head = `<header class="top"><div><a href="#paper" class="back">‹ 투자봇</a><p class="kicker">SCALP · 15분봉 롱·숏 · Claude가 결정 · 가상 1억 · 실제 돈 아님</p><h1>단타 데스크</h1></div>${tools()}</header>`;
     if (!D) return head + `<section class="card empty"><p class="h-md">단타 봇 결과를 불러오는 중이에요</p><p class="muted sm">10분마다 자동으로 돌아요. 처음 몇 분은 결과가 없을 수 있어요.</p></section>`;
     const L = D.live, st = SC_ST[L.status] || SC_ST.ok, ageMin = Math.round((Date.now() - Date.parse(D.generatedAt)) / 60e3), SH = D.shadow;
-    const hero = `<section class="card panel"><div class="row between"><p class="kicker">Claude 계좌 · ${scT(D.lastBar, 15)} 마감 봉까지</p><span class="act ${st[1]}">${st[0]}</span></div>
-      <p class="nav num">${won(L.equity)}</p><p class="hero-sub ${dirClass(L.ret)}">${L.ret >= 0 ? '+' : ''}${won(L.equity - L.start)} (${pct(L.ret, 2)})</p>
-      <p class="muted xs">${scT(D.inception, 15)}부터 · 마지막 확인 ${ageMin < 1 ? '방금' : agoTxt(ageMin * 60e3)} · 레버리지 ${L.lev}배</p>
-      ${SH ? `<div class="kv" style="margin-top:10px"><span>비교: 엔진 혼자(전부 진입)</span><b class="num ${dirClass(SH.ret)}">${pct(SH.ret, 2)} <span class="muted xs">${SH.stats.trades}번 거래</span></b></div>` : ''}
-      <div class="kv"><span>Claude 판단</span><b class="num">${D.aiStats.asked}번 중 ${D.aiStats.enter}번 진입</b></div></section>`;
+    const shEq = SH ? SH.equity : null, diff = SH ? L.equity - shEq : null;
+    const acct = (title, sub, eqv, ret, trades, open, note, main) => `<div class="sc-acct${main ? ' main' : ''}"><p class="xs muted">${title}</p><p class="num b">${won(eqv)}</p><p class="num sm ${dirClass(ret)}">${pct(ret, 2)}</p><p class="xs muted">거래 ${trades}번 · 포지션 ${open}개</p>${note ? `<p class="xs" style="margin-top:4px">${note}</p>` : ''}</div>`;
+    const hero = `<section class="card panel"><div class="row between"><p class="kicker">${scT(D.lastBar, 15)} 마감 봉까지 · 마지막 확인 ${ageMin < 1 ? '방금' : agoTxt(ageMin * 60e3)}</p><span class="act ${st[1]}">${st[0]}</span></div>
+      <div class="sc-accts">
+        ${acct('Claude 계좌', '', L.equity, L.ret, L.stats.trades, L.positions.length, D.aiStats.asked ? `Claude ${D.aiStats.asked}번 판단 · ${D.aiStats.enter}번 진입` : '', true)}
+        ${SH ? acct('엔진 혼자 (비교)', '', shEq, SH.ret, SH.stats.trades, SH.open, '후보를 전부 들어감') : ''}
+      </div>
+      <p class="sm" style="margin-top:12px">${L.stats.trades + L.positions.length === 0
+        ? `Claude 계좌는 <b>Claude가 "진입"을 고를 때만</b> 거래해요. 지금까지 후보를 모두 건너뛰어서 1억 그대로예요.`
+        : `Claude 계좌는 Claude가 "진입"을 고른 거래만 담겨 있어요.`}
+        ${diff != null && Math.abs(diff) >= 1e4 ? ` 같은 기간 엔진 혼자보다 <b class="${dirClass(diff)}">${diff >= 0 ? '+' : ''}${man(diff)}</b> ${diff >= 0 ? '앞서' : '뒤처져'} 있어요${diff >= 0 && L.stats.trades === 0 ? ' — 건너뛴 덕분에 손실을 피한 셈이에요' : ''}.` : ''}</p>
+      <p class="muted xs">${scT(D.inception, 15)}부터 · 레버리지 ${L.lev}배</p></section>`;
     const lg = (D.log || [])[0];
     const now = `<section class="card"><div class="row between"><h2>지금 봇은</h2><p class="muted xs">${lg ? scT(lg.t, 15) + ' 판단' : ''}</p></div>
       ${lg ? (lg.state ? `<p class="sm"><span class="act warn">${esc(lg.state)}</span></p>` : '') + lg.coins.map((c) => `<div class="kv sc-coin"><span>${esc(c.sym)}</span><b class="sm">${esc(c.text)}</b></div>`).join('')
