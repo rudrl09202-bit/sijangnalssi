@@ -117,7 +117,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
 
   // ── 2-3) 민경기 봇(MK): 리만·나비에-스토크스 착안 지표 — 같은 15분봉·같은 수수료·같은 안전 규칙으로 따로 검증
   const MP = SC.MK_CFG, mkStudy = [];
-  const mkVariants = [['민경기 봇', {}], ['층류 추세만', { mkOnly: 'flow' }], ['균형선 복귀만', { mkOnly: 'revert' }], ['난류 필터 끔', { mkTiMax: 1.01, mkNoSize: true }], ['정렬 문턱 0.5', { mkZ: 0.5 }], ['목표 3R', { tpR: 3 }]];
+  const mkVariants = [['민경기 봇', {}], ['층류 추세만', { mkOnly: 'flow' }], ['균형선 복귀만', { mkOnly: 'revert' }], ['난류 필터 끔', { mkTiMax: 1.01, mkNoSize: true }], ['정렬 문턱 0.5', { mkZ: 0.5 }], ['목표 3R', { tpR: 3 }], ['느리게 (3ATR·3R·24시간)', { stopAtr: 3, tpR: 3, maxBars: 96 }], ['반대로 진입', { mkFlip: true }], ['반대로 + 느리게', { mkFlip: true, stopAtr: 3, tpR: 3, maxBars: 96 }]];
   for (const [name, over] of mkVariants) {
     const PP = Object.assign({}, MP, over), row = { name };
     for (const [k, a, b] of [['all', 0, W.T.length - 1], ['h1', 0, half], ['h2', half, W.T.length - 1]]) {

@@ -126,6 +126,7 @@
       if (dv >= 2.5 && tn === -1 && due) out.push({ side: 'short', kind: 'mk-revert', size, why: '균형선 위 ' + dv.toFixed(1) + 'ATR 과열 · 변곡 간격 고름(' + Math.round(rg * 100) + '%) · 제때 꺾임' + tiTxt });
       if (dv <= -2.5 && tn === 1 && due) out.push({ side: 'long', kind: 'mk-revert', size, why: '균형선 아래 ' + Math.abs(dv).toFixed(1) + 'ATR 과매도 · 변곡 간격 고름(' + Math.round(rg * 100) + '%) · 제때 꺾임' + tiTxt });
     }
+    if (P.mkFlip) out.forEach((s) => { s.side = s.side === 'long' ? 'short' : 'long'; s.why = '[반대로] ' + s.why; });
     out.forEach((s) => { s.setup = s.kind; delete s.kind; s.atr = a; s.str = s.setup === 'mk-flow' ? 2 : 1; s.ref = c; s.hl = [x.d.h[j], x.d.l[j]]; });
     return out;
   }
