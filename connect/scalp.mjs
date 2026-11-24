@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { loadEnv, loadQuant, push, cleanTicks } from './paper.mjs';
-import { askClaude } from './council.mjs';
+import { askClaude, askGemini, askGpt, VOTERS } from './council.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
 const require = createRequire(import.meta.url);
@@ -27,6 +27,12 @@ const SYSTEM = `당신은 코인 무기한 선물 단타 트레이더입니다. 
 const SYSTEM_BOLD = `당신은 코인 무기한 선물 단타 트레이더(적극형)입니다. 15분봉 규칙 엔진이 진입 후보를 올리면, 실제로 들어갈지(enter) 건너뛸지(skip) 결정합니다.
 - 손절·익절·크기·레버리지는 규칙으로 고정입니다(손절 1.5 ATR, 익절 2R, 계좌 1% 위험). 당신은 진입 여부만 정합니다.
 - 기본은 진입입니다. 셋업이 성립하면 들어가고, 명확히 나쁜 근거(뚜렷한 역방향 흐름, 바로 앞의 강한 지지/저항, 과열 추격 등)가 있을 때만 건너뛰세요.
+- 주어진 자료만 근거로 하세요. 이후 가격을 안다고 가정하지 마세요.
+반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
+
+const SYSTEM_MID = `당신은 코인 무기한 선물 단타 트레이더입니다. 15분봉 규칙 엔진이 진입 후보를 올리면, 실제로 들어갈지(enter) 건너뛸지(skip) 결정합니다.
+- 손절·익절·크기·레버리지는 규칙으로 고정입니다(손절 1.5 ATR, 익절 2R, 계좌 1% 위험). 당신은 진입 여부만 정합니다.
+- 셋업이 추세 방향과 맞고, 목표까지 가는 길에 큰 장애물이 없고, 기대 이익이 왕복 수수료를 충분히 넘으면 진입하세요. 그렇지 않으면 건너뛰세요.
 - 주어진 자료만 근거로 하세요. 이후 가격을 안다고 가정하지 마세요.
 반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
 
@@ -115,7 +121,35 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   const key = env.ANTHROPIC_API_KEY, model = env.SCALP_MODEL || env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
   let asked = 0;
   // Claude 계좌 하나를 마감된 봉마다 진행 (조심형·적극형 공통)
+  // Claude 혼자 결정 (빈 응답이면 같은 모델 한 번 더 → 상위 모델)
+  async function claudeSays(system, msg, label) {
+    const models = [model, model, env.SCALP_BACKUP_MODEL || 'claude-opus-5-5'];
+    let lastErr = '';
+    for (let k = 0; k < models.length; k++) {
+      try { const d = parseDecision(await askClaude(key, models[k], msg, fetchImpl, system, 4000)); if (models[k] !== model) d.reason += ' (' + models[k] + ')'; return d; }
+      catch (e) { lastErr = String(e.message || e); log(label + ' Claude 시도 ' + (k + 1) + ' 실패: ' + lastErr.slice(0, 120)); await sleep(1500); }
+    }
+    return { decision: 'error', confidence: 0, reason: '응답 실패: ' + lastErr.slice(0, 100) };
+  }
+  async function otherSays(v, msg) {
+    const k2 = env[v.key]; if (!k2) return { decision: 'error', confidence: 0, reason: '키 없음' };
+    const m0 = env[v.model] || v.def, tries = [m0, m0].concat((v.backup || []).filter((m) => m !== m0));
+    let lastErr = '';
+    for (const m of tries) {
+      try { return parseDecision(await (v.id === 'gemini' ? askGemini : askGpt)(k2, m, msg, fetchImpl, SYSTEM_MID, 4000)); }
+      catch (e) { lastErr = String(e.message || e); if (/HTTP 40[13]/.test(lastErr)) break; await sleep(2000); }
+    }
+    return { decision: 'error', confidence: 0, reason: '응답 실패: ' + lastErr.slice(0, 80) };
+  }
+  // 세 AI 다수결 (2명 이상 진입이면 진입)
+  async function majoritySays(msg, label) {
+    const [c, g, o] = await Promise.all([claudeSays(SYSTEM_MID, msg, label), otherSays(VOTERS[1], msg), otherSays(VOTERS[2], msg)]);
+    const votes = [['claude', 'Claude', c], ['gemini', 'Gemini', g], ['gpt', 'GPT', o]].map(([ai, name, d]) => ({ ai, name, decision: d.decision, confidence: d.confidence, reason: d.reason }));
+    const yes = votes.filter((v) => v.decision === 'enter').length, ok = votes.filter((v) => v.decision !== 'error').length;
+    return { decision: ok < 2 ? 'error' : yes >= 2 ? 'enter' : 'skip', confidence: Math.round(votes.reduce((a, v) => a + (v.confidence || 0), 0) / 3), reason: yes + '/3 진입 찬성' + (ok < 3 ? ' (' + (3 - ok) + '명 응답 실패)' : ''), votes };
+  }
   async function runClaudeAcc(A, decisions, system, label, fromIdx) {
+    const decide = system === 'majority' ? majoritySays : (msg, lb) => claudeSays(system, msg, lb);
     A.events = [];
     if (fromIdx < 0) return;
     for (let i = fromIdx; i <= last; i++) {
@@ -126,18 +160,10 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
         if (recent && W.T[i] - Date.parse(recent.t.replace(' ', 'T') + ':00Z') < 60 * 60e3) { o.approved = false; continue; }
         if (age > 2 * 3600e3) { o.approved = false; decisions.push({ ...rec, decision: 'late', reason: '실행이 늦어 2시간 지난 신호 — 건너뜀' }); continue; }
         if (!key) { o.approved = false; decisions.push({ ...rec, decision: 'nokey', reason: 'Claude 키 없음' }); continue; }
-        let d;
         const msg = '후보 자료(JSON):\n' + JSON.stringify(brief(W, P, i, o, A));
-        // 같은 모델 2번 → 그래도 비면 다른 Claude 모델로 (빈 응답 대비)
-        const models = [model, model, env.SCALP_BACKUP_MODEL || 'claude-opus-5-5'];
-        let lastErr = '';
-        for (let k = 0; k < models.length && !d; k++) {
-          try { d = parseDecision(await askClaude(key, models[k], msg, fetchImpl, system, 4000)); if (models[k] !== model) d.reason = d.reason + ' (' + models[k] + ')'; }
-          catch (e) { lastErr = String(e.message || e); log(label + ' Claude 시도 ' + (k + 1) + ' 실패: ' + lastErr.slice(0, 120)); await sleep(1500); }
-        }
-        if (!d) d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + lastErr.slice(0, 100) };
+        const d = await decide(msg, label);
         asked++;
-        o.approved = d.decision === 'enter'; o.ai = { decision: d.decision, confidence: d.confidence, reason: d.reason };
+        o.approved = d.decision === 'enter'; o.ai = { decision: d.decision, confidence: d.confidence, reason: d.reason, votes: d.votes };
         decisions.push({ ...rec, ...d, model });
         log(label + ': ' + o.name + ' ' + (o.side === 'long' ? '롱' : '숏') + ' (' + o.why + ') → ' + d.decision + ' ' + d.confidence + ' · ' + d.reason);
       }
@@ -150,15 +176,39 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   const B2 = st.bold, bfrom = B2.acc.lastT == null ? last : W.T.findIndex((t) => t > B2.acc.lastT);
   await runClaudeAcc(B2.acc, B2.decisions, SYSTEM_BOLD, '적극형', bfrom);
   B2.decisions = B2.decisions.slice(-120);
+  // 다수결 계좌 (Claude·Gemini·GPT 중 2명 이상 진입 찬성)
+  if (!st.major) { st.major = { inception: W.T[last], acc: SC.newAccount(P), decisions: [] }; log('다수결 계좌를 새로 엽니다'); }
+  const M3 = st.major, mfrom = M3.acc.lastT == null ? last : W.T.findIndex((t) => t > M3.acc.lastT);
+  await runClaudeAcc(M3.acc, M3.decisions, 'majority', '다수결', mfrom);
+  M3.decisions = M3.decisions.slice(-120);
   // 비교용: 같은 엔진 후보를 전부 들어가는 계좌 (Claude 없이)
   if (!st.shadow) { st.shadow = SC.newAccount(P); st.shadowFrom = st.shadowFrom || W.T[last]; }
   const sf = st.shadow.lastT == null ? last : W.T.findIndex((t) => t > st.shadow.lastT);
   if (sf >= 0) SC.simulate(W, P, st.shadow, sf, last, { collect: false });
   st.decisions = st.decisions.slice(-120);
-  const fresh = A.events.slice().map((e) => ({ ...e, who: '조심형' })).concat(B2.acc.events.map((e) => ({ ...e, who: '적극형' }))); A.events = []; B2.acc.events = []; st.updatedAt = now.toISOString();
+  const fresh = A.events.slice().map((e) => ({ ...e, who: '조심형' })).concat(B2.acc.events.map((e) => ({ ...e, who: '적극형' }))).concat(M3.acc.events.map((e) => ({ ...e, who: '다수결' }))); A.events = []; B2.acc.events = []; M3.acc.events = []; st.updatedAt = now.toISOString();
   writeFileSync(stFile, JSON.stringify(st));
 
   // ── 4) 앱용 결과
+  function summarize(X) {
+    const BA = X.acc, e2 = BA.equity.length ? BA.equity[BA.equity.length - 1][1] : BA.cash, dd = X.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
+    const pos = Object.values(BA.pos).map((p) => { const m = series[p.sym].c[series[p.sym].c.length - 1], u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
+      return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, lev: Math.round(m * p.qty / e2 * 100) / 100, upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be,
+        toStop: Math.round(Math.abs(m / p.stop - 1) * 1000) / 10, toLiq: Math.round(Math.abs(m / p.liq - 1) * 1000) / 10, ai: p.ai, barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / BAR)) }; });
+    return { inception: isoT(X.inception), equity: e2, start: BA.start, ret: Math.round((e2 / BA.start - 1) * 10000) / 100, stats: SC.stats(BA), positions: pos, trades: BA.trades.slice(-20).reverse(),
+      decisions: X.decisions.slice(-20).reverse(), aiStats: { asked: dd.length, enter: dd.filter((d) => d.decision === 'enter').length } };
+  }
+  // AI별 성적표: 다수결 계좌의 끝난 거래에서 각 AI가 찬성했을 때/반대했을 때 결과
+  function aiScore(X) {
+    const tr = X.acc.trades.filter((t) => t.ai && t.ai.votes);
+    return ['claude', 'gemini', 'gpt'].map((id) => {
+      const y = tr.filter((t) => (t.ai.votes.find((v) => v.ai === id) || {}).decision === 'enter'), n = tr.filter((t) => (t.ai.votes.find((v) => v.ai === id) || {}).decision === 'skip');
+      const dec = X.decisions.filter((d) => d.votes).map((d) => d.votes.find((v) => v.ai === id)).filter(Boolean);
+      const r = (a) => (a.length ? Math.round(a.reduce((s2, t) => s2 + t.R, 0) / a.length * 100) / 100 : null);
+      return { ai: id, name: { claude: 'Claude', gemini: 'Gemini', gpt: 'GPT' }[id], asked: dec.length, yes: dec.filter((v) => v.decision === 'enter').length, errors: dec.filter((v) => v.decision === 'error').length,
+        yesTrades: y.length, yesWin: y.length ? Math.round(y.filter((t) => t.pnl > 0).length / y.length * 100) : null, yesR: r(y), noTrades: n.length, noR: r(n) };
+    });
+  }
   const mark = (s) => { const d = series[s]; return d ? d.c[d.c.length - 1] : null; };
   const eq = A.equity.length ? A.equity[A.equity.length - 1][1] : A.cash;
   const ldc = SC.daily(A.equity), ls = SC.stats(A);
@@ -173,6 +223,8 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       positions, lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-40).reverse(),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
     shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), trades: S2.trades.slice(-10).reverse(), open: Object.keys(S2.pos).length }; })(),
+    major: summarize(M3),
+    aiCard: aiScore(M3),
     bold: (() => { const BA = B2.acc, e2 = BA.equity.length ? BA.equity[BA.equity.length - 1][1] : BA.cash, dd = B2.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
       const pos = Object.values(BA.pos).map((p) => { const m = mark(p.sym), u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
         return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, lev: Math.round(m * p.qty / e2 * 100) / 100, upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be,
@@ -185,7 +237,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
     coins: SC.COINS.filter((c) => series[c.sym]).map((c) => ({ sym: c.sym, name: c.name, price: mark(c.sym) })), errors
   };
   writeFileSync(join(dir, 'scalp-live.json'), JSON.stringify(out));
-  log('단타 모의: 조심형 ' + out.live.ret + '% · 적극형 ' + out.bold.ret + '% (' + out.bold.stats.trades + '번) · 엔진 혼자 ' + out.shadow.ret + '% (' + out.shadow.stats.trades + '번) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
+  log('단타 모의: 조심형 ' + out.live.ret + '% · 적극형 ' + out.bold.ret + '% (' + out.bold.stats.trades + '번) · 다수결 ' + out.major.ret + '% (' + out.major.stats.trades + '번) · 엔진 혼자 ' + out.shadow.ret + '% (' + out.shadow.stats.trades + '번) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
 
   // ── 5) 푸시
   const moves = fresh.filter((e) => e.kind === 'open' || e.kind === 'close' || e.kind === 'vault');

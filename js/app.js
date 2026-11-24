@@ -1937,17 +1937,18 @@
     const head = `<header class="top"><div><a href="#paper" class="back">‹ 투자봇</a><p class="kicker">SCALP · 15분봉 롱·숏 · Claude가 결정 · 가상 1억 · 실제 돈 아님</p><h1>단타 데스크</h1></div>${tools()}</header>`;
     if (!D) return head + `<section class="card empty"><p class="h-md">단타 봇 결과를 불러오는 중이에요</p><p class="muted sm">10분마다 자동으로 돌아요. 처음 몇 분은 결과가 없을 수 있어요.</p></section>`;
     const L = D.live, st = SC_ST[L.status] || SC_ST.ok, ageMin = Math.round((Date.now() - Date.parse(D.generatedAt)) / 60e3), SH = D.shadow;
-    const BD = D.bold, tabSc = S.ui.scTab === 'bold' && BD ? 'bold' : 'careful';
+    const BD = D.bold, MJ = D.major, tabSc = S.ui.scTab === 'bold' && BD ? 'bold' : S.ui.scTab === 'major' && MJ ? 'major' : 'careful';
     const accRow = (name, desc, eqv, ret, trades, open, extra, on) => `<div class="sc-row${on ? ' on' : ''}"><div><p class="b">${name}</p><p class="muted xs">${desc}</p></div>
       <div class="right"><p class="num b ${dirClass(ret)}">${pct(ret, 2)}</p><p class="muted xs num">${won(eqv)}</p><p class="muted xs">거래 ${trades} · 포지션 ${open}${extra ? ' · ' + extra : ''}</p></div></div>`;
     const hero = `<section class="card panel"><div class="row between"><p class="kicker">${scT(D.lastBar, 15)} 마감 봉까지 · 확인 ${ageMin < 1 ? '방금' : agoTxt(ageMin * 60e3)}</p><span class="act ${st[1]}">${st[0]}</span></div>
       <p class="muted xs" style="margin:6px 0 4px">같은 후보로 세 계좌가 동시에 가상 1억씩 굴러가요. 다른 건 "들어갈지 말지"를 누가 정하느냐뿐이에요.</p>
       ${accRow('조심형 Claude', '애매하면 건너뜀', L.equity, L.ret, L.stats.trades, L.positions.length, D.aiStats.asked ? D.aiStats.enter + '/' + D.aiStats.asked + ' 진입' : '', tabSc === 'careful')}
       ${BD ? accRow('적극형 Claude', '기본은 진입', BD.equity, BD.ret, BD.stats.trades, BD.positions.length, BD.aiStats.asked ? BD.aiStats.enter + '/' + BD.aiStats.asked + ' 진입' : '', tabSc === 'bold') : ''}
+      ${MJ ? accRow('AI 3명 다수결', 'Claude·Gemini·GPT 중 2명 찬성', MJ.equity, MJ.ret, MJ.stats.trades, MJ.positions.length, MJ.aiStats.asked ? MJ.aiStats.enter + '/' + MJ.aiStats.asked + ' 진입' : '', tabSc === 'major') : ''}
       ${SH ? accRow('엔진 혼자', '후보를 전부 진입 (비교 기준)', SH.equity, SH.ret, SH.stats.trades, SH.open, '') : ''}
       <p class="muted xs" style="margin-top:8px">${scT(D.inception, 15)}부터${BD ? ' · 적극형은 ' + scT(BD.inception, 15) + '부터' : ''}</p></section>
-      ${BD ? `<div class="seg" role="tablist"><button role="tab" class="${tabSc === 'careful' ? 'on' : ''}" data-act="sc-tab" data-v="careful">조심형 보기</button><button role="tab" class="${tabSc === 'bold' ? 'on' : ''}" data-act="sc-tab" data-v="bold">적극형 보기</button></div>` : ''}`;
-    const V = tabSc === 'bold' ? { positions: BD.positions, decisions: BD.decisions, trades: BD.trades, stats: BD.stats, label: '적극형' } : { positions: L.positions, decisions: D.decisions, trades: L.trades, stats: L.stats, label: '조심형' };
+      ${BD ? `<div class="seg" role="tablist">${[['careful', '조심형'], ['bold', '적극형']].concat(MJ ? [['major', '다수결']] : []).map(([k, l]) => `<button role="tab" class="${tabSc === k ? 'on' : ''}" data-act="sc-tab" data-v="${k}">${l}</button>`).join('')}</div>` : ''}`;
+    const V = tabSc === 'major' ? { positions: MJ.positions, decisions: MJ.decisions, trades: MJ.trades, stats: MJ.stats, label: '다수결' } : tabSc === 'bold' ? { positions: BD.positions, decisions: BD.decisions, trades: BD.trades, stats: BD.stats, label: '적극형' } : { positions: L.positions, decisions: D.decisions, trades: L.trades, stats: L.stats, label: '조심형' };
     const lg = (D.log || [])[0];
     const now = `<section class="card"><div class="row between"><h2>지금 봇은</h2><p class="muted xs">${lg ? scT(lg.t, 15) + ' 판단' : ''}</p></div>
       ${lg ? (lg.state ? `<p class="sm"><span class="act warn">${esc(lg.state)}</span></p>` : '') + lg.coins.map((c) => `<div class="kv sc-coin"><span>${esc(c.sym)}</span><b class="sm">${esc(c.text)}</b></div>`).join('')
@@ -1961,7 +1962,13 @@
       <div class="kv"><span>청산가</span><b class="num">${usd(p.liq)} <span class="muted xs">${p.toLiq}%</span></b></div>
       <div class="kv"><span>남은 시간</span><b class="num">${Math.round(p.barsLeft * 15 / 60 * 10) / 10}시간 뒤 정리</b></div>
       ${p.ai ? `<p class="xs" style="margin:6px 0 0">Claude ${p.ai.confidence}: ${esc(p.ai.reason)}</p>` : ''}${tvButton('perp', p.sym, p.name + ' 무기한 선물', '15')}</div>`).join('') : '<p class="muted sm">지금은 포지션이 없어요.</p>'}</section>`;
-    const dec = `<section class="card"><h2>${V.label} Claude 결정 기록</h2>${(V.decisions || []).length ? V.decisions.slice(0, 12).map((d) => `<div class="vote"><div class="row between"><p class="b sm"><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 15)} · ${SETUP[d.kind] || ''}</span></p><span class="act ${(SC_DEC[d.decision] || SC_DEC.error)[1]}">${(SC_DEC[d.decision] || SC_DEC.error)[0]}${d.confidence ? ' ' + d.confidence : ''}</span></div><p class="xs vote-line">${esc(d.reason || '')}</p></div>`).join('') : '<p class="muted sm">아직 후보가 없었어요.</p>'}</section>`;
+    const dec = `<section class="card"><h2>${V.label} Claude 결정 기록</h2>${(V.decisions || []).length ? V.decisions.slice(0, 12).map((d) => `<div class="vote"><div class="row between"><p class="b sm"><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 15)} · ${SETUP[d.kind] || ''}</span></p><span class="act ${(SC_DEC[d.decision] || SC_DEC.error)[1]}">${(SC_DEC[d.decision] || SC_DEC.error)[0]}${d.confidence ? ' ' + d.confidence : ''}</span></div><p class="xs vote-line">${esc(d.reason || '')}</p>${(d.votes || []).map((x) => `<p class="xs vote-line"><b>${esc(x.name)}</b> <span class="act ${(SC_DEC[x.decision] || SC_DEC.error)[1]}">${(SC_DEC[x.decision] || SC_DEC.error)[0]}${x.confidence ? ' ' + x.confidence : ''}</span> ${esc(x.reason || '')}</p>`).join('')}</div>`).join('') : '<p class="muted sm">아직 후보가 없었어요.</p>'}</section>`;
+    const AC = D.aiCard;
+    const aiCard = AC && tabSc === 'major' ? `<section class="card"><h2>AI 성적표 <span class="muted xs">· 다수결 계좌 기준</span></h2>
+      <p class="muted xs">각 AI가 "진입"에 찬성했던 거래가 실제로 어땠는지 모아요. 거래가 쌓일수록 누가 잘 보는지 드러나요.</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>AI</th><th>찬성</th><th>거래</th><th>승률</th><th>평균</th><th>반대 땐</th></tr></thead><tbody>
+      ${AC.map((a) => `<tr><td>${esc(a.name)}</td><td>${a.yes}/${a.asked}</td><td>${a.yesTrades}</td><td>${a.yesWin == null ? '—' : a.yesWin + '%'}</td><td class="${dirClass(a.yesR)}">${a.yesR == null ? '—' : rr(a.yesR)}</td><td class="${dirClass(a.noR == null ? 0 : -a.noR)}">${a.noR == null ? '—' : rr(a.noR)}</td></tr>`).join('')}
+      </tbody></table></div><p class="muted xs">거래·승률·평균은 그 AI가 찬성한 거래의 결과예요. "반대 땐"이 마이너스면 그 AI가 반대한 게 맞았다는 뜻이에요.</p></section>` : '';
     const trades = `<section class="card"><h2>${V.label} 최근 거래 <span class="muted xs">· ${V.stats.trades}번 · 승률 ${V.stats.winRate == null ? '—' : V.stats.winRate + '%'} · 수수료 ${man(V.stats.fees)}</span></h2>${scTrades(V.trades, 10)}</section>
       ${SH && SH.trades.length ? `<section class="card"><h2>비교: 엔진 혼자 최근 거래</h2>${scTrades(SH.trades, 6)}</section>` : ''}`;
     const B = D.bt, bs = B.stats;
@@ -1981,7 +1988,7 @@
       <div class="kv"><span>크기</span><b>한 번에 계좌 ${c.riskPct}% · 동시 ${c.maxPos}개 · 전체 ${c.maxLevTotal}배</b></div>
       <div class="kv"><span>금고</span><b>하루 ${c.dayLoss}% 정지 · ${c.streakPause}연패 ${c.pauseBars * c.bar / 60}시간 휴식 · ${c.ddKill}% 킬</b></div>
       <div class="kv"><span>비용</span><b>수수료 ${(c.taker * 100).toFixed(2)}% · 미끄러짐 · 펀딩</b></div></section>`;
-    return head + hero + now + pos + dec + trades + honest + rules;
+    return head + hero + now + pos + dec + aiCard + trades + honest + rules;
   }
   const SC_COIN = { BTC: '비트코인', ETH: '이더리움', SOL: '솔라나', XRP: '엑스알피', DOGE: '도지코인' };
   function scalpEntry() {
