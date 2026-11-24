@@ -25,6 +25,28 @@ async function getJ(url, fetchImpl) {
 // [[t, v], ...] 에 새 값 합치기 (같은 시각은 새 값으로)
 function merge(arr, rows) { const m = new Map(arr); rows.forEach(([t, v]) => { if (isFinite(t) && isFinite(v)) m.set(t, v); }); return [...m.entries()].sort((a, b) => a[0] - b[0]); }
 
+// 4시간봉 긴 역사 (바이낸스 선물, 상장 때부터) — 시세 + 거래량 + 테이커 매수량
+// 파일: connect/.cache/k4-<코인>.json = { t:[...], o,h,l,c,v,tb } (tb = 테이커 매수 거래량)
+const K4 = 4 * HOUR;
+export async function collectK4({ now = Date.now(), fetchImpl = fetch, log = console.log, dir = join(HERE, '.cache') } = {}) {
+  const out = {}; let ok = 0; const errs = [];
+  for (const c of DERIV_COINS) {
+    const f = join(dir, 'k4-' + c + '.json');
+    let K = { t: [], o: [], h: [], l: [], c: [], v: [], tb: [] }; try { K = JSON.parse(readFileSync(f, 'utf8')); } catch (e) { /* 처음 */ }
+    try {
+      let st = K.t.length ? K.t[K.t.length - 1] + K4 : Date.UTC(2019, 0, 1);
+      for (let k = 0; k < 12 && st < now - K4; k++) {
+        const j = await getJ(BASE + '/fapi/v1/klines?symbol=' + c + 'USDT&interval=4h&limit=1500&startTime=' + st, fetchImpl);
+        const rows = j.filter((r) => Number(r[6]) < now); // 끝난 봉만
+        rows.forEach((r) => { const t = Number(r[0]); if (K.t.length && t <= K.t[K.t.length - 1]) return; K.t.push(t); K.o.push(+r[1]); K.h.push(+r[2]); K.l.push(+r[3]); K.c.push(+r[4]); K.v.push(+r[7]); K.tb.push(+r[10]); });
+        if (j.length < 1500) break; st = Number(j[j.length - 1][0]) + K4; await sleep(250);
+      }
+      mkdirSync(dir, { recursive: true }); writeFileSync(f, JSON.stringify(K)); out[c] = K; ok++;
+    } catch (e) { errs.push(c + ': ' + e.message); if (K.t.length) out[c] = K; }
+  }
+  const b = out.BTC; log('4시간봉 역사: ' + ok + '/' + DERIV_COINS.length + '코인 · 비트코인 ' + (b ? b.t.length + '봉 (' + new Date(b.t[0]).toISOString().slice(0, 10) + '부터)' : '없음') + (errs.length ? ' · 오류 ' + errs.join(' / ') : ''));
+  return out;
+}
 export async function collect({ db, now = Date.now(), fetchImpl = fetch, log = console.log } = {}) {
   db = db || { v: 1, coins: {} };
   let ok = 0; const errs = [];
@@ -80,7 +102,7 @@ export function compact(db) {
   return out;
 }
 // GitHub 'deriv-data' 브랜치에 올리기 (없으면 만듦)
-async function upload(db, env, fetchImpl = fetch, log = console.log) {
+async function upload(db, env, fetchImpl = fetch, log = console.log, k4 = null) {
   const token = env.GITHUB_TOKEN, repo = env.GITHUB_REPO;
   if (!token || !repo) { log('· 선물 데이터: GITHUB_TOKEN·GITHUB_REPO 가 없어 서버에만 저장'); return false; }
   const api = 'https://api.github.com/repos/' + repo, H = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'User-Agent': 'sijangnalssi-deriv' };
@@ -90,18 +112,26 @@ async function upload(db, env, fetchImpl = fetch, log = console.log) {
     r = await fetchImpl(api + '/git/refs', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: 'refs/heads/deriv-data', sha: main.object.sha }) });
     if (!r.ok) throw new Error('브랜치 만들기 실패 HTTP ' + r.status);
   }
-  const url = api + '/contents/deriv.json';
-  let sha; const g = await fetchImpl(url + '?ref=deriv-data', { headers: H }); if (g.ok) sha = (await g.json()).sha;
-  const p = await fetchImpl(url, { method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: '선물 데이터 ' + db.updatedAt.slice(0, 16), branch: 'deriv-data', content: Buffer.from(JSON.stringify(compact(db))).toString('base64'), ...(sha ? { sha } : {}) }) });
-  if (!p.ok) throw new Error('업로드 실패 HTTP ' + p.status + ' ' + (await p.text()).slice(0, 120));
-  log('✓ 선물 데이터 올림 (deriv-data 브랜치)'); return true;
+  const put = async (name, obj) => {
+    const url = api + '/contents/' + name;
+    let sha; const g = await fetchImpl(url + '?ref=deriv-data', { headers: H }); if (g.ok) sha = (await g.json()).sha;
+    const p = await fetchImpl(url, { method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: name + ' ' + db.updatedAt.slice(0, 16), branch: 'deriv-data', content: Buffer.from(JSON.stringify(obj)).toString('base64'), ...(sha ? { sha } : {}) }) });
+    if (!p.ok) throw new Error(name + ' 업로드 실패 HTTP ' + p.status + ' ' + (await p.text()).slice(0, 120));
+  };
+  await put('deriv.json', compact(db));
+  for (const [c, K] of Object.entries(k4 || {})) { try { await put('k4-' + c + '.json', K); } catch (e) { log('✗ ' + e.message); } }
+  log('✓ 선물 데이터 올림 (deriv-data 브랜치' + (k4 ? ' · 4시간봉 ' + Object.keys(k4).length + '코인' : '') + ')'); return true;
 }
 
 export async function run({ env = {}, fetchImpl = fetch, log = console.log } = {}) {
   let db = null; try { db = JSON.parse(readFileSync(FILE, 'utf8')); } catch (e) { /* 처음 */ }
   const r = await collect({ db, fetchImpl, log });
   mkdirSync(dirname(FILE), { recursive: true }); writeFileSync(FILE, JSON.stringify(r.db));
-  if (r.ok) { try { await upload(r.db, env, fetchImpl, log); } catch (e) { log('✗ 선물 데이터 올리기: ' + e.message); } }
+  // 4시간봉은 새 봉이 생길 때만(4시간마다) 올림
+  let k4 = null; try { k4 = await collectK4({ fetchImpl, log }); } catch (e) { log('✗ 4시간봉: ' + e.message); }
+  const h = new Date().getUTCHours(), first = !existsSync(join(HERE, '.cache', 'k4-uploaded'));
+  if (k4 && !(first || h % 4 === 0)) k4 = null;
+  if (r.ok) { try { await upload(r.db, env, fetchImpl, log, k4); if (k4) writeFileSync(join(HERE, '.cache', 'k4-uploaded'), new Date().toISOString()); } catch (e) { log('✗ 선물 데이터 올리기: ' + e.message); } }
   return r;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
