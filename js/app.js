@@ -2299,12 +2299,48 @@
       ${staff.map(person).join('')}
     </svg>`;
   }
+
+  // 모의투자 방 기록: 지금 후보 종목과 이유 (단타·선물·주식 봇 모두)
+  function paperCands(PP) {
+    const out = [], SD = { long: '롱', short: '숏' }, V = { enter: '진입', skip: '건너뜀', error: '응답 실패', late: '늦어서 건너뜀', nokey: '키 없음' };
+    loadScalp();
+    const D = S.sc;
+    if (D) {
+      const lg = (D.log || [])[0];
+      const pick = (list, c) => (list || []).find((d) => d.name + ' ' + SD[d.side] === c);
+      // 지금 봉의 후보 → 계좌별 판단
+      (lg ? lg.cands : []).forEach((c) => {
+        const a = pick(D.decisions, c), b = D.bold && pick(D.bold.decisions, c), m = D.major && pick(D.major.decisions, c);
+        const parts = [a && '조심형 ' + V[a.decision], b && '적극형 ' + V[b.decision], m && '다수결 ' + (m.reason || V[m.decision])].filter(Boolean);
+        const why = (a && a.reason) || (b && b.reason) || '';
+        out.push({ cls: '', html: `<b>단타</b> ${esc(c)} <span class="muted">${scT(lg.t, 15)}</span>${parts.length ? ' · ' + esc(parts.join(' · ')) : ' · 판단 대기'}`, why: esc(why) });
+      });
+      // 최근 결정 (지금 후보가 없을 때도 무엇을 봤는지 보이게)
+      const recent = [].concat((D.decisions || []).map((d) => ({ ...d, who: '조심형' })), ((D.bold && D.bold.decisions) || []).map((d) => ({ ...d, who: '적극형' })), ((D.major && D.major.decisions) || []).map((d) => ({ ...d, who: '다수결' })))
+        .filter((d) => d.decision === 'enter' || d.decision === 'skip').sort((x, y) => (x.t < y.t ? 1 : -1));
+      const seen = new Set(out.map((o) => o.html));
+      recent.slice(0, 6).forEach((d) => { const k = d.t + d.sym + d.side + d.who; if (seen.has(k) || out.length >= 4) return; seen.add(k);
+        out.push({ cls: d.decision === 'enter' ? 'ok' : '', html: `<b>단타·${d.who}</b> ${esc(d.name)} ${SD[d.side]} <span class="muted">${scT(d.t, 15)}</span> · ${V[d.decision]}${d.votes ? ' (' + esc(d.reason) + ')' : ''}`, why: esc(d.votes ? d.votes.map((v) => v.name + ': ' + (v.reason || V[v.decision])).join(' / ') : d.reason || '') }); });
+    }
+    // 선물 (4시간봉): FLUX 진입 대기 · AI 회의 최근 투표
+    const F = S.fut;
+    if (F && F.live) {
+      (F.live.pending || []).slice(0, 2).forEach((o) => out.push({ cls: '', html: `<b>선물·FLUX</b> ${esc(o.name)} ${SD[o.side]} · 다음 봉 진입 대기`, why: esc(o.why || '') }));
+      const v = F.council && F.council.votes && F.council.votes[0];
+      if (v) out.push({ cls: v.result === 'approved' ? 'ok' : '', html: `<b>선물·AI 회의</b> ${esc(v.name)} ${SD[v.side]} · ${v.result === 'approved' ? '만장일치 진입' : '보류'}`, why: esc(v.votes.map((x) => x.name + ': ' + x.reason).join(' / ')) });
+    }
+    // 주식·코인 봇: 다음 거래일 주문 대기
+    PP.bots.filter((b) => !b.retired && b.live).forEach((b) => (b.live.orders || []).slice(0, 2).forEach((o) => out.push({ cls: o.side === 'sell' ? 'alert' : '', html: `<b>${esc(b.code)}</b> ${esc(o.name)} ${o.side === 'buy' ? '매수' : '매도'} 대기`, why: esc(o.why || '') })));
+    // 오늘 체결
+    (PP.today || []).slice(-2).reverse().forEach((e) => out.push({ cls: e.side === 'vault' ? 'alert' : 'ok', html: `<b>${esc(e.botCode || '')}</b> ${e.side === 'buy' ? '매수 체결' : e.side === 'sell' ? '매도 체결' : '금고'} ${esc(e.name || '')} <span class="muted">${esc((e.d || '').slice(5))}</span>`, why: esc(e.why || e.reason || '') }));
+    return out;
+  }
   function hqCard(o) {
     return `<a class="hq-card ${o.locked ? 'locked' : ''}" href="${o.href}">
       <div class="hq-head"><div><p class="hq-kick">${esc(o.kick)}</p><p class="hq-title">${esc(o.title)}</p></div>
         <div class="right"><p class="hq-num num ${o.numCls || ''}">${o.num}</p><p class="hq-sub ${o.subCls || ''}">${o.sub || ''}</p></div></div>
       ${isoRoom(o)}
-      <div class="hq-log">${(o.log || []).slice(0, 3).map((l) => `<p><span class="hq-dot ${l.cls || ''}"></span>${l.html}</p>`).join('') || '<p class="muted">기록 없음</p>'}</div></a>`;
+      <div class="hq-log">${o.logTitle ? `<p class="hq-log-t">${o.logTitle}</p>` : ''}${(o.log || []).slice(0, o.logMax || 3).map((l) => `<p><span class="hq-dot ${l.cls || ''}"></span><span>${l.html}${l.why ? `<span class="hq-why">${l.why}</span>` : ''}</span></p>`).join('') || '<p class="muted">기록 없음</p>'}</div></a>`;
   }
   /* ---------- BOSS 업무 점검: 직원마다 맡은 일 + 실제 데이터로 확인 ----------
    * 결과: ok(제대로 함) · warn(일은 했고, 사장님이 볼 것을 찾음) · fail(맡은 일을 못 함) · wait(아직 차례 아님)
@@ -2472,7 +2508,7 @@
         num: (r >= 0 ? '+' : '') + r.toFixed(2) + '%', numCls: dirClass(r), sub: '가상 ' + bots.length + '억 · ' + kDate(PP.inception) + '부터',
         staff: bots.slice(0, 4).map((b, k) => { const st = b.live ? b.live.status : 'ok'; const n = b.live ? b.live.positions.length : 0, o = b.live ? b.live.orders.length : 0;
           return { code: b.code, i: pos[k][0], j: pos[k][1], tone: st === 'paused' ? 'alert' : '', say: st === 'paused' ? '금고 정지' : n ? '보유 ' + n : o ? '주문 ' + o : '대기' }; }),
-        log: (PP.today || []).slice(-3).reverse().map((e) => ({ cls: e.side === 'vault' ? 'alert' : '', html: `<b>${esc(e.botCode || '')}</b> ${e.side === 'buy' ? '매수' : e.side === 'sell' ? '매도' : '금고'} ${esc(e.name || '')} <span class="muted">${esc((e.d || '').slice(5))}</span>` }))
+        log: paperCands(PP), logMax: 6, logTitle: '후보 종목 · 이유'
       };
     } else paper = { href: '#paper', kick: 'ROOM 2', title: '모의투자 방', wallName: 'PAPER BOTS', num: '—', sub: '결과 불러오는 중', staff: [{ code: 'ATLAS', i: 0, j: 0, say: '대기' }, { code: 'ORBIT', i: 3, j: 0, say: '대기' }, { code: 'NOVA', i: 0, j: 3, say: '대기' }, { code: 'CHIEF', i: 2.2, j: 3.6, say: '대기' }], log: [] };
     loadFutures();
