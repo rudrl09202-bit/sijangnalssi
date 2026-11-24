@@ -2054,7 +2054,14 @@
       <p class="muted xs">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 코인 ${Mo.coins}개 · ${esc(Mo.from.slice(0, 10))}부터 1시간봉 · 학습 예시 ${nf(Mo.n)}개 · 재료 ${Mo.feats}개 · 매주 다시 학습</p>
       <p class="sm" style="margin:8px 0 4px">판단에 많이 쓴 재료 (중요도)</p>
       ${Mo.imp.slice(0, 8).map((x) => `<div class="kv"><span>${esc(x.label)}</span><b class="num">${x.v}%</b></div>`).join('')}
-      <p class="muted xs" style="margin-top:6px">원래 목표 성공률: 롱 ${Mo.rate.long}% · 숏 ${Mo.rate.short}% (아무 때나 들어갔을 때)</p></section>` : '';
+      <p class="muted xs" style="margin-top:6px">원래 목표 성공률: 롱 ${Mo.rate.long}% · 숏 ${Mo.rate.short}% (아무 때나 들어갔을 때)</p>
+      ${(() => { const X = D.deriv; if (!X) return '<div class="fil"><p class="b sm">선물 시장 데이터</p><p class="muted xs">서울 서버가 바이낸스 펀딩비·미결제약정·롱숏 비율을 모으기 시작하면 여기에 표시돼요.</p></div>';
+        const od = (X.cover && X.cover.oiDays) || 0;
+        return `<div class="fil"><p class="b sm">선물 시장 데이터 (서울 서버 수집)</p>
+          <div class="kv"><span>펀딩비</span><b>${X.useF ? '재료로 사용 중 ✓' : '준비 중'}</b></div>
+          <div class="kv"><span>미결제약정 · 롱숏 비율 · 테이커</span><b>${X.useO ? '재료로 사용 중 ✓' : od + ' / ' + X.need + '일 쌓는 중'}</b></div>
+          ${X.useO ? '' : `<div class="bar-track" style="margin-top:6px"><div class="bar-fill" style="width:${Math.min(100, od / X.need * 100)}%"></div></div>`}
+          <p class="muted xs">바이낸스는 이 데이터를 최근 30일만 줘서 매시간 모아 두고 있어요. ${X.need}일이 차면 자동으로 다시 학습해요.</p></div>`; })()}</section>` : '';
     const CB = (WF.calib || []).filter((c) => c.n);
     const calib = CB.length ? `<section class="card"><h2>모델이 말한 확률이 맞았나</h2>
       <p class="muted xs">시험 기간에 모델이 "몇 %"라고 했던 것과 실제로 성공한 비율이에요. 두 숫자가 비슷할수록 믿을 만한 모델이에요.</p>

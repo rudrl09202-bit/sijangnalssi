@@ -27,7 +27,7 @@ export const MK_COINS = [
   { sym: 'XRP', name: '엑스알피', y: 'XRP-USD' }, { sym: 'DOGE', name: '도지코인', y: 'DOGE-USD' }, { sym: 'BNB', name: '바이낸스코인', y: 'BNB-USD' },
   { sym: 'ADA', name: '에이다', y: 'ADA-USD' }, { sym: 'LINK', name: '체인링크', y: 'LINK-USD' }
 ];
-export const FEAT_V = 1; // 재료를 바꾸면 올림 → 모델 새로 학습
+export const FEAT_V = 1; // 기본 재료를 바꾸면 올림 → 모델 새로 학습 (선물 데이터 재료가 붙으면 'f'·'o'가 덧붙음)
 // 1시간봉 매매 규칙 (단타 엔진과 같은 안전장치, 시간 단위만 1시간)
 export function mkCfg(SC) {
   return Object.assign({}, SC.CFG, { ml: true, bar: 60, riskPct: 1, maxPos: 3, stopAtr: 1.5, minStopPct: 0.8, tpR: 2, beR: 1, maxBars: 24, coolBars: 4, pauseBars: 12, killBars: 168, atrMaxPct: 6,
@@ -44,13 +44,38 @@ export const FEATS = [
   ['bRet24', '비트코인 하루 수익'], ['bZ', '비트코인 파동 정렬'], ['bTi', '비트코인 난류'],
   ['hs', '시간대(sin)'], ['hc', '시간대(cos)'], ['wkd', '주말']
 ];
+// 선물 시장 재료 (서울 서버가 모은 바이낸스 데이터)
+export const FUND_FEATS = [['fr', '펀딩비 (선물)'], ['f3', '펀딩비 3회 평균'], ['fz', '펀딩비 평소 대비']];
+export const OI_FEATS = [['oi1', '미결제약정 1시간 변화'], ['oi24', '미결제약정 하루 변화'], ['lsr', '개인 롱숏 비율'], ['topr', '상위 트레이더 롱숏 비율'], ['tkr', '테이커 매수/매도']];
+export const OI_MIN_DAYS = 90; // OI 계열은 바이낸스가 30일만 줘서 서버에 90일 쌓이면 자동으로 재료에 넣음
+export function featList(deriv) { const useF = !!(deriv && deriv.coins && deriv.coins.BTC && deriv.coins.BTC.f.length > 500), useO = useF && deriv.cover && deriv.cover.oiDays >= OI_MIN_DAYS;
+  return { list: FEATS.concat(useF ? FUND_FEATS : [], useO ? OI_FEATS : []), useF, useO, fv: FEAT_V + (useF ? 'f' : '') + (useO ? 'o' : '') }; }
+function derivCols(deriv, sym, T, useO) {
+  const D = deriv.coins[sym]; if (!D) return null;
+  const f = D.f, n = T.length, fr = new Array(n).fill(null), f3 = new Array(n).fill(null), fz = new Array(n).fill(null);
+  let k = -1;
+  for (let i = 0; i < n; i++) {
+    const close = T[i] + HOUR; while (k + 1 < f.length && f[k + 1][0] <= close) k++;
+    if (k < 0) continue; fr[i] = f[k][1] * 1e4; if (k >= 2) f3[i] = (f[k][1] + f[k - 1][1] + f[k - 2][1]) / 3 * 1e4;
+    if (k >= 89) { let m = 0; for (let j = k - 89; j <= k; j++) m += f[j][1]; m /= 90; let v = 0; for (let j = k - 89; j <= k; j++) v += (f[j][1] - m) ** 2; v = Math.sqrt(v / 90); fz[i] = v ? (f[k][1] - m) / v : 0; }
+  }
+  const out = { fr, f3, fz };
+  if (useO) {
+    const at = (S, t, back) => { if (!S || S.t0 == null) return null; const i = Math.floor((t - S.t0) / HOUR) - back; return i >= 0 && i < S.v.length ? S.v[i] : null; };
+    const lg = (a, b) => (a > 0 && b > 0 ? Math.log(a / b) : null), ln = (a) => (a > 0 ? Math.log(a) : null);
+    out.oi1 = T.map((t) => lg(at(D.oi, t, 0), at(D.oi, t, 1))); out.oi24 = T.map((t) => lg(at(D.oi, t, 0), at(D.oi, t, 24)));
+    out.lsr = T.map((t) => ln(at(D.ls, t, 0))); out.topr = T.map((t) => ln(at(D.top, t, 0))); out.tkr = T.map((t) => ln(at(D.tk, t, 0)));
+  }
+  return out;
+}
 function sdArr(r, n) { const out = new Array(r.length).fill(null); for (let i = n; i < r.length; i++) { let m = 0; for (let j = i - n + 1; j <= i; j++) m += r[j]; m /= n; let v = 0; for (let j = i - n + 1; j <= i; j++) v += (r[j] - m) ** 2; out[i] = Math.sqrt(v / n); } return out; }
-export function buildFeatures(W) {
-  const B = W.X.BTC, F = {};
+export function buildFeatures(W, deriv) {
+  const B = W.X.BTC, F = {}, FL = featList(deriv);
   for (const s of W.syms) {
     const x = W.X[s], d = x.d, n = d.c.length, lr = d.c.map((v, i) => (i ? Math.log(v / d.c[i - 1]) : 0)), sd = sdArr(lr, 72);
     const atrP = x.atr.map((a, i) => (a == null ? null : a / d.c[i] * 100)), atrR = SC_.pctRank(atrP, 500);
     const rows = new Array(n).fill(null);
+    const DC = FL.useF ? derivCols(deriv, s, d.t, FL.useO) : null;
     // 이 코인 봉 → 비트코인 봉 위치
     const bIdx = new Map(); B.d.t.forEach((t, i) => bIdx.set(t, i));
     for (let i = 0; i < n; i++) {
@@ -63,6 +88,8 @@ export function buildFeatures(W) {
         x.rsi[i], x.bwR[i], atrP[i], atrR[i] == null ? 0.5 : atrR[i], (c - x.eP[i]) / a, (c - x.eF[i]) / a, (c - x.eS[i]) / a,
         x.vAvg[i] ? Math.min((d.v[i] || 0) / x.vAvg[i], 6) : 1, hi > lo ? (c - lo) / (hi - lo) : 0.5,
         Math.log(B.d.c[bj] / B.d.c[bj - 24]), B.mkZ[bj], B.mkTi[bj], Math.sin(hr / 24 * 2 * Math.PI), Math.cos(hr / 24 * 2 * Math.PI), dw === 0 || dw === 6 ? 1 : 0];
+      if (FL.useF) { rows[i].push(DC ? DC.fr[i] : null, DC ? DC.f3[i] : null, DC ? DC.fz[i] : null); }
+      if (FL.useO) { rows[i].push(...['oi1', 'oi24', 'lsr', 'topr', 'tkr'].map((k) => (DC ? DC[k][i] : null))); }
     }
     F[s] = rows;
   }
@@ -218,13 +245,18 @@ function toHour(k, now) {
 }
 
 /* ---------- 실행 ---------- */
-export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 'data'), now = new Date(), log = console.log, env = loadEnv(), reset = false, sendPush = true, fetchImpl = fetch, data = null, retrain = false } = {}) {
+export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 'data'), now = new Date(), log = console.log, env = loadEnv(), reset = false, sendPush = true, fetchImpl = fetch, data = null, retrain = false, derivData } = {}) {
   const t0 = Date.now(), SC = require(join(root, 'js', 'scalp.js')), Q = loadQuant(root), P = mkCfg(SC); SC_ = SC._;
   const series = {}, errors = [];
   if (data) Object.assign(series, data);
   else for (const c of MK_COINS) { try { series[c.sym] = toHour(await yahoo1h(c.y, fetchImpl), now.getTime()); } catch (e) { errors.push(c.sym + ': ' + e.message); } await sleep(250); }
   if (!series.BTC || series.BTC.c.length < 3000) throw new Error('BTC 1시간봉 부족 ' + (series.BTC ? series.BTC.c.length : 0) + ' ' + errors.join(' / '));
-  const W = SC.prepare(series, P), last = W.T.length - 1, F = buildFeatures(W), L = buildLabels(W, P);
+  let deriv = null;
+  if (derivData !== undefined) deriv = derivData;
+  else { try { const repo = env.GITHUB_REPOSITORY || process.env.GITHUB_REPOSITORY || env.GITHUB_REPO || 'rudrl09202-bit/sijangnalssi'; const r = await fetchImpl('https://raw.githubusercontent.com/' + repo + '/deriv-data/deriv.json?t=' + Date.now()); if (r.ok) deriv = await r.json(); } catch (e) { /* 아직 없음 */ } }
+  const FL = featList(deriv);
+  const W = SC.prepare(series, P), last = W.T.length - 1, F = buildFeatures(W, deriv), L = buildLabels(W, P);
+  log('재료 ' + FL.list.length + '개' + (FL.useF ? ' (선물 펀딩비 포함' + (FL.useO ? ' · 미결제약정·롱숏 포함' : ' · 미결제약정은 ' + ((deriv.cover && deriv.cover.oiDays) || 0) + '/' + OI_MIN_DAYS + '일 쌓는 중') + ')' : ' (선물 데이터 아직 없음)'));
   log('민경기 봇 1시간봉 ' + W.syms.map((s) => s + ' ' + series[s].c.length).join(', ') + ' · 마지막 ' + isoT(W.T[last]) + ' UTC');
 
   mkdirSync(dir, { recursive: true });
@@ -234,7 +266,7 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
 
   // ── 1) 매주 다시 학습 (+ 워크포워드 시험 다시)
   const age = st.model ? now.getTime() - Date.parse(st.model.at) : Infinity;
-  if (retrain || !st.model || st.model.fv !== FEAT_V || age > 7 * DAY) {
+  if (retrain || !st.model || st.model.fv !== FL.fv || age > 7 * DAY) {
     const tA = Date.now();
     const wf = walkForward(W, F, L, P, { log });
     const iA = W.T.findIndex((t) => t >= wf.from), half = Math.floor((iA + last) / 2);
@@ -255,8 +287,8 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
     pass.ok = pass.trades && pass.halves && pass.pf && pass.mdd;
     // 최종 모델: 지금까지 정답이 나온 모든 데이터로
     const mFull = trainPair(W, F, L, W.T[0], W.T[last] - (P.maxBars + 1) * HOUR);
-    const imp = FEATS.map(([k, label], f) => ({ k, label, v: r2(((mFull.long.imp[f] || 0) + (mFull.short.imp[f] || 0)) / 2 * 100, 1) })).sort((a, b) => b.v - a.v);
-    st.model = { at: now.toISOString(), fv: FEAT_V, long: packModel(mFull.long), short: packModel(mFull.short), n: mFull.long.n + mFull.short.n, rate: { long: r2(mFull.long.rate * 100, 1), short: r2(mFull.short.rate * 100, 1) }, imp, ver: (st.model ? st.model.ver || 0 : 0) + 1 };
+    const imp = FL.list.map(([k, label], f) => ({ k, label, v: r2(((mFull.long.imp[f] || 0) + (mFull.short.imp[f] || 0)) / 2 * 100, 1) })).sort((a, b) => b.v - a.v);
+    st.model = { at: now.toISOString(), fv: FL.fv, long: packModel(mFull.long), short: packModel(mFull.short), n: mFull.long.n + mFull.short.n, rate: { long: r2(mFull.long.rate * 100, 1), short: r2(mFull.short.rate * 100, 1) }, imp, ver: (st.model ? st.model.ver || 0 : 0) + 1 };
     st.wf = { at: now.toISOString(), folds: wf.folds, from: isoT(wf.from), to: isoT(W.T[last]), study, pass, calib: calib(wf.probs), secs: Math.round((Date.now() - tA) / 1000) };
     log('학습 완료: 모델 ' + st.model.ver + '번째 · 학습 데이터 ' + st.model.n + '개 · 시험 ' + wf.folds + '구간 · ' + st.wf.secs + '초 · 합격 ' + (pass.ok ? 'O' : 'X'));
   }
@@ -280,13 +312,14 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
   const A = st.acc, eq = A.equity.length ? A.equity[A.equity.length - 1][1] : A.cash, mark = (s) => series[s].c[series[s].c.length - 1];
   const out = {
     v: 1, generatedAt: now.toISOString(), lastBar: isoT(W.T[last]), inception: isoT(st.inception), cfg: { riskPct: P.riskPct, maxPos: P.maxPos, stopAtr: P.stopAtr, minStopPct: P.minStopPct, tpR: P.tpR, maxBars: P.maxBars, dayLoss: P.dayLoss, ddKill: P.ddKill, maxLevTotal: P.maxLevTotal },
-    model: { at: st.model.at, ver: st.model.ver, n: st.model.n, rate: st.model.rate, imp: st.model.imp, feats: FEATS.length, coins: W.syms.length, from: isoT(W.T[0]) },
+    model: { at: st.model.at, ver: st.model.ver, n: st.model.n, rate: st.model.rate, imp: st.model.imp, feats: FL.list.length, coins: W.syms.length, from: isoT(W.T[0]) },
     wf: st.wf,
     live: { equity: eq, start: A.start, ret: r2((eq / A.start - 1) * 100, 2), stats: SC.stats(A), trades: A.trades.slice(-20).reverse(), curve: A.equity.slice(-500).filter((e, k, a) => k % 2 === 0 || k === a.length - 1).map(([t, v]) => [isoT(t), v]),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok',
       positions: Object.values(A.pos).map((p) => { const m = mark(p.sym), u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty; return { sym: p.sym, name: p.name, side: p.side, entry: p.entry, mark: m, lev: r2(m * p.qty / eq, 2), upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be, why: p.why, since: isoT(p.t), barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / HOUR)) }; }),
       pending: A.pending.filter((o) => o.kind === 'open').map((o) => ({ sym: o.sym, name: o.name, side: o.side, why: o.why, fillAt: isoT(W.T[last] + HOUR) })) },
-    read: reads, errors
+    read: reads, errors,
+    deriv: deriv ? { updatedAt: deriv.updatedAt, cover: deriv.cover, useF: FL.useF, useO: FL.useO, need: OI_MIN_DAYS } : null
   };
   writeFileSync(join(dir, 'mk-live.json'), JSON.stringify(out));
   log('민경기 봇(학습형): 모의 ' + out.live.ret + '% · 거래 ' + out.live.stats.trades + ' · 포지션 ' + out.live.positions.length + ' · 신호 ' + reads.filter((r) => r.sig).map((r) => r.name + ' ' + (r.sig.side === 'long' ? '롱' : '숏')).join(', ') + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');

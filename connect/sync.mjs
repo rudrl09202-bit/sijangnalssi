@@ -156,6 +156,8 @@ await printSummary(out); // 동기화 시점 가격·환율·총액을 결과에
 writeFileSync(OUT, '/* 자동 생성 파일 — connect/sync.mjs 가 만듭니다. 인터넷에 올리지 마세요(내 보유 자산이 들어 있음). */\nwindow.LIVE_HOLDINGS = ' + JSON.stringify(out, null, 2) + ';\n');
 console.log('\n저장: ' + OUT + '\n앱을 새로고침하면 "내 자산"에 반영됩니다.');
 await sendToPhone(out);
+// 선물 시장 데이터(펀딩비·미결제약정·롱숏 비율) 모으기 — 민경기 봇 학습 재료 (공개 데이터)
+if (!env.SNW_SKIP_DERIV) { try { const { run: deriv } = await import('./deriv.mjs'); await deriv({ env, log: (m) => console.log('\n' + m) }); } catch (e) { console.log('\n✗ 선물 데이터: ' + e.message); } }
 
 /* ---------- 휴대폰으로 보내기: 비밀번호로 잠근 파일만 GitHub 에 올림 ----------
  * - 키(빗썸·토스)는 절대 올리지 않습니다. 보유 내역만 AES-256-GCM 으로 암호화합니다.
