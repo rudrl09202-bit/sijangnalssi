@@ -1953,7 +1953,7 @@
       ${SH ? accRow('엔진 혼자', '후보를 전부 진입 (비교 기준)', SH.equity, SH.ret, SH.stats.trades, SH.open, '') : ''}
       <p class="muted xs" style="margin-top:8px">${scT(D.inception, 15)}부터${BD ? ' · 적극형은 ' + scT(BD.inception, 15) + '부터' : ''}</p></section>
       ${BD ? `<div class="seg" role="tablist">${[['careful', '조심형'], ['bold', '적극형']].concat(MJ ? [['major', '다수결']] : []).map(([k, l]) => `<button role="tab" class="${tabSc === k ? 'on' : ''}" data-act="sc-tab" data-v="${k}">${l}</button>`).join('')}</div>` : ''}`;
-    const V = tabSc === 'major' ? { positions: MJ.positions, decisions: MJ.decisions, trades: MJ.trades, stats: MJ.stats, label: '다수결' } : tabSc === 'bold' ? { positions: BD.positions, decisions: BD.decisions, trades: BD.trades, stats: BD.stats, label: '적극형' } : { positions: L.positions, decisions: D.decisions, trades: L.trades, stats: L.stats, label: '조심형' };
+    const V = tabSc === 'major' ? { positions: MJ.positions, pending: MJ.pending, decisions: MJ.decisions, trades: MJ.trades, stats: MJ.stats, label: '다수결' } : tabSc === 'bold' ? { positions: BD.positions, pending: BD.pending, decisions: BD.decisions, trades: BD.trades, stats: BD.stats, label: '적극형' } : { positions: L.positions, pending: L.pending, decisions: D.decisions, trades: L.trades, stats: L.stats, label: '조심형' };
     const lg = (D.log || [])[0];
     const RG = D.regime;
     const RISKW = /해킹|규제|소송|파산|상장폐지|청산|폭락|SEC|hack|exploit|lawsuit|ban|crackdown|bankrupt|liquidat|delist|outflow|plunge|crash|FOMC|CPI|금리/i;
@@ -1966,14 +1966,17 @@
       ${lg ? (lg.state ? `<p class="sm"><span class="act warn">${esc(lg.state)}</span></p>` : '') + lg.coins.map((c) => `<div class="kv sc-coin"><span>${esc(c.sym)}</span><b class="sm">${esc(c.text)}</b></div>`).join('')
         + `<p class="sm" style="margin-top:8px">${lg.cands.length ? '후보: <b>' + lg.cands.map(esc).join(', ') + '</b> → Claude에게 물어봄' : '이번 봉엔 후보 없음 — 조건이 맞을 때까지 기다려요'}</p>` : '<p class="muted sm">판단 기록이 아직 없어요.</p>'}
       <p class="muted xs" style="margin-top:6px">15분봉이 끝날 때마다 판단하고, 10분마다 결과를 올려요.</p></section>`;
-    const pos = `<section class="card"><h2>${V.label} 포지션 ${V.positions.length}개 <span class="muted xs">· 최대 ${D.cfg.maxPos}개</span></h2>${V.positions.length ? V.positions.map((p) => `<div class="fpos">
+    const pos = `<section class="card"><h2>${V.label} 포지션 ${V.positions.length}개${(V.pending || []).length ? ' + 대기 ' + V.pending.length : ''} <span class="muted xs">· 최대 ${D.cfg.maxPos}개</span></h2>${V.positions.length ? V.positions.map((p) => `<div class="fpos">
       <div class="row between"><p class="b"><span class="side ${SIDE[p.side][1]}">${SIDE[p.side][0]}</span> ${esc(p.name)} <span class="muted xs">${p.lev}배 · ${SETUP[p.kind] || ''}</span></p><p class="num b ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</p></div>
       <div class="kv"><span>진입→현재</span><b class="num">${usd(p.entry)} → ${usd(p.mark)}</b></div>
       <div class="kv"><span>${p.be ? '손절(본전으로 올림)' : '손절'}</span><b class="num">${usd(p.stop)} <span class="muted xs">${p.toStop}%</span></b></div>
       <div class="kv"><span>목표(익절)</span><b class="num">${usd(p.tp)}</b></div>
       <div class="kv"><span>청산가</span><b class="num">${usd(p.liq)} <span class="muted xs">${p.toLiq}%</span></b></div>
       <div class="kv"><span>남은 시간</span><b class="num">${Math.round(p.barsLeft * 15 / 60 * 10) / 10}시간 뒤 정리</b></div>
-      ${p.ai ? `<p class="xs" style="margin:6px 0 0">Claude ${p.ai.confidence}: ${esc(p.ai.reason)}</p>` : ''}${tvButton('perp', p.sym, p.name + ' 무기한 선물', '15')}</div>`).join('') : '<p class="muted sm">지금은 포지션이 없어요.</p>'}</section>`;
+      ${p.ai ? `<p class="xs" style="margin:6px 0 0">Claude ${p.ai.confidence}: ${esc(p.ai.reason)}</p>` : ''}${tvButton('perp', p.sym, p.name + ' 무기한 선물', '15')}</div>`).join('') : (V.pending || []).length ? '' : '<p class="muted sm">지금은 포지션이 없어요.</p>'}
+      ${(V.pending || []).map((o) => `<div class="fpos pend"><div class="row between"><p class="b"><span class="side ${SIDE[o.side][1]}">${SIDE[o.side][0]}</span> ${esc(o.name)} <span class="muted xs">${SETUP[o.kind] || ''}</span></p><span class="act warn">체결 대기</span></div>
+        <p class="sm" style="margin:6px 0 0">${scT(o.decidedBar, 15).split(' ')[1]}에 진입 결정 → ${scT(o.fillAt).split(' ')[1]} 봉 시작 가격으로 체결돼요. ${scT(o.fillAt, 16).split(' ')[1]}쯤 확인 때 포지션으로 옮겨져요.</p>
+        ${o.ai && o.ai.reason ? `<p class="muted xs" style="margin:4px 0 0">${esc(o.ai.reason)}</p>` : ''}</div>`).join('')}</section>`;
     const dec = `<section class="card"><h2>${V.label} Claude 결정 기록</h2>${(V.decisions || []).length ? V.decisions.slice(0, 12).map((d) => `<div class="vote"><div class="row between"><p class="b sm"><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 15)} · ${SETUP[d.kind] || ''}</span></p><span class="act ${(SC_DEC[d.decision] || SC_DEC.error)[1]}">${(SC_DEC[d.decision] || SC_DEC.error)[0]}${d.confidence ? ' ' + d.confidence : ''}</span></div><p class="xs vote-line">${esc(d.reason || '')}</p>${(d.votes || []).map((x) => `<p class="xs vote-line"><b>${esc(x.name)}</b> <span class="act ${(SC_DEC[x.decision] || SC_DEC.error)[1]}">${(SC_DEC[x.decision] || SC_DEC.error)[0]}${x.confidence ? ' ' + x.confidence : ''}</span> ${esc(x.reason || '')}</p>`).join('')}</div>`).join('') : '<p class="muted sm">아직 후보가 없었어요.</p>'}</section>`;
     const AC = D.aiCard;
     const aiCard = AC && tabSc === 'major' ? `<section class="card"><h2>AI 성적표 <span class="muted xs">· 다수결 계좌 기준</span></h2>

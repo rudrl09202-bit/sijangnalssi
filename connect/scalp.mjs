@@ -209,12 +209,13 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   writeFileSync(stFile, JSON.stringify(st));
 
   // ── 4) 앱용 결과
+  const pendOf = (acc) => acc.pending.filter((o) => o.kind === 'open' && (!o.needVote || o.approved)).map((o) => ({ sym: o.sym, name: o.name, side: o.side, kind: o.setup, why: o.why, decidedBar: o.t, fillAt: isoT(W.T[last] + BAR), ai: o.ai ? { confidence: o.ai.confidence, reason: o.ai.reason } : null }));
   function summarize(X) {
     const BA = X.acc, e2 = BA.equity.length ? BA.equity[BA.equity.length - 1][1] : BA.cash, dd = X.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
     const pos = Object.values(BA.pos).map((p) => { const m = series[p.sym].c[series[p.sym].c.length - 1], u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
       return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, lev: Math.round(m * p.qty / e2 * 100) / 100, upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be,
         toStop: Math.round(Math.abs(m / p.stop - 1) * 1000) / 10, toLiq: Math.round(Math.abs(m / p.liq - 1) * 1000) / 10, ai: p.ai, barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / BAR)) }; });
-    return { inception: isoT(X.inception), equity: e2, start: BA.start, ret: Math.round((e2 / BA.start - 1) * 10000) / 100, stats: SC.stats(BA), positions: pos, trades: BA.trades.slice(-20).reverse(),
+    return { inception: isoT(X.inception), equity: e2, start: BA.start, ret: Math.round((e2 / BA.start - 1) * 10000) / 100, stats: SC.stats(BA), positions: pos, pending: pendOf(BA), trades: BA.trades.slice(-20).reverse(),
       decisions: X.decisions.slice(-20).reverse(), aiStats: { asked: dd.length, enter: dd.filter((d) => d.decision === 'enter').length } };
   }
   // AI별 성적표: 다수결 계좌의 끝난 거래에서 각 AI가 찬성했을 때/반대했을 때 결과
@@ -239,17 +240,12 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   const out = {
     v: 1, generatedAt: now.toISOString(), lastBar: isoT(W.T[last]), inception: isoT(st.inception), cfg: P, model, hasKey: !!key,
     live: { equity: eq, start: A.start, ret: Math.round((eq / A.start - 1) * 10000) / 100, days: ldc.length, stats: ls, curve: A.equity.slice(-400).map(([t, v]) => [isoT(t), v]),
-      positions, lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-40).reverse(),
+      positions, pending: pendOf(A), lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-40).reverse(),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
     shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), trades: S2.trades.slice(-10).reverse(), open: Object.keys(S2.pos).length }; })(),
     major: summarize(M3),
     aiCard: aiScore(M3),
-    bold: (() => { const BA = B2.acc, e2 = BA.equity.length ? BA.equity[BA.equity.length - 1][1] : BA.cash, dd = B2.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
-      const pos = Object.values(BA.pos).map((p) => { const m = mark(p.sym), u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
-        return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, lev: Math.round(m * p.qty / e2 * 100) / 100, upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be,
-          toStop: Math.round(Math.abs(m / p.stop - 1) * 1000) / 10, toLiq: Math.round(Math.abs(m / p.liq - 1) * 1000) / 10, ai: p.ai, barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / BAR)) }; });
-      return { inception: isoT(B2.inception), equity: e2, start: BA.start, ret: Math.round((e2 / BA.start - 1) * 10000) / 100, stats: SC.stats(BA), positions: pos, trades: BA.trades.slice(-20).reverse(),
-        decisions: B2.decisions.slice(-20).reverse(), aiStats: { asked: dd.length, enter: dd.filter((d) => d.decision === 'enter').length } }; })(),
+    bold: summarize(B2),
     decisions: st.decisions.slice(-30).reverse(), aiStats: { asked: dec.length, enter: dec.filter((d) => d.decision === 'enter').length },
     log: A.log.slice(-12).reverse(),
     regime: regimeAt(last), news: NEWS.slice(0, 8), events: EVENTS,

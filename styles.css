@@ -825,3 +825,4 @@ html.big body { zoom: 1.15; }
 .hq-log .hq-dot { flex: none; margin-top: 7px; }
 .news-line { margin: 10px 0 0; line-height: 1.5; }
 .news-line .act { margin: 0 2px 0 0; }
+.fpos.pend { background: var(--warn-soft); border-radius: 12px; padding: 12px; border-top: 0; margin-top: 8px; }
