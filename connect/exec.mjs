@@ -137,6 +137,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const env = { ...process.env }; try { readFileSync(join(HERE, '.env'), 'utf8').split('\n').forEach((l) => { const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }); } catch (e) { /* 없음 */ }
   if (process.argv.includes('--check')) {
     // 연결 확인만: 잔고·포지션 조회 (주문 안 함)
-    (async () => { const B = client(env); const a = await B.call('GET', '/fapi/v3/account'); console.log('✓ 바이낸스 데모 연결 성공 · 잔고 ' + Number(a.totalMarginBalance || a.totalWalletBalance).toFixed(2) + ' USDT'); })().catch((e) => { console.error('✗ 연결 실패: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '')); process.exitCode = 1; });
+    (async () => { const B = client(env); const a = await B.call('GET', '/fapi/v3/account'); console.log('✓ 바이낸스 데모 연결 성공 · 잔고 ' + Number(a.totalMarginBalance || a.totalWalletBalance).toFixed(2) + ' USDT');
+      // 선물 주문 권한 확인: 시험 주문(실제로 체결되지 않음)
+      try { await B.call('POST', '/fapi/v1/order/test', { symbol: 'BTCUSDT', side: 'BUY', type: 'MARKET', quantity: '0.002' }); console.log('✓ 선물 주문 권한 확인 (시험 주문 통과 — 실제 주문 아님)'); }
+      catch (e) { console.log('✗ 선물 주문 권한 없음: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '') + ' → 데모 API 관리에서 Enable Futures 를 켜 주세요'); process.exitCode = 1; } })().catch((e) => { console.error('✗ 연결 실패: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '')); process.exitCode = 1; });
   } else run({ env }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; });
 }
