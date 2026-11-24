@@ -28,7 +28,7 @@ export function parseVote(text) {
 }
 
 async function askClaude(key, model, user, fetchImpl) {
-  const to = withTimeout(60000);
+  const to = withTimeout(120000);
   try {
     const r = await fetchImpl('https://api.anthropic.com/v1/messages', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -38,7 +38,7 @@ async function askClaude(key, model, user, fetchImpl) {
   } finally { to.done(); }
 }
 async function askGemini(key, model, user, fetchImpl) {
-  const to = withTimeout(60000);
+  const to = withTimeout(150000);
   try {
     const r = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
@@ -48,7 +48,7 @@ async function askGemini(key, model, user, fetchImpl) {
   } finally { to.done(); }
 }
 async function askGpt(key, model, user, fetchImpl) {
-  const to = withTimeout(90000);
+  const to = withTimeout(150000);
   try {
     const r = await fetchImpl('https://api.openai.com/v1/chat/completions', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
@@ -67,9 +67,10 @@ export async function vote(env, brief, fetchImpl = fetch) {
   const res = await Promise.all(VOTERS.map(async (v) => {
     const key = env[v.key], model = env[v.model] || v.def;
     if (!key) return { ai: v.id, name: v.name, model, vote: 'none', confidence: 0, reason: '키 등록 전' };
+    const t0 = Date.now();
     for (let k = 0; k < 2; k++) {
-      try { const t = await ASK[v.id](key, model, user, fetchImpl); return { ai: v.id, name: v.name, model, ...parseVote(t) }; }
-      catch (e) { if (k === 1) return { ai: v.id, name: v.name, model, vote: 'error', confidence: 0, reason: '응답 실패: ' + String(e.message || e).slice(0, 80) }; }
+      try { const t = await ASK[v.id](key, model, user, fetchImpl); return { ai: v.id, name: v.name, model, sec: Math.round((Date.now() - t0) / 1000), ...parseVote(t) }; }
+      catch (e) { const msg = e && e.name === 'AbortError' ? '시간 초과' : String(e.message || e); if (k === 1) return { ai: v.id, name: v.name, model, sec: Math.round((Date.now() - t0) / 1000), vote: 'error', confidence: 0, reason: '응답 실패: ' + msg.slice(0, 80) }; }
     }
   }));
   const yes = res.filter((x) => x.vote === 'yes').length;
@@ -84,7 +85,7 @@ if (process.argv[1] && _f(import.meta.url) === process.argv[1] && process.argv.i
     현재가: 100000, 손절가: 95000, 손절거리_퍼센트: 5, EMA50: 97000, EMA200: 90000, ATR_퍼센트: 2, BTC: { 장세: '상승장(200일선 위)' } };
   const t0 = Date.now();
   vote(process.env, sample).then((r) => {
-    r.votes.forEach((v) => console.log((v.vote === 'yes' || v.vote === 'no' ? '✓ ' : '✗ ') + v.name + ' (' + v.model + '): ' + v.vote + ' · ' + v.reason));
+    r.votes.forEach((v) => console.log((v.vote === 'yes' || v.vote === 'no' ? '✓ ' : '✗ ') + v.name + ' (' + v.model + ', ' + v.sec + '초): ' + v.vote + ' · ' + v.reason));
     console.log('결과: ' + r.result + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
     if (r.votes.some((v) => v.vote === 'none' || v.vote === 'error')) process.exitCode = 1;
   });
