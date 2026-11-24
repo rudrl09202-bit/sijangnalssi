@@ -19,7 +19,7 @@ while [ "$(date +%s)" -lt "$END" ]; do
   MK_SEPARATE=1 SCALP_DIR=botdata timeout 420 node connect/scalp.mjs || echo "단타 봇 실패"
   H=$(date -u +%H); M=$(date -u +%M)
   if [ $((10#$M)) -lt 15 ] || [ ! -f botdata/mk-live.json ]; then  # 매시간(처음엔 바로) 첫 15분 안: 민경기 봇(학습형) — 1시간봉 마감 뒤 판단, 일주일마다 다시 학습
-    MK_DIR=botdata timeout 900 node connect/mk.mjs || echo "민경기 봇 실패"
+    MK3_SEPARATE=1 MK_DIR=botdata timeout 900 node connect/mk.mjs || echo "민경기 봇 실패"
   fi
   if { [ $((10#$M)) -ge 15 ] && [ $((10#$M)) -lt 30 ]; } || [ ! -f botdata/mk3-live.json ]; then  # 3세대(4시간봉): 서버가 :05에 올린 바이낸스 4시간봉을 읽음
     MK_DIR=botdata timeout 600 node connect/mk3.mjs || echo "민경기 봇 3세대 실패"
