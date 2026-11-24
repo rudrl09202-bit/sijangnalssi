@@ -70,8 +70,15 @@ jobs:
         env:
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: 배포 실패 시 1분 뒤 다시
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - id: deployment2
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
