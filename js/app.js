@@ -2050,7 +2050,7 @@
     S.mkLoading = true;
     const get = (f) => fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/' + f + '?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/' + f, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null);
-    Promise.all([get('mk3-live.json'), get('mk-live.json')]).then(([a, b]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
+    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json')]).then(([a, b, c]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
   }
   function mkEntry() {
     loadMk();
@@ -2328,6 +2328,7 @@
    * 공통: 말랑한 젤리 몸 + 큰 눈(깜빡임) + 볼터치. 직원마다 색·소품·움직임이 다름.
    * 상태: alert = 땀방울·빠른 흔들림, idle = 졸기(Zzz) */
   const MASCOT = {
+    RS:     { c: '#C9B8E8', d: '#A894CF', look: 'cap', move: 'type', w: 24, h: 28 },   // 류신영 봇: 단타 + 학습
     MK:     { c: '#9FD3C7', d: '#78B5A6', look: 'glasses', move: 'type',  w: 24, h: 28 },   // 민경기 봇: 추세 + 학습, 안경 쓰고 계산
     PRICE:  { c: '#8CC4F5', d: '#6AA8E0', look: 'headset', move: 'type',  w: 22, h: 26 },   // 시세 담당: 헤드셋 끼고 자판 두드림
     CHIEF:  { c: '#B9A9F2', d: '#9B88E0', look: 'glasses', move: 'nod',   w: 24, h: 30 },   // 판단 담당: 동그란 안경, 끄덕끄덕
@@ -2841,6 +2842,9 @@
     const mk = (o) => A.push(Object.assign({ start: 1e8, curve: [], trades: [], positions: [], status: 'ok', stMap: SC_ST }, o));
     if (M3) mk({ id: 'mk', code: 'MK', name: '민경기 봇', strat: '추세 돌파 + 학습 필터', tf: '4시간봉', href: '#mk', main: true, equity: M3.live.equity, ret: M3.live.ret, curve: M3.live.curve, trades: M3.live.trades, positions: M3.live.positions, status: M3.live.status, stMap: MK3_ST, since: M3.inception, upd: M3.generatedAt,
       bt: M3.wf && M3.wf.study && M3.wf.study[1] ? { label: '워크포워드 시험', cagr: M3.wf.study[1].all.cagr, mdd: M3.wf.study[1].all.mdd, pf: M3.wf.study[1].all.pf, win: M3.wf.study[1].all.win, n: M3.wf.study[1].all.n, pass: M3.wf.pass && M3.wf.pass.ok } : null });
+    if (S.rs) { const R = S.rs, s1 = R.wf && R.wf.study && R.wf.study[1];
+      mk({ id: 'rs', code: 'RS', name: '류신영 봇', strat: '단타 후보 + 학습 필터', tf: '15분봉', href: '#bot/rs', equity: R.live.equity, ret: R.live.ret, curve: R.live.curve, trades: R.live.trades, positions: R.live.positions, status: R.live.status, since: R.inception, upd: R.generatedAt, wf: R.wf, model: R.model, decisions: R.decisions,
+        bt: s1 ? { label: '워크포워드 시험', ret: s1.all.ret, mdd: s1.all.mdd, pf: s1.all.pf, win: s1.all.win, n: s1.all.n, pass: R.wf.pass && R.wf.pass.ok } : null }); }
     if (FU) { const m = FU.bt && FU.bt.metrics;
       mk({ id: 'flux', code: 'FLUX', name: 'FLUX', strat: '추세 돌파 (규칙만)', tf: '4시간봉', href: '#futures', equity: FU.live.equity, ret: FU.live.ret, curve: FU.live.curve, trades: FU.live.trades, positions: FU.live.positions || [], status: FU.live.status, stMap: FUT_ST, since: FU.inception, upd: FU.generatedAt,
         bt: m ? { label: '백테스트', cagr: m.cagr, mdd: m.mdd, pf: m.pf, win: m.winRate, n: m.trades } : null });
@@ -3020,7 +3024,7 @@
         <section class="card"><h2>거래 기록 ${x.n}</h2>${x.n ? `<div class="tbl">${a.trades.slice(0, 40).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${kT(t.in)} → ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')} · ${rr(t.R || 0)}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     } else if (tab === 'ana') body = anaBlocks(a.trades, a.name);
     else body = valBlock(a) + (a.id === 'mk' ? execCard() : '');
-    return head(a.name, a.code + ' · 가상 1억 · 실제 돈 아님') + top + chart + seg + body + `<a class="lrow-mini pad" href="${a.href}">전략 화면 자세히 보기 ›</a>`;
+    return head(a.name, a.code + ' · 가상 1억 · 실제 돈 아님') + top + chart + seg + body + (a.href !== '#bot/' + a.id ? `<a class="lrow-mini pad" href="${a.href}">전략 화면 자세히 보기 ›</a>` : '');
   }
   function anaBlocks(trades, who) {
     const tr = (trades || []).filter((t) => t && t.pnl != null);
@@ -3031,7 +3035,21 @@
     return tbl('롱 · 숏', groupBy(tr, (t) => t.side, (k) => SIDE[k][0])) + tbl('코인별', groupBy(tr, (t) => t.name)) + tbl('어떻게 끝났나', groupBy(tr, (t) => (t.reason || '').replace(/\s*\(.*\)$/, '').replace(/ \d+(\.\d+)?R$/, '')), '손절이 많아도 익절이 크면 괜찮아요. 평균(R)이 플러스인지가 중요해요.')
       + tbl('보유 시간', groupBy(tr, holdK)) + tbl('진입 시간 (한국 시각)', groupBy(tr, hourK)) + (tr.some((t) => t.kind) ? tbl('셋업별', groupBy(tr, (t) => t.kind, (k) => SETUP[k] || k)) : '');
   }
+  function wfBlock(a) {
+    const WF = a.wf; if (!WF || !WF.study) return a.id === 'rs' ? `<section class="card"><h2>학습 상태</h2><p class="muted sm">서울 서버가 바이낸스 15분봉 약 1년 반치를 모으는 중이에요. 모이면 첫 학습과 시험을 하고, 그 전까지는 진입하지 않아요.</p></section>` : '';
+    const PS = WF.pass || {}, BK = (WF.buckets || []).filter((b) => b.n), Mo = a.model;
+    return `<section class="card"><div class="card-head"><h2>처음 보는 데이터로 본 시험</h2><span class="act ${PS.ok ? 'live' : 'warn'}">${PS.ok ? '합격' : '불합격'}</span></div>
+      <p class="muted xs">${esc(WF.from.slice(0, 10))} ~ ${esc(WF.to.slice(0, 10))} · 과거로만 배우고 다음 30일을 매매하는 시험 ${WF.folds.length}번 · 수수료·미끄러짐 포함</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>설정</th><th>수익</th><th>낙폭</th><th>승률</th><th>손익비</th><th>하루</th><th>앞</th><th>뒤</th></tr></thead><tbody>
+      ${WF.study.map((r, k) => `<tr${k === 1 ? ' class="hl"' : ''}><td>${esc(r.name)}</td><td class="${dirClass(r.all.ret)}">${pct(r.all.ret, 1)}</td><td>${r.all.mdd == null ? '—' : pct(r.all.mdd, 0)}</td><td>${r.all.win == null ? '—' : r.all.win + '%'}</td><td>${r.all.pf ?? '—'}</td><td>${r.all.perDay ?? '—'}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 0)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 0)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="kv"><span>엔진 혼자보다 나음</span><b>${PS.beats ? '✓' : '✗'}</b></div><div class="kv"><span>앞·뒤 절반 모두 플러스</span><b>${PS.halves ? '✓' : '✗'}</b></div>
+      <div class="kv"><span>손익비 1.2 이상</span><b>${PS.pf ? '✓' : '✗'}</b></div><div class="kv"><span>최대 낙폭 -20% 이내</span><b>${PS.mdd ? '✓' : '✗'}</b></div></section>
+      ${BK.length ? `<section class="card"><h2>학습 점수가 실제로 맞았나</h2><p class="muted xs">후보를 점수 순으로 5묶음으로 나눠 실제 결과를 봤어요. 위로 갈수록 좋아야 해요.</p><div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>점수</th><th>후보</th><th>이익 비율</th><th>평균</th></tr></thead><tbody>${BK.slice().reverse().map((b, k) => `<tr><td>${['상위 20%', '60~80%', '40~60%', '20~40%', '하위 20%'][k]}</td><td>${nf(b.n)}</td><td>${b.win}%</td><td class="${dirClass(b.avgR)}">${rr(b.avgR)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}
+      ${Mo ? `<section class="card"><h2>무엇을 배웠나</h2><p class="muted xs">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 끝난 후보 ${nf(Mo.n)}개 (이익 ${Mo.rate}%) · 매주 다시 학습</p>${Mo.imp.slice(0, 6).map((x) => `<div class="kv"><span>${esc(x.label)}</span><b class="num">${x.v}%</b></div>`).join('')}</section>` : ''}
+      ${(a.decisions || []).length ? `<section class="card"><h2>최근 판단</h2>${a.decisions.slice(0, 10).map((d) => `<div class="kv"><span>${sideTag(d.side)} ${esc(d.name)} <span class="muted xs">${kT(d.t)} · ${esc(SETUP[d.kind] || '')}</span></span><b class="sm">${d.ok ? '진입' : '건너뜀'} <span class="muted xs">${d.p == null ? '' : '점수 ' + d.p}</span></b></div>`).join('')}</section>` : ''}`;
+  }
   function valBlock(a) {
+    if (a.id === 'rs') return wfBlock(a);
     const b = a.bt, x = a.st;
     if (!b) return `<section class="card"><h2>검증</h2><p class="muted sm">이 계좌는 따로 과거 시험 결과가 없어요. 실시간 기록으로만 판단해요.</p></section>`;
     const row = (l, bv, lv) => `<tr><td>${l}</td><td>${bv}</td><td>${lv}</td></tr>`;
@@ -3068,6 +3086,7 @@
     return out;
   }
   const CHANGES = [
+    ['11/25', '류신영 봇 추가', '단타 엔진 15분봉 후보에 학습 필터(하위 50% 건너뜀)를 더한 단타 봇. 바이낸스 15분봉 약 540일로 학습·시험하고 "단타 엔진 혼자"와 비교', null],
     ['11/24', '민경기 3세대 정책 변경', '바이낸스 6년치(2021~) 시험: FLUX 혼자 연 3.1%·낙폭 -36% vs 하위 30% 건너뛰기+크게 연 10.1% vs 하위 50% 건너뛰기 연 13.9%·낙폭 -22%. 점수 상위가 더 낫지 않아 "크게"를 빼고 하위 50% 건너뛰기로 바꿈', null],
     ['11/24', '민경기 봇 3세대', '추세 돌파(검증된 규칙) 후보에 학습 필터를 더함. FLUX 혼자와 매주 비교', 'mk3'],
     ['11/24', '선물 데이터 수집', '서울 서버가 바이낸스 펀딩비·미결제약정·롱숏 비율·4시간봉 6년치를 모음', null],

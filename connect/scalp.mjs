@@ -64,11 +64,11 @@ export function brief(W, P, i, o, acc) {
   };
 }
 
-function to15(k, now) {
+export function to15(k, now) {
   const keep = []; k.t.forEach((t, i) => { if (t % BAR === 0 && t + BAR <= now) keep.push(i); });
   return cleanTicks({ t: keep.map((i) => k.t[i]), o: keep.map((i) => k.o[i]), h: keep.map((i) => k.h[i]), l: keep.map((i) => k.l[i]), c: keep.map((i) => k.c[i]), v: keep.map((i) => (k.v ? k.v[i] : 0)) });
 }
-async function yahoo15(sym, fetchImpl) {
+export async function yahoo15(sym, fetchImpl) {
   // futures.mjs 의 yahoo()는 거래량을 버리므로 여기서 거래량까지 받음
   const H = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']; let err;
   for (let k = 0; k < 4; k++) {
@@ -303,6 +303,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href &
 else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   run({ reset: process.argv.includes('--reset') }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; }).then(async () => {
     // 예전 루프(민경기 봇을 따로 부르지 않는 버전)가 돌고 있을 때를 위해: 매시간 첫 15분이거나 결과가 없으면 여기서 민경기 봇도 실행
+    // 류신영 봇(단타 + 학습 필터): 새 루프는 따로 부름(RS_SEPARATE), 예전 루프면 여기서 이어서
+    if (!process.env.RS_SEPARATE) { try { const { run: rs } = await import('./rs.mjs'); await rs({ dir: process.env.SCALP_DIR || join(ROOT, 'data') }); } catch (e) { console.error('✗ 류신영 봇: ' + e.message); } }
     if (process.env.MK_SEPARATE) return;
     const dir = process.env.SCALP_DIR || join(ROOT, 'data');
     if (new Date().getUTCMinutes() < 15 || !existsSync(join(dir, 'mk-live.json'))) {
