@@ -141,5 +141,29 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       // 선물 주문 권한 확인: 시험 주문(실제로 체결되지 않음)
       try { await B.call('POST', '/fapi/v1/order/test', { symbol: 'BTCUSDT', side: 'BUY', type: 'MARKET', quantity: '0.002' }); console.log('✓ 선물 주문 권한 확인 (시험 주문 통과 — 실제 주문 아님)'); }
       catch (e) { console.log('✗ 선물 주문 권한 없음: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '') + ' → 데모 API 관리에서 Enable Futures 를 켜 주세요'); process.exitCode = 1; } })().catch((e) => { console.error('✗ 연결 실패: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '')); process.exitCode = 1; });
+  } else if (process.argv.includes('--selftest')) {
+    // 주문 점검: 아주 작은 BTC 롱 → 거래소 손절 조건 주문 → 확인 → 취소 → 정리 (데모 계좌, 몇 초 안에 끝)
+    (async () => {
+      const B = client(env), sym = 'BTCUSDT', R = rules(await B.call('GET', '/fapi/v1/exchangeInfo', {}, false))[sym];
+      const step = (n, m) => console.log((n ? '✓ ' : '✗ ') + m);
+      try { await B.call('POST', '/fapi/v1/positionSide/dual', { dualSidePosition: 'false' }); } catch (e) { /* 이미 */ }
+      try { await B.call('POST', '/fapi/v1/marginType', { symbol: sym, marginType: 'ISOLATED' }); } catch (e) { /* 이미 */ }
+      await B.call('POST', '/fapi/v1/leverage', { symbol: sym, leverage: 5 }); step(1, '레버리지 5배 · 격리 마진 설정');
+      const mk = Number((await B.call('GET', '/fapi/v1/premiumIndex', { symbol: sym }, false)).markPrice);
+      const qty = Math.max(R.minQty, Number((Math.ceil(R.minNotional * 1.2 / mk / R.step) * R.step).toFixed(dec(R.step))));
+      const o = await B.call('POST', '/fapi/v1/order', { symbol: sym, side: 'BUY', type: 'MARKET', quantity: qty, newOrderRespType: 'RESULT' });
+      step(1, '시장가 롱 진입 ' + qty + ' BTC @' + (Number(o.avgPrice) || mk) + ' (약 ' + Math.round(qty * mk) + ' USDT)');
+      const sp = roundTo(mk * 0.95, R.tick);
+      const a = await B.call('POST', '/fapi/v1/algoOrder', { algoType: 'CONDITIONAL', symbol: sym, side: 'SELL', type: 'STOP_MARKET', triggerPrice: sp, closePosition: 'true', workingType: 'MARK_PRICE', priceProtect: 'true' });
+      step(1, '거래소 손절 조건 주문 ' + sp + ' (번호 ' + a.algoId + ')');
+      let L = await B.call('GET', '/fapi/v1/openAlgoOrders', { symbol: sym }); L = Array.isArray(L) ? L : (L.orders || []);
+      step(L.some((x) => String(x.algoId) === String(a.algoId)), '거래소에 손절 주문이 걸려 있는지 확인');
+      await B.call('DELETE', '/fapi/v1/algoOrder', { symbol: sym, algoId: a.algoId }); step(1, '손절 주문 취소');
+      const c = await B.call('POST', '/fapi/v1/order', { symbol: sym, side: 'SELL', type: 'MARKET', quantity: qty, reduceOnly: 'true', newOrderRespType: 'RESULT' });
+      step(1, '시장가 정리 @' + (Number(c.avgPrice) || '?'));
+      const P = (await B.call('GET', '/fapi/v3/positionRisk')).filter((p) => p.symbol === sym && Number(p.positionAmt));
+      step(!P.length, '포지션이 깨끗하게 정리됐는지 확인');
+      console.log('주문 점검 끝 — 민경기 봇이 들어갈 때 이 순서대로 자동으로 주문해요.');
+    })().catch((e) => { console.error('✗ 주문 점검 실패: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '')); process.exitCode = 1; });
   } else run({ env }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; });
 }
