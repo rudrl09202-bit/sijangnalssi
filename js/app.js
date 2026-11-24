@@ -1782,7 +1782,7 @@
   function loadFutures(force) {
     if (S.futLoading || (S.fut && !force && Date.now() - S.futAt < 5 * 60e3)) return;
     S.futLoading = true;
-    const done = (j) => { S.futLoading = false; if (j && j.live) { S.fut = j; S.futAt = Date.now(); if (['futures', 'paper', 'hq', 'home', 'bot', 'analysis'].indexOf(route()) >= 0) render(); } };
+    const done = (j) => { S.futLoading = false; if (j && j.live) { S.fut = j; S.futAt = Date.now(); if (['futures', 'paper', 'hq', 'home', 'bot', 'analysis', 'open', 'closed'].indexOf(route()) >= 0) render(); } };
     const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/futures-live.json?t=' + Math.floor(Date.now() / 60e3);
     fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/futures-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).then(done).catch(() => done(null));
   }
@@ -1962,7 +1962,7 @@
     if (S.scLoading || (S.sc && !force && Date.now() - S.scAt < 2 * 60e3)) return;
     S.scLoading = true;
     fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/scalp-live.json?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures', 'mk', 'home', 'bot', 'analysis'].indexOf(route()) >= 0) render(); } });
+      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures', 'mk', 'home', 'bot', 'analysis', 'open', 'closed'].indexOf(route()) >= 0) render(); } });
   }
   const scT = (u, addMin) => { const t = Date.parse(String(u).replace(' ', 'T') + ':00Z') + (addMin || 0) * 60e3; if (!isFinite(t)) return String(u); const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   const SC_ST = { ok: ['정상 운용', 'neu'], dayblock: ['오늘 진입 금지', 'warn'], pause: ['연패 휴식', 'warn'], killed: ['킬 스위치 휴식', 'neg'] };
@@ -2050,7 +2050,7 @@
     S.mkLoading = true;
     const get = (f) => fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/' + f + '?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/' + f, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null);
-    Promise.all([get('mk3-live.json'), get('mk-live.json')]).then(([a, b]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq'].indexOf(route()) >= 0) render(); });
+    Promise.all([get('mk3-live.json'), get('mk-live.json')]).then(([a, b]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
   }
   function mkEntry() {
     loadMk();
@@ -2934,7 +2934,7 @@
         return `<a class="acc" href="#bot/${a.id}"><div class="acc-top"><span class="acc-name"><b>${esc(a.name)}</b><span class="muted xs">${esc(a.tf)}${a.positions.length ? ' · 포지션 ' + a.positions.length : ''}</span></span>${spark(a.curve)}</div>
           <div class="acc-mid"><span class="num acc-eq">${won(a.equity)}</span><span class="num acc-pl ${dirClass(pl)}">${pl >= 0 ? '+' : ''}${man(pl)} · ${pct(a.ret, 2)}</span></div>
           <div class="acc-sub"><span>진행 중 <b class="num ${dirClass(up)}">${a.positions.length ? (up >= 0 ? '+' : '') + man(up) : '—'}</b></span><span>확정 <b class="num ${dirClass(rl)}">${a.st.n ? (rl >= 0 ? '+' : '') + man(rl) : '—'}</b></span>${Math.abs(pl - up - rl) >= 5000 ? `<span>진입 수수료·펀딩 <b class="num ${dirClass(pl - up - rl)}">${pl - up - rl >= 0 ? '+' : ''}${man(pl - up - rl)}</b></span>` : ''}<span>거래 <b class="num">${a.st.n}</b>${a.st.n ? ' · 승률 ' + Math.round(a.st.win) + '%' : ''}</span></div></a>`; }).join('')}</div>
-      <div class="kpis k4" style="margin-top:12px">${kpi('평가 손익 · 진행 중', (upnl >= 0 ? '+' : '') + man(upnl), dirClass(upnl), pos.length ? '포지션 ' + pos.length + '개 아직 안 끝남' : '진행 중 없음')}${kpi('끝난 거래 ' + nTr + '건 · 확정', nTr ? (rPnl >= 0 ? '+' : '') + man(rPnl) : '—', dirClass(rPnl), nTr ? '이익 ' + wTr + ' · 손실 ' + (nTr - wTr) : '아직 없음')}</div></section>`;
+      <div class="kpis k4" style="margin-top:12px"><a class="kpi-link" href="#open">${kpi('평가 손익 · 진행 중 ›', (upnl >= 0 ? '+' : '') + man(upnl), dirClass(upnl), pos.length ? '포지션 ' + pos.length + '개 아직 안 끝남' : '진행 중 없음')}</a><a class="kpi-link" href="#closed">${kpi('끝난 거래 ' + nTr + '건 · 확정 ›', nTr ? (rPnl >= 0 ? '+' : '') + man(rPnl) : '—', dirClass(rPnl), nTr ? '이익 ' + wTr + ' · 손실 ' + (nTr - wTr) : '아직 없음')}</a></div></section>`;
     const chart = `<section class="card"><div class="card-head"><h2>수익률</h2>${periodSeg('hp')}</div>${eqChart(live.map((a) => ({ name: a.name, curve: a.curve, start: a.start })), { from: periodFrom('hp'), base: (S.ui.hp || 'all') === 'all' })}</section>`;
     const board = `<section class="card"><div class="card-head"><h2>봇 순위</h2><a href="#analysis" class="xs">분석 ›</a></div>
       <div class="lbd">${live.slice().sort((a, b) => b.ret - a.ret).map((a, k) => `<a class="lb-row" href="#bot/${a.id}"><span class="lb-n num">${k + 1}</span><span class="lb-name"><b>${esc(a.name)}</b><span class="muted xs">${esc(a.tf)} · 거래 ${a.st.n}${a.st.win != null ? ' · 승률 ' + Math.round(a.st.win) + '%' : ''}</span></span>${spark(a.curve)}<span class="lb-ret num ${dirClass(a.ret)}">${pct(a.ret, 2)}</span></a>`).join('')}</div></section>`;
@@ -2956,6 +2956,40 @@
       ${risky.map((n) => `<p class="sm news-line"><span class="act warn">주의</span> ${esc(n.title)} <span class="muted xs">${n.ago}시간 전</span></p>`).join('')}</section>`;
   }
 
+  /* ---------- 진행 중인 포지션 전체 / 끝난 거래 전체 ---------- */
+  function viewOpen() {
+    const A = accounts(false).filter((a) => !a.cmp), sel = S.ui.openBot || 'all';
+    const pos = [].concat(...A.map((a) => (a.positions || []).map((p) => ({ ...p, who: a })))).filter((p) => sel === 'all' || p.who.id === sel);
+    const upnl = pos.reduce((t, p) => t + (p.upnl || 0), 0);
+    const head = `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">아직 끝나지 않은 포지션 · 가상 계좌</p><h1>진행 중 ${pos.length}</h1></div>${tools()}</header>`;
+    const seg = botSeg(A, 'openBot');
+    const sum = `<section class="card"><div class="kpis k3">${kpi('평가 손익', (upnl >= 0 ? '+' : '') + man(upnl), dirClass(upnl), '지금 가격 기준')}${kpi('이익 중', String(pos.filter((p) => p.upnl > 0).length), 'up', '포지션')}${kpi('손실 중', String(pos.filter((p) => p.upnl < 0).length), 'down', '포지션')}</div></section>`;
+    const list = pos.length ? pos.map((p) => { const nt = p.notional || (p.lev != null ? p.lev * p.who.equity : null), be = p.be || (p.stop != null && Math.abs(p.stop / p.entry - 1) < 1e-6);
+      return `<a class="card det" href="#bot/${p.who.id}"><div class="row between"><p class="b">${sideTag(p.side)} ${esc(p.name)} <span class="muted xs">${esc(p.who.name)}</span></p><p class="num b ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</p></div>
+        <div class="kv"><span>진입 → 지금</span><b class="num">${usd(p.entry)} → ${usd(p.mark)}</b></div>
+        ${nt ? `<div class="kv"><span>규모</span><b class="num">${man(nt)}${p.lev != null ? ' · ' + p.lev + '배' : ''}</b></div>` : ''}
+        <div class="kv"><span>${be ? '본전 손절' : p.trail ? '추적 손절' : '손절'}</span><b class="num">${usd(p.stop)}</b></div>
+        ${p.tp ? `<div class="kv"><span>목표</span><b class="num">${usd(p.tp)}</b></div>` : ''}
+        ${p.since ? `<div class="kv"><span>진입 시각</span><b class="num">${kT(p.since)}</b></div>` : ''}
+        ${p.barsLeft != null ? `<div class="kv"><span>시간 정리까지</span><b class="num">${Math.round(p.barsLeft * (p.who.tf === '15분봉' ? 15 : 60) / 60 * 10) / 10}시간</b></div>` : ''}
+        ${p.why ? `<p class="muted xs" style="margin:6px 0 0">${esc(p.why)}</p>` : ''}</a>`; }).join('') : '<section class="card"><p class="muted sm">진행 중인 포지션이 없어요.</p></section>';
+    return head + seg + sum + list;
+  }
+  function viewClosed() {
+    const A = accounts(false).filter((a) => !a.cmp), sel = S.ui.closedBot || 'all';
+    const tr = [].concat(...A.map((a) => (a.trades || []).map((t) => ({ ...t, who: a })))).filter((t) => sel === 'all' || t.who.id === sel).sort((x, y) => tOf(y.out) - tOf(x.out));
+    const n = tr.length, w = tr.filter((t) => t.pnl > 0), pnl = tr.reduce((s2, t) => s2 + t.pnl, 0), gw = w.reduce((s2, t) => s2 + t.pnl, 0), gl = -tr.filter((t) => t.pnl <= 0).reduce((s2, t) => s2 + t.pnl, 0);
+    const head = `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">이미 끝나서 바뀌지 않는 손익 · 가상 계좌</p><h1>끝난 거래 ${n}</h1></div>${tools()}</header>`;
+    const sum = `<section class="card"><div class="kpis k3">${kpi('확정 손익', n ? (pnl >= 0 ? '+' : '') + man(pnl) : '—', dirClass(pnl), '수수료·펀딩 포함')}${kpi('이익 · 손실', w.length + ' · ' + (n - w.length), '', n ? '승률 ' + Math.round(w.length / n * 100) + '%' : '—')}${kpi('손익비', gl ? (gw / gl).toFixed(2) : '—', '', '번 돈 ÷ 잃은 돈')}</div></section>`;
+    const list = n ? `<section class="card"><div class="tbl">${tr.map((t) => `<a class="tr2 tr3" href="#bot/${t.who.id}"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${esc(t.who.name)}</span></span>
+        <span class="muted xs num">${kT(t.in)} → ${kT(t.out)} · ${usd(t.entry)} → ${usd(t.exit)}<br>${esc(t.reason || '')} · ${rr(t.R || 0)}${t.lev != null ? ' · ' + t.lev + '배' : ''}</span>
+        <span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></a>`).join('')}</div></section>` : '<section class="card"><p class="muted sm">아직 끝난 거래가 없어요.</p></section>';
+    return head + botSeg(A, 'closedBot') + sum + list;
+  }
+  function botSeg(A, key) {
+    const cur = S.ui[key] || 'all';
+    return `<div class="chips-row">${[['all', '전체']].concat(A.map((a) => [a.id, a.name.replace('단타 · ', '단타 ')])).map(([k, l]) => `<button class="chipb${cur === k ? ' on' : ''}" data-act="pick-bot" data-k="${key}" data-v="${k}">${esc(l)}</button>`).join('')}</div>`;
+  }
   /* ---------- 봇 목록 ---------- */
   function viewBots() {
     const A = accounts(true), live = A.filter((a) => !a.cmp), cmp = A.filter((a) => a.cmp);
@@ -3067,8 +3101,8 @@
     }
     return head + seg + body;
   }
-  const VIEWS = { bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
-  const TAB_OF = { bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
+  const TAB_OF = { open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { let h = (location.hash || '#home').slice(1); if (h.indexOf('bot/') === 0) { S.ui.bot = h.slice(4); h = 'bot'; } return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
@@ -3117,6 +3151,7 @@
     else if (act === 'tv') openTV(v, b.dataset.name, b.dataset.iv);
     else if (act === 'sc-tab') { S.ui.scTab = v; render(); }
     else if (act === 'period') { S.ui[b.dataset.k] = v; render(); }
+    else if (act === 'pick-bot') { S.ui[b.dataset.k] = v; render(); }
     else if (act === 'bot-tab') { S.ui.botTab = v; render(); }
     else if (act === 'ana-tab') { S.ui.anaTab = v; render(); }
     else if (act === 'fut-tab') { S.ui.futTab = v; render(); window.scrollTo(0, 0); }
