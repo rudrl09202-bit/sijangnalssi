@@ -1807,6 +1807,61 @@
       <div class="right"><p class="num b ${dirClass(L && L.ret)}">${L ? pct(L.ret, 2) : '—'}</p><p class="muted xs">${L ? '포지션 ' + L.positions.length + ' · ' + L.lev + '배' : '불러오는 중'}</p></div></div></a>`;
   }
 
+
+  /* ---------- 금리·물가 자동 갱신 (ECOS·FRED → data/policy-live.json) ---------- */
+  function loadPolicy() {
+    if (S.polLoading || (S.pol && Date.now() - S.polAt < 10 * 60e3)) return;
+    S.polLoading = true;
+    const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/policy-live.json?t=' + Math.floor(Date.now() / 60e3);
+    fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/policy-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => {
+      S.polLoading = false;
+      if (j && (j.fred || j.ecos)) { S.pol = j; S.polAt = Date.now(); applyPolicy(j); render(); }
+    });
+  }
+  function applyPolicy(P) {
+    const f = P.fred || {}, e = P.ecos || {}, today = new Date().toISOString().slice(0, 10);
+    const fed = SNAP.rates.find((r) => r.key === 'fed'), bok = SNAP.rates.find((r) => r.key === 'bok');
+    const fomc = (f.events || []).filter((x) => /FOMC/.test(x.title) && x.date >= today).map((x) => x.date).sort()[0];
+    if (fed && f.fedUpper) {
+      if (fed.upper != null && Math.abs(f.fedUpper.value - fed.upper) > 0.001) { fed.expect = 'hold'; fed.expectText = (f.fedUpper.value > fed.upper ? '인상' : '인하') + ' 결정 반영 (' + f.fedUpper.date.slice(5).replace('-', '/') + ') · 다음 전망은 발표 후 갱신'; }
+      fed.upper = f.fedUpper.value; fed.rate = (f.fedLower ? f.fedLower.value.toFixed(2) + '~' : '') + f.fedUpper.value.toFixed(2) + '%'; fed.live = 'FRED ' + f.fedUpper.date;
+      if (fomc) fed.next = fomc;
+    }
+    if (bok && e.bokRate) {
+      if (bok.upper != null && Math.abs(e.bokRate.value - bok.upper) > 0.001) { bok.expect = 'hold'; bok.expectText = (e.bokRate.value > bok.upper ? '인상' : '인하') + ' 결정 반영 (' + e.bokRate.date.slice(5).replace('-', '/') + ')'; }
+      if (bok.next && bok.next < today) bok.next = '';
+      bok.upper = e.bokRate.value; bok.rate = e.bokRate.value.toFixed(2) + '%'; bok.live = 'ECOS ' + e.bokRate.date;
+    }
+    // 발표 일정: FRED 실제 일정으로 같은 종류(CPI·고용·FOMC) 교체
+    if ((f.events || []).length) {
+      const kind = (t) => (/CPI|소비자물가/.test(t) ? 'cpi' : /FOMC/.test(t) ? 'fomc' : /고용/.test(t) ? 'jobs' : null);
+      const have = new Set(f.events.map((x) => kind(x.title)));
+      const keep = SNAP.events.filter((x) => !have.has(kind(x.title)));
+      const add = f.events.filter((x) => x.date >= today).map((x) => ({ date: x.date, title: x.title, when: x.date.slice(5).replace('-', '/') + ' ' + x.when, why: x.why, live: true }));
+      SNAP.events.splice(0, SNAP.events.length, ...keep.concat(add).sort((a, b) => (a.date < b.date ? -1 : 1)));
+    }
+  }
+  function policyCard() {
+    loadPolicy();
+    const P = S.pol;
+    if (!P) return `<section class="card"><h2>금리·물가</h2><p class="muted sm">ECOS·FRED 키를 넣으면 한국·미국 기준금리와 물가가 4시간마다 자동으로 바뀌어요. 지금은 저장된 값을 보여줘요.</p>
+      ${SNAP.rates.slice(0, 2).map((r) => `<div class="kv"><span>${esc(r.name)}</span><b class="num">${esc(r.rate)}</b></div>`).join('')}</section>`;
+    const f = P.fred || {}, e = P.ecos || {};
+    const row = (label, o, fmt, sub) => o ? `<div class="kv"><span>${label}</span><b class="num">${fmt(o.value)}${o.prev != null && o.prev !== o.value ? ` <span class="muted xs">직전 ${fmt(o.prev)}</span>` : ''} <span class="muted xs">${esc(sub || o.date)}</span></b></div>` : '';
+    const p2 = (v) => v.toFixed(2) + '%', p1 = (v) => v.toFixed(1) + '%';
+    const up = SNAP.events.filter((x) => x.live && R.daysUntil(x.date, now()) >= 0).slice(0, 3);
+    return `<section class="card"><div class="row between"><h2>금리·물가</h2><p class="muted xs">FRED·ECOS 자동 · ${new Date(P.fetchedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</p></div>
+      ${f.fedUpper ? `<div class="kv"><span>미국 기준금리</span><b class="num">${f.fedLower ? f.fedLower.value.toFixed(2) + '~' : ''}${p2(f.fedUpper.value)} <span class="muted xs">${esc(f.fedUpper.date)}</span></b></div>` : ''}
+      ${row('한국 기준금리', e.bokRate, p2)}
+      ${row('미국 물가 (전년비)', f.cpiYoY, p1, f.cpiYoY && f.cpiYoY.date.slice(0, 7))}
+      ${row('미국 근원물가', f.coreCpiYoY, p1, f.coreCpiYoY && f.coreCpiYoY.date.slice(0, 7))}
+      ${row('미국 실업률', f.unrate, p1, f.unrate && f.unrate.date.slice(0, 7))}
+      ${row('한국 물가 (전년비)', e.krCpiYoY, p1)}
+      ${row('미국 2년물 금리', f.us2y, p2)}
+      ${up.length ? `<p class="sm" style="margin-top:10px"><b>다가오는 발표</b></p>${up.map((x) => `<div class="kv"><span>${esc(x.title)}</span><b class="sm">${R.daysUntil(x.date, now()) === 0 ? '오늘' : R.daysUntil(x.date, now()) + '일 뒤'} · ${esc(x.when)}</b></div>`).join('')}` : ''}
+      ${(P.news || []).length ? `<p class="sm" style="margin-top:10px"><b>최근 발표</b></p>${P.news.slice(0, 3).map((n) => `<p class="xs muted" style="margin:4px 0 0">${new Date(n.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} · ${esc(n.t)}</p>`).join('')}` : ''}
+      <p class="muted xs" style="margin-top:8px">4시간마다 확인해요. 발표가 나오면 다음 확인 때 반영되고 폰으로 알려드려요.</p></section>`;
+  }
   /* ---------- 화면: 탐색 (종목·시장 찾아보기) ---------- */
   const SV = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const IC = {
@@ -1828,7 +1883,8 @@
       <section class="card"><h2>시장 공부</h2>
         ${lrow('#world', IC.world, '세계 돈의 지도', '부동산·금·달러·비트코인의 크기와 환율')}
         ${lrow('#cycle', IC.cycle, '테마 사이클', '돈은 지금 어디서 어디로')}
-        ${lrow('#compare', IC.compare, '1년 성적표', '1년 전 1,000만 원을 넣었다면')}</section>`;
+        ${lrow('#compare', IC.compare, '1년 성적표', '1년 전 1,000만 원을 넣었다면')}</section>
+      ${policyCard()}`;
   }
   /* ---------- 화면: 더보기 ---------- */
   function viewMore() {
@@ -2404,6 +2460,7 @@
   }
   async function boot() {
     render();
+    loadPolicy();
     const jobs = [
       tryVault(),
       loadPrices([]),

@@ -63,7 +63,8 @@ jobs:
         run: |
           mkdir -p _site
           cp -r index.html styles.css manifest.webmanifest sw.js icons js _site/
-          mkdir -p _site/data && cp data/futures-live.json _site/data/ 2>/dev/null || true
+          mkdir -p _site/data && cp data/futures-live.json data/policy-live.json _site/data/ 2>/dev/null || true
+          cp data/futures-live.json _site/data/ 2>/dev/null || true
           rm -f _site/js/holdings-live.js
           echo "window.SNW_CONFIG = { vapidPublicKey: '${VAPID_PUBLIC_KEY}' };" > _site/js/config.js
         env:

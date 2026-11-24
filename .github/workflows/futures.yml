@@ -1,4 +1,4 @@
-name: 코인 선물 모의투자 (4시간마다)
+name: 코인 선물 모의투자·금리 갱신 (4시간마다)
 
 on:
   schedule:
@@ -52,11 +52,23 @@ jobs:
           ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+      - name: 금리·물가 자동 갱신 (ECOS·FRED)
+        if: ${{ !inputs.ping }}
+        run: node connect/policy-run.mjs
+        continue-on-error: true
+        env:
+          ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_EMAIL: ${{ secrets.VAPID_EMAIL }}
+          PUSH_SUBSCRIPTIONS: ${{ secrets.PUSH_SUBSCRIPTIONS }}
       - name: 결과 저장
         if: ${{ !inputs.ping }}
         run: |
           git config user.name "sijangnalssi-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/futures-state.json data/futures-live.json
+          git add data/policy-state.json data/policy-live.json 2>/dev/null || true
           git commit -m "선물 모의투자 $(date -u +'%F %H:%M')" || echo "변경 없음"
           for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
