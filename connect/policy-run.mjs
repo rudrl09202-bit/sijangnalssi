@@ -16,7 +16,7 @@ export async function run({ root = ROOT, env = loadEnv(), log = console.log, fet
   const prev = existsSync(stFile) ? JSON.parse(readFileSync(stFile, 'utf8')) : null;
   // 이번에 못 받은 값은 지난번 값을 유지 (일시 오류로 화면이 비지 않게)
   const keep = (a, b) => { if (!b) return a; if (!a) return b; const o = { ...b, ...a }; Object.keys(b).forEach((k) => { if (o[k] == null) o[k] = b[k]; }); return o; };
-  if (prev) { cur.fred = keep(cur.fred, prev.fred); cur.ecos = keep(cur.ecos, prev.ecos); }
+  if (prev && prev.v === cur.v) { cur.fred = keep(cur.fred, prev.fred); cur.ecos = keep(cur.ecos, prev.ecos); }
   const news = prev ? policyNews(prev, cur) : [];
   cur.news = news.length ? news.map((t) => ({ t, at: now.toISOString() })).concat((prev && prev.news) || []).slice(0, 10) : (prev && prev.news) || [];
   mkdirSync(join(root, 'data'), { recursive: true });

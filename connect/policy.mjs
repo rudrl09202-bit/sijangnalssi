@@ -62,7 +62,7 @@ export async function fetchFred(key, { fetchImpl = fetch, now = new Date() } = {
 /* ---------- ECOS ---------- */
 const ECOS = 'https://ecos.bok.or.kr/api/StatisticSearch/';
 async function ecosRows(key, stat, cycle, from, to, item, fetchImpl) {
-  const j = await getJson(ECOS + encodeURIComponent(key) + '/json/kr/1/100/' + stat + '/' + cycle + '/' + from + '/' + to + '/' + item, fetchImpl);
+  const j = await getJson(ECOS + encodeURIComponent(key) + '/json/kr/1/1000/' + stat + '/' + cycle + '/' + from + '/' + to + '/' + item, fetchImpl);
   if (j.RESULT && j.RESULT.CODE && j.RESULT.CODE !== 'INFO-000') throw new Error(j.RESULT.CODE + ' ' + (j.RESULT.MESSAGE || ''));
   const rows = (j.StatisticSearch && j.StatisticSearch.row) || [];
   return rows.map((r) => ({ t: r.TIME, v: num(r.DATA_VALUE) })).filter((r) => r.v != null).sort((a, b) => (a.t < b.t ? -1 : 1));
@@ -72,10 +72,12 @@ const yyyymm = (d) => ymd(d).slice(0, 7).replace('-', '');
 export async function fetchEcos(key, { fetchImpl = fetch, now = new Date() } = {}) {
   const out = { src: 'ECOS', fetchedAt: now.toISOString() }, errors = [];
   try {
-    const rows = await ecosRows(key, '722Y001', 'D', yyyymmdd(new Date(now - 1100 * 864e5)), yyyymmdd(now), '0101000', fetchImpl); // 바뀐 날만 기록됨 → 3년치
+    const rows = await ecosRows(key, '722Y001', 'D', yyyymmdd(new Date(now - 400 * 864e5)), yyyymmdd(now), '0101000', fetchImpl); // 일별 → 400일치(1,000줄 안)
     if (!rows.length) throw new Error('값 없음');
+    if (rows.length >= 1000) throw new Error('행 수 한도 도달');
     const last = rows[rows.length - 1], prevDiff = rows.slice().reverse().find((r) => r.v !== last.v);
-    out.bokRate = { changed: true, value: last.v, date: last.t.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'), prev: prevDiff ? prevDiff.v : last.v };
+    const chg = prevDiff ? rows[rows.indexOf(prevDiff) + 1] : rows[0]; // 마지막으로 바뀐 날
+    out.bokRate = { value: last.v, date: chg.t.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'), asOf: last.t.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'), prev: prevDiff ? prevDiff.v : last.v };
   } catch (e) { errors.push('기준금리: ' + e.message); }
   try {
     const rows = await ecosRows(key, '901Y009', 'M', yyyymm(new Date(now - 430 * 864e5)), yyyymm(now), '0', fetchImpl);
@@ -90,14 +92,16 @@ export async function fetchEcos(key, { fetchImpl = fetch, now = new Date() } = {
 }
 
 /* ---------- 묶기 + 바뀐 값 = 발표 알림 ---------- */
+export const POLICY_V = 2;
 export async function fetchPolicy(env, opts = {}) {
-  const res = { fetchedAt: (opts.now || new Date()).toISOString(), keys: { fred: !!env.FRED_API_KEY, ecos: !!env.ECOS_API_KEY } };
+  const res = { v: POLICY_V, fetchedAt: (opts.now || new Date()).toISOString(), keys: { fred: !!env.FRED_API_KEY, ecos: !!env.ECOS_API_KEY } };
   if (env.FRED_API_KEY) { try { res.fred = await fetchFred(env.FRED_API_KEY, opts); } catch (e) { res.fredError = e.message; } }
   if (env.ECOS_API_KEY) { try { res.ecos = await fetchEcos(env.ECOS_API_KEY, opts); } catch (e) { res.ecosError = e.message; } }
   return res;
 }
 // 지난번 값과 비교해서 새로 발표된 것만 문장으로
 export function policyNews(prev, cur) {
+  if (!prev || prev.v !== POLICY_V) return []; // 형식이 바뀐 직후엔 비교하지 않음(가짜 발표 알림 방지)
   const out = [], P = prev || {}, f = cur.fred || {}, e = cur.ecos || {}, pf = P.fred || {}, pe = P.ecos || {};
   const changed = (a, b) => a && (!b || a.date !== b.date || a.value !== b.value);
   if (f.fedUpper && pf.fedUpper && f.fedUpper.value !== pf.fedUpper.value) out.push(`미국 기준금리 ${f.fedUpper.value > pf.fedUpper.value ? '인상' : '인하'}: ${f.fedLower ? f.fedLower.value.toFixed(2) + '~' : ''}${f.fedUpper.value.toFixed(2)}%`);
