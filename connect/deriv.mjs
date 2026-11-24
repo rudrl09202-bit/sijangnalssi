@@ -45,12 +45,14 @@ export async function collect({ db, now = Date.now(), fetchImpl = fetch, log = c
         ['ls', '/futures/data/globalLongShortAccountRatio', (x) => Number(x.longShortRatio)],
         ['top', '/futures/data/topLongShortPositionRatio', (x) => Number(x.longShortRatio)],
         ['tk', '/futures/data/takerlongshortRatio', (x) => Number(x.buySellRatio)]]) {
-        let st = Math.max(D[key].length ? D[key][D[key].length - 1][0] + 1 : 0, now - 29 * DAY);
-        for (let k = 0; k < 3 && st < now - HOUR; k++) {
-          const j = await getJ(BASE + path + '?symbol=' + s + '&period=1h&limit=500&startTime=' + st, fetchImpl);
-          if (!j.length) break;
-          D[key] = merge(D[key], j.map((x) => [Number(x.timestamp), pick(x)]));
-          st = Number(j[j.length - 1].timestamp) + 1; if (j.length < 500) break; await sleep(250);
+        // 빈 구간: 앞쪽(29일 전 ~ 처음 기록)과 뒤쪽(마지막 기록 ~ 지금)을 500시간 창으로 끝 시각까지 지정해 받음
+        const lo = now - 29 * DAY, A = D[key], wins = [];
+        if (!A.length) wins.push([lo, now]);
+        else { if (A[0][0] - lo > 2 * HOUR) wins.push([lo, A[0][0] - 1]); wins.push([A[A.length - 1][0] + 1, now]); }
+        for (const [a, b] of wins) for (let st = a, k = 0; st < b - HOUR && k < 4; st += 500 * HOUR, k++) {
+          const j = await getJ(BASE + path + '?symbol=' + s + '&period=1h&limit=500&startTime=' + st + '&endTime=' + Math.min(b, st + 500 * HOUR), fetchImpl);
+          if (j.length) D[key] = merge(D[key], j.map((x) => [Number(x.timestamp), pick(x)]));
+          await sleep(200);
         }
         await sleep(150);
       }
