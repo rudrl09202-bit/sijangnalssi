@@ -899,3 +899,12 @@ html.big body { zoom: 1.15; }
 .chg { padding: 10px 0; border-top: 1px solid var(--line); } .chg:first-of-type { border-top: 0; } .chg p { margin: 0; } .chg p + p { margin-top: 2px; }
 .ftbl td a { color: inherit; text-decoration: none; font-weight: 600; }
 .spark.flat polyline { stroke: var(--line2); }
+/* 봇별 가상 자산 */
+.acc { display: block; padding: 12px 0; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.acc:first-child { border-top: 0; padding-top: 4px; }
+.acc-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.acc-name { display: flex; flex-direction: column; min-width: 0; } .acc-name b { font-size: 15px; font-weight: 600; }
+.acc-mid { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; }
+.acc-eq { font-size: 19px; font-weight: 800; letter-spacing: -0.4px; } .acc-pl { font-size: 14px; font-weight: 700; }
+.acc-sub { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.acc-sub b { font-weight: 600; color: var(--ink); } .acc-sub b.up { color: var(--up); } .acc-sub b.down { color: var(--down); }
