@@ -1911,6 +1911,11 @@
       ${row('미국 실업률', f.unrate, p1, f.unrate && f.unrate.date.slice(0, 7))}
       ${row('한국 물가 (전년비)', e.krCpiYoY, p1)}
       ${row('미국 2년물 금리', f.us2y, p2)}
+      ${f.curve || f.real10y || f.m2YoY || f.hySpread ? `<p class="sm" style="margin-top:12px"><b>경기·돈 흐름 신호</b></p>
+      ${f.curve ? `<div class="kv"><span>장단기 금리차<br><span class="muted xs">10년−2년 · 마이너스면 경기침체 경고</span></span><b class="num ${f.curve.value < 0 ? 'down' : ''}">${f.curve.value > 0 ? '+' : ''}${f.curve.value.toFixed(2)}%p</b></div>` : ''}
+      ${f.real10y ? `<div class="kv"><span>실질금리<br><span class="muted xs">물가 뺀 금리 · 높을수록 코인·성장주 부담</span></span><b class="num">${p2(f.real10y.value)}</b></div>` : ''}
+      ${f.m2YoY ? `<div class="kv"><span>시중 돈의 양 (M2)<br><span class="muted xs">1년 전보다 · 늘면 자산 가격에 순풍</span></span><b class="num ${dirClass(f.m2YoY.value)}">${f.m2YoY.value > 0 ? '+' : ''}${f.m2YoY.value.toFixed(1)}%</b></div>` : ''}
+      ${f.hySpread ? `<div class="kv"><span>신용 위험 (하이일드 가산금리)<br><span class="muted xs">5% 넘으면 시장이 불안해한다는 뜻</span></span><b class="num ${f.hySpread.value >= 5 ? 'down' : ''}">${p2(f.hySpread.value)}</b></div>` : ''}` : ''}
       ${up.length ? `<p class="sm" style="margin-top:10px"><b>다가오는 발표</b></p>${up.map((x) => `<div class="kv"><span>${esc(x.title)}</span><b class="sm">${R.daysUntil(x.date, now()) === 0 ? '오늘' : R.daysUntil(x.date, now()) + '일 뒤'} · ${esc(x.when)}</b></div>`).join('')}` : ''}
       ${(P.news || []).length ? `<p class="sm" style="margin-top:10px"><b>최근 발표</b></p>${P.news.slice(0, 3).map((n) => `<p class="xs muted" style="margin:4px 0 0">${new Date(n.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} · ${esc(n.t)}</p>`).join('')}` : ''}
       <p class="muted xs" style="margin-top:8px">4시간마다 확인해요. 발표가 나오면 다음 확인 때 반영되고 폰으로 알려드려요.</p></section>`;
@@ -1950,7 +1955,14 @@
       ${BD ? `<div class="seg" role="tablist">${[['careful', '조심형'], ['bold', '적극형']].concat(MJ ? [['major', '다수결']] : []).map(([k, l]) => `<button role="tab" class="${tabSc === k ? 'on' : ''}" data-act="sc-tab" data-v="${k}">${l}</button>`).join('')}</div>` : ''}`;
     const V = tabSc === 'major' ? { positions: MJ.positions, decisions: MJ.decisions, trades: MJ.trades, stats: MJ.stats, label: '다수결' } : tabSc === 'bold' ? { positions: BD.positions, decisions: BD.decisions, trades: BD.trades, stats: BD.stats, label: '적극형' } : { positions: L.positions, decisions: D.decisions, trades: L.trades, stats: L.stats, label: '조심형' };
     const lg = (D.log || [])[0];
+    const RG = D.regime;
+    const RISKW = /해킹|규제|소송|파산|상장폐지|청산|폭락|SEC|hack|exploit|lawsuit|ban|crackdown|bankrupt|liquidat|delist|outflow|plunge|crash|FOMC|CPI|금리/i;
+    const newsCard = (D.news && D.news.length) || (D.events && D.events.length) ? `<section class="card"><h2>AI가 같이 본 뉴스·일정</h2>
+      <p class="muted xs">진입 판단 전에 최근 12시간 코인 뉴스와 48시간 안 큰 발표를 AI에게 같이 보여줘요. 큰 악재나 발표가 임박하면 건너뛰게 했어요.</p>
+      ${(D.events || []).map((e) => `<div class="kv"><span><span class="act warn">발표 임박</span></span><b class="sm">${esc(e.date.slice(5).replace('-', '/'))} ${esc(e.title)}</b></div>`).join('')}
+      ${(D.news || []).slice(0, 6).map((n) => `<p class="sm news-line">${RISKW.test(n.title) ? '<span class="act warn">주의</span> ' : ''}${esc(n.title)} <span class="muted xs">${n.ago}시간 전 · ${esc(n.src)}</span></p>`).join('')}</section>` : '';
     const now = `<section class="card"><div class="row between"><h2>지금 봇은</h2><p class="muted xs">${lg ? scT(lg.t, 15) + ' 판단' : ''}</p></div>
+      ${RG && RG.label ? `<div class="kv"><span>지금 장세 (비트코인)</span><b>${esc(RG.label)}</b></div>` : ''}
       ${lg ? (lg.state ? `<p class="sm"><span class="act warn">${esc(lg.state)}</span></p>` : '') + lg.coins.map((c) => `<div class="kv sc-coin"><span>${esc(c.sym)}</span><b class="sm">${esc(c.text)}</b></div>`).join('')
         + `<p class="sm" style="margin-top:8px">${lg.cands.length ? '후보: <b>' + lg.cands.map(esc).join(', ') + '</b> → Claude에게 물어봄' : '이번 봉엔 후보 없음 — 조건이 맞을 때까지 기다려요'}</p>` : '<p class="muted sm">판단 기록이 아직 없어요.</p>'}
       <p class="muted xs" style="margin-top:6px">15분봉이 끝날 때마다 판단하고, 10분마다 결과를 올려요.</p></section>`;
@@ -1988,7 +2000,7 @@
       <div class="kv"><span>크기</span><b>한 번에 계좌 ${c.riskPct}% · 동시 ${c.maxPos}개 · 전체 ${c.maxLevTotal}배</b></div>
       <div class="kv"><span>금고</span><b>하루 ${c.dayLoss}% 정지 · ${c.streakPause}연패 ${c.pauseBars * c.bar / 60}시간 휴식 · ${c.ddKill}% 킬</b></div>
       <div class="kv"><span>비용</span><b>수수료 ${(c.taker * 100).toFixed(2)}% · 미끄러짐 · 펀딩</b></div></section>`;
-    return head + hero + now + pos + dec + aiCard + trades + honest + rules;
+    return head + hero + now + newsCard + pos + dec + aiCard + trades + honest + rules;
   }
   const SC_COIN = { BTC: '비트코인', ETH: '이더리움', SOL: '솔라나', XRP: '엑스알피', DOGE: '도지코인' };
   function scalpEntry() {

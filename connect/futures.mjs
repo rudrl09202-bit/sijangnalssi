@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { loadEnv, loadQuant, push, cleanTicks } from './paper.mjs';
 import { vote as councilVote, keyStatus, VOTERS } from './council.mjs';
+import { headlines, upcomingEvents, newsBrief } from './news.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -71,7 +72,7 @@ export function brief(W, P, i, o, acc, cfg) {
     고정_규칙: { 이번_위험: COUNCIL_RISK + '%', 전체_레버리지_상한: cfg.maxLevTotal + '배', 격리: cfg.isoLev + '배' }
   };
 }
-async function runCouncil({ F, W, P, cfg, acc, from, to, env, fetchImpl, log, votes }) {
+async function runCouncil({ F, W, P, cfg, acc, from, to, env, fetchImpl, log, votes, NB = {} }) {
   for (let i = from; i <= to; i++) {
     F.simulate(W, P, cfg, acc, i, i, { collect: true, vote: true });
     const need = acc.pending.filter((o) => o.kind === 'open' && o.needVote && o.approved == null);
@@ -79,7 +80,7 @@ async function runCouncil({ F, W, P, cfg, acc, from, to, env, fetchImpl, log, vo
       // 같은 코인·방향이 24시간 안에 거절(또는 키 없음)됐으면 다시 묻지 않음 — "찬성 나올 때까지 묻기" 방지
       const tNow = W.T[i], recent = votes.slice().reverse().find((v) => v.sym === o.sym && v.side === o.side && v.result !== 'approved');
       if (recent && tNow - Date.parse(recent.t.replace(' ', 'T') + ':00Z') < 24 * 3600e3) { o.approved = false; continue; }
-      const bf = brief(W, P, i, o, acc, cfg);
+      const bf = { ...brief(W, P, i, o, acc, cfg), ...NB };
       const v = await councilVote(env, bf, fetchImpl);
       o.approved = v.result === 'approved'; o.risk = COUNCIL_RISK;
       votes.push({ t: bf.시각_UTC.replace('T', ' '), sym: o.sym, name: o.name, side: o.side, price: bf.현재가, stop: bf.손절가, why: o.why, result: v.result, votes: v.votes });
@@ -154,7 +155,9 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
   else cfrom = W.T.findIndex((t) => t > st.council.acc.lastT);
   const C = st.council.acc; C.events = [];
   const keys = keyStatus(env);
-  if (cfrom >= 0) await runCouncil({ F, W, P, cfg, acc: C, from: cfrom, to: lastIdx, env, fetchImpl, log, votes: st.council.votes });
+  let NB = {};
+  if (!data) { try { NB = newsBrief(await headlines({ fetchImpl, now: now.getTime(), log }), upcomingEvents(root, now.getTime())); } catch (e) { log('뉴스 실패: ' + e.message); } }
+  if (cfrom >= 0) await runCouncil({ F, W, P, cfg, acc: C, from: cfrom, to: lastIdx, env, fetchImpl, log, votes: st.council.votes, NB });
   st.council.votes = st.council.votes.slice(-150);
   const cfresh = C.events.slice(); C.events = [];
   st.updatedAt = now.toISOString();

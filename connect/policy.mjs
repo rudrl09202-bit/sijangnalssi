@@ -44,6 +44,11 @@ export async function fetchFred(key, { fetchImpl = fetch, now = new Date() } = {
   await take('coreCpiYoY', () => fredObs(key, 'CPILFESL', fetchImpl, '&units=pc1'));
   await take('unrate', () => fredObs(key, 'UNRATE', fetchImpl));
   await take('us2y', () => fredObs(key, 'DGS2', fetchImpl));
+  await take('us10y', () => fredObs(key, 'DGS10', fetchImpl));
+  await take('curve', () => fredObs(key, 'T10Y2Y', fetchImpl));        // 장단기 금리차 (10년-2년)
+  await take('real10y', () => fredObs(key, 'DFII10', fetchImpl));      // 실질금리 (10년 물가연동)
+  await take('m2YoY', () => fredObs(key, 'M2SL', fetchImpl, '&units=pc1')); // 시중 돈의 양 (전년비)
+  await take('hySpread', () => fredObs(key, 'BAMLH0A0HYM2', fetchImpl)); // 하이일드 가산금리 (신용 위험)
   const events = [];
   for (const rel of FRED_RELEASES) {
     try {

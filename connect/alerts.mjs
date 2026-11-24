@@ -9,6 +9,7 @@
  * 결과: js/alerts-live.js (앱의 "알림" 화면에 표시)
  * 필요한 값(GitHub Secrets 또는 connect/.env): VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL, PUSH_SUBSCRIPTIONS
  */
+import { telegram } from './notify.mjs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -124,6 +125,7 @@ export async function run({ fetchImpl = fetch, sendImpl, env = loadEnv(), now = 
         try { await send(sub, payload); sent++; } catch (e) { failed++; log('알림 실패' + (e.statusCode === 404 || e.statusCode === 410 ? ' — 이 휴대폰 연결이 만료됨. 앱에서 "알림 다시 연결" 후 코드를 새로 넣으세요.' : ': ' + (e.statusCode || e.message))); }
       }
     } else log('알림 대상(PUSH_SUBSCRIPTIONS)이나 키(VAPID_*)가 없어 보내지 않았습니다.');
+    { const m = message(cands, weather); if (await telegram(env, m, log)) log('텔레그램 1건'); }
     cands.forEach((x) => { state.sent[x.id] = now.toISOString(); });
     state.history = cands.map((x) => ({ at: now.toISOString(), id: x.id, kind: x.kind, name: x.name, market: x.market, score: x.score, line: lineOf(x) })).concat(state.history || []).slice(0, 60);
   }

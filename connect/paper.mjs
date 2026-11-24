@@ -12,6 +12,7 @@
  * 실행: node connect/paper.mjs        (GitHub Actions 가 매일 자동 실행)
  *       node connect/paper.mjs --reset (가상 계좌를 오늘부터 새로 시작)
  */
+import { telegram } from './notify.mjs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -202,9 +203,10 @@ function positionsView(W, acc, d) {
 }
 
 export async function push(env, payload, log) {
-  let subs; try { subs = JSON.parse(env.PUSH_SUBSCRIPTIONS || '[]'); } catch (e) { return 0; }
+  const tg = await telegram(env, payload, log);
+  let subs; try { subs = JSON.parse(env.PUSH_SUBSCRIPTIONS || '[]'); } catch (e) { return tg; }
   const list = Array.isArray(subs) ? subs : [subs];
-  if (!list.length || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return 0;
+  if (!list.length || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return tg;
   const wp = (await import('web-push')).default;
   wp.setVapidDetails('mailto:' + (env.VAPID_EMAIL || 'admin@example.com'), env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
   let n = 0; for (const s of list) { try { await wp.sendNotification(s, JSON.stringify(payload), { TTL: 12 * 3600 }); n++; } catch (e) { log('푸시 실패: ' + (e.statusCode || e.message)); } }

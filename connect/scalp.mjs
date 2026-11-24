@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { loadEnv, loadQuant, push, cleanTicks } from './paper.mjs';
 import { askClaude, askGemini, askGpt, VOTERS } from './council.mjs';
+import { headlines, upcomingEvents, newsBrief } from './news.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
 const require = createRequire(import.meta.url);
@@ -22,18 +23,21 @@ const SYSTEM = `당신은 코인 무기한 선물 단타 트레이더입니다. 
 - 손절·익절·크기·레버리지는 규칙으로 고정입니다(손절 1.5 ATR, 익절 2R, 계좌 1% 위험). 당신은 진입 여부만 정합니다.
 - 단타는 수수료가 커서 애매하면 건너뛰는 게 이득입니다. 추세 방향과 일치하는지, 직전 봉들의 힘, 과열/추격 여부, BTC 흐름, 최근 손익을 보고 판단하세요.
 - 주어진 자료만 근거로 하세요. 이후 가격을 안다고 가정하지 마세요.
+- '최근_뉴스'에 큰 악재(⚠ 표시: 해킹·규제·소송·대량 청산 등)가 있거나, '48시간_안_큰_발표'(FOMC·CPI 등)가 몇 시간 안이면 건너뛰는 쪽으로 판단하세요. '장세'도 참고하세요.
 반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
 
 const SYSTEM_BOLD = `당신은 코인 무기한 선물 단타 트레이더(적극형)입니다. 15분봉 규칙 엔진이 진입 후보를 올리면, 실제로 들어갈지(enter) 건너뛸지(skip) 결정합니다.
 - 손절·익절·크기·레버리지는 규칙으로 고정입니다(손절 1.5 ATR, 익절 2R, 계좌 1% 위험). 당신은 진입 여부만 정합니다.
 - 기본은 진입입니다. 셋업이 성립하면 들어가고, 명확히 나쁜 근거(뚜렷한 역방향 흐름, 바로 앞의 강한 지지/저항, 과열 추격 등)가 있을 때만 건너뛰세요.
 - 주어진 자료만 근거로 하세요. 이후 가격을 안다고 가정하지 마세요.
+- '최근_뉴스'에 큰 악재(⚠ 표시: 해킹·규제·소송·대량 청산 등)가 있거나, '48시간_안_큰_발표'(FOMC·CPI 등)가 몇 시간 안이면 건너뛰는 쪽으로 판단하세요. '장세'도 참고하세요.
 반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
 
 const SYSTEM_MID = `당신은 코인 무기한 선물 단타 트레이더입니다. 15분봉 규칙 엔진이 진입 후보를 올리면, 실제로 들어갈지(enter) 건너뛸지(skip) 결정합니다.
 - 손절·익절·크기·레버리지는 규칙으로 고정입니다(손절 1.5 ATR, 익절 2R, 계좌 1% 위험). 당신은 진입 여부만 정합니다.
 - 셋업이 추세 방향과 맞고, 목표까지 가는 길에 큰 장애물이 없고, 기대 이익이 왕복 수수료를 충분히 넘으면 진입하세요. 그렇지 않으면 건너뛰세요.
 - 주어진 자료만 근거로 하세요. 이후 가격을 안다고 가정하지 마세요.
+- '최근_뉴스'에 큰 악재(⚠ 표시: 해킹·규제·소송·대량 청산 등)가 있거나, '48시간_안_큰_발표'(FOMC·CPI 등)가 몇 시간 안이면 건너뛰는 쪽으로 판단하세요. '장세'도 참고하세요.
 반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
 
 export function parseDecision(text) {
@@ -118,6 +122,21 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   let from;
   if (!st) { st = { v: 1, inception: W.T[last], acc: SC.newAccount(P), decisions: [] }; from = last; log('단타 모의 계좌를 새로 엽니다'); }
   else from = W.T.findIndex((t) => t > st.acc.lastT);
+  // 뉴스·일정 (한 번만) + 장세 분류
+  let NEWS = [], EVENTS = [];
+  if (!data) { try { NEWS = await headlines({ fetchImpl, now: now.getTime(), log }); } catch (e) { log('뉴스 실패: ' + e.message); } }
+  try { EVENTS = upcomingEvents(root, now.getTime()); } catch (e) { /* 무시 */ }
+  const NB = newsBrief(NEWS, EVENTS);
+  function regimeAt(i) {
+    const b = W.X.BTC, j = b.map[i]; if (j < 300) return { label: '판단 중' };
+    const c = b.d.c[j], up = b.eF[j] > b.eS[j] && c > b.eS[j], dn = b.eF[j] < b.eS[j] && c < b.eS[j];
+    const slope = (b.eS[j] / b.eS[j - 96] - 1) * 100; // 하루 동안 200EMA 기울기
+    const atrs = []; for (let k = Math.max(0, j - 2000); k <= j; k++) if (b.atr[k] != null) atrs.push(b.atr[k] / b.d.c[k]);
+    const cur = b.atr[j] / c, rank = atrs.filter((v) => v < cur).length / Math.max(1, atrs.length);
+    const trend = up && slope > 0.1 ? '상승 추세' : dn && slope < -0.1 ? '하락 추세' : '횡보';
+    const vol = rank >= 0.8 ? '변동성 높음' : rank <= 0.2 ? '변동성 낮음' : '변동성 보통';
+    return { label: trend + ' · ' + vol, trend, vol, volPct: Math.round(rank * 100) };
+  }
   const key = env.ANTHROPIC_API_KEY, model = env.SCALP_MODEL || env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
   let asked = 0;
   // Claude 계좌 하나를 마감된 봉마다 진행 (조심형·적극형 공통)
@@ -160,7 +179,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
         if (recent && W.T[i] - Date.parse(recent.t.replace(' ', 'T') + ':00Z') < 60 * 60e3) { o.approved = false; continue; }
         if (age > 2 * 3600e3) { o.approved = false; decisions.push({ ...rec, decision: 'late', reason: '실행이 늦어 2시간 지난 신호 — 건너뜀' }); continue; }
         if (!key) { o.approved = false; decisions.push({ ...rec, decision: 'nokey', reason: 'Claude 키 없음' }); continue; }
-        const msg = '후보 자료(JSON):\n' + JSON.stringify(brief(W, P, i, o, A));
+        const msg = '후보 자료(JSON):\n' + JSON.stringify({ ...brief(W, P, i, o, A), 장세: regimeAt(i).label, ...NB });
         const d = await decide(msg, label);
         asked++;
         o.approved = d.decision === 'enter'; o.ai = { decision: d.decision, confidence: d.confidence, reason: d.reason, votes: d.votes };
@@ -233,6 +252,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
         decisions: B2.decisions.slice(-20).reverse(), aiStats: { asked: dd.length, enter: dd.filter((d) => d.decision === 'enter').length } }; })(),
     decisions: st.decisions.slice(-30).reverse(), aiStats: { asked: dec.length, enter: dec.filter((d) => d.decision === 'enter').length },
     log: A.log.slice(-12).reverse(),
+    regime: regimeAt(last), news: NEWS.slice(0, 8), events: EVENTS,
     study, bt: { days, from: bdc.length ? bdc[0][0] : null, ret: Math.round((bt.equity[bt.equity.length - 1][1] / bt.start - 1) * 1000) / 10, metrics: bm, stats: bs, curve: bdc, recent: bt.trades.slice(-15).reverse() },
     coins: SC.COINS.filter((c) => series[c.sym]).map((c) => ({ sym: c.sym, name: c.name, price: mark(c.sym) })), errors
   };

@@ -823,3 +823,5 @@ html.big body { zoom: 1.15; }
 .hq-dot.ok { background: var(--accent); }
 .hq-log p { white-space: normal; overflow: visible; display: flex; gap: 0; margin: 0 0 6px; line-height: 1.45; }
 .hq-log .hq-dot { flex: none; margin-top: 7px; }
+.news-line { margin: 10px 0 0; line-height: 1.5; }
+.news-line .act { margin: 0 2px 0 0; }
