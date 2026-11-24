@@ -194,7 +194,7 @@ async function yahoo1h(sym, fetchImpl) {
   const H = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']; let err;
   for (let k = 0; k < 4; k++) {
     try {
-      const res = await fetchImpl(H[k % 2] + '/v8/finance/chart/' + encodeURIComponent(sym) + '?range=730d&interval=60m', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36', Accept: 'application/json' } });
+      const res = await fetchImpl(H[k % 2] + '/v8/finance/chart/' + encodeURIComponent(sym) + '?period1=' + Math.floor((Date.now() - 728 * DAY) / 1000) + '&period2=' + Math.floor(Date.now() / 1000) + '&interval=60m', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36', Accept: 'application/json' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const j = await res.json(), rr = j.chart.result[0], q = rr.indicators.quote[0], out = { t: [], o: [], h: [], l: [], c: [], v: [] };
       rr.timestamp.forEach((ts, i) => { const c = q.close[i]; if (c == null || !isFinite(c)) return; out.t.push(ts * 1000); out.o.push(q.open[i] ?? c); out.h.push(q.high[i] ?? c); out.l.push(q.low[i] ?? c); out.c.push(c); out.v.push(q.volume[i] || 0); });

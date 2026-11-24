@@ -16,7 +16,7 @@ last_fut=""
 while [ "$(date +%s)" -lt "$END" ]; do
   echo "── $(date -u +'%F %H:%M:%S') UTC"
   git pull -q --rebase origin main 2>/dev/null || true   # 그사이 고친 코드도 바로 반영
-  SCALP_DIR=botdata timeout 420 node connect/scalp.mjs || echo "단타 봇 실패"
+  MK_SEPARATE=1 SCALP_DIR=botdata timeout 420 node connect/scalp.mjs || echo "단타 봇 실패"
   H=$(date -u +%H); M=$(date -u +%M)
   if [ $((10#$M)) -lt 15 ] || [ ! -f botdata/mk-live.json ]; then  # 매시간(처음엔 바로) 첫 15분 안: 민경기 봇(학습형) — 1시간봉 마감 뒤 판단, 일주일마다 다시 학습
     MK_DIR=botdata timeout 900 node connect/mk.mjs || echo "민경기 봇 실패"

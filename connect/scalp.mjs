@@ -299,4 +299,13 @@ async function ping() {
   try { console.log('✓ 해석: ' + JSON.stringify(parseDecision(t))); } catch (e) { console.log('✗ ' + e.message); process.exitCode = 1; }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv.includes('--ping')) ping();
-else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) run({ reset: process.argv.includes('--reset') }).catch((e) => { console.error('✗ ' + e.message); process.exit(1); });
+else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  run({ reset: process.argv.includes('--reset') }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; }).then(async () => {
+    // 예전 루프(민경기 봇을 따로 부르지 않는 버전)가 돌고 있을 때를 위해: 매시간 첫 15분이거나 결과가 없으면 여기서 민경기 봇도 실행
+    if (process.env.MK_SEPARATE) return;
+    const dir = process.env.SCALP_DIR || join(ROOT, 'data');
+    if (new Date().getUTCMinutes() < 15 || !existsSync(join(dir, 'mk-live.json'))) {
+      try { const { run: mk } = await import('./mk.mjs'); await mk({ dir }); } catch (e) { console.error('✗ 민경기 봇: ' + e.message); }
+    }
+  });
+}
