@@ -1947,7 +1947,7 @@
       ${SH && SH.trades.length ? `<section class="card"><h2>비교: 엔진 혼자 최근 거래</h2>${scTrades(SH.trades, 6)}</section>` : ''}`;
     const B = D.bt, bs = B.stats;
     const honest = `<section class="card"><h2>솔직한 검증 · 엔진만 최근 ${B.days}일</h2>
-      <div class="grid3">${mini('수익', pct(B.ret, 1), '수수료 ' + man(bs.fees))}${mini('최대 낙폭', pct(B.metrics && B.metrics.mdd, 0), '하루 ' + bs.perDay + '번')}${mini('손익비', bs.pf == null ? '—' : String(bs.pf), '승률 ' + bs.winRate + '%')}</div>
+      <div class="grid3">${mini('수익', pct(B.ret, 1), '수수료 ' + nf(Math.round(bs.fees / 1e4)) + '만')}${mini('최대 낙폭', pct(B.metrics && B.metrics.mdd, 0), '하루 ' + bs.perDay + '번')}${mini('손익비', bs.pf == null ? '—' : String(bs.pf), '승률 ' + bs.winRate + '%')}</div>
       ${(() => { const st = D.study || [], allNeg = st.length && st.every((r) => r.all.ret < 0); return B.ret < 0
         ? `<p class="sm" style="margin-top:8px">규칙만으로 15분봉 단타를 하면 <b>수수료를 못 이기고 손실</b>이에요.${allNeg ? ' 손절·목표·보유시간·셋업을 바꿔도 모두 손실이라, 숫자를 맞추지 않고 그대로 두었어요.' : ''}</p>`
         : `<p class="sm" style="margin-top:8px">최근 ${B.days}일은 엔진만으로도 수익이었어요. 다만 기간이 짧고 수수료가 ${man(bs.fees)}나 들어서, 시장 분위기가 바뀌면 쉽게 손실로 돌아설 수 있어요.</p>`; })()}

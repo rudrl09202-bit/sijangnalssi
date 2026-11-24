@@ -754,3 +754,5 @@ body.tv-open { overflow: hidden; }
 .lrow-mini { display: block; margin: -4px 4px 12px; font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; }
 .sc-coin span { white-space: nowrap; flex: none; min-width: 44px; font-weight: 700; }
 .sc-coin b { font-weight: 500; text-align: right; }
+/* 폰 상단(시계·배터리) 아래로 내용이 비치지 않게 */
+body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 900; pointer-events: none; }

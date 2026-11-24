@@ -1,8 +1,6 @@
 name: 코인 선물 단타 모의투자 (10분마다 · Claude 결정)
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
     inputs:
       ping:

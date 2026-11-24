@@ -1,0 +1,53 @@
+name: 봇 루프 (15분마다 단타 · 4시간마다 선물·금리)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */2 * * *'   # 루프가 끊겼을 때 다시 살리는 예비 시작 (돌고 있으면 대기열에서 기다림)
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: bots-loop
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - name: 단타 상태 가져오기 (bot-data)
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: bot-data
+          path: botdata
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: 루프
+        run: bash connect/loop.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          SCALP_MODEL: ${{ secrets.SCALP_MODEL }}
+          ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_EMAIL: ${{ secrets.VAPID_EMAIL }}
+          PUSH_SUBSCRIPTIONS: ${{ secrets.PUSH_SUBSCRIPTIONS }}
+      - name: 다음 루프 시작
+        if: always()
+        run: gh workflow run bots-loop.yml --ref main -R "$GITHUB_REPOSITORY" || echo "다음 루프 시작 실패 — 예비 시작이 살림"
+        env:
+          GH_TOKEN: ${{ github.token }}
