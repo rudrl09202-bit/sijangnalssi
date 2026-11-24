@@ -123,7 +123,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       const models = [model, model, env.SCALP_BACKUP_MODEL || 'claude-opus-5-5'];
       let lastErr = '';
       for (let k = 0; k < models.length && !d; k++) {
-        try { d = parseDecision(await askClaude(key, models[k], msg, fetchImpl, SYSTEM, 400)); if (models[k] !== model) d.reason = d.reason + ' (' + models[k] + ')'; }
+        try { d = parseDecision(await askClaude(key, models[k], msg, fetchImpl, SYSTEM, 4000)); if (models[k] !== model) d.reason = d.reason + ' (' + models[k] + ')'; }
         catch (e) { lastErr = String(e.message || e); log('Claude 시도 ' + (k + 1) + ' 실패: ' + lastErr.slice(0, 120)); await sleep(1500); }
       }
       if (!d) d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + lastErr.slice(0, 100) };
@@ -177,7 +177,7 @@ async function ping() {
   const env = loadEnv(), key = env.ANTHROPIC_API_KEY, model = env.SCALP_MODEL || env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
   const sample = { 시각_UTC: '2026-11-24T05:00', 코인: '비트코인(BTC)', 방향: '롱', 셋업: '상승추세 눌림목 반등 (20EMA 지지, RSI 54)', 현재가: 98000, EMA20: 97800, EMA50: 97000, EMA200: 95000, RSI: 54, ATR_퍼센트: 0.45,
     최근16봉: [[97500, 97900, 97400, 97800], [97800, 98100, 97700, 98000]], BTC: { 추세: '15분 정배열' }, 계좌: { 원금대비_퍼센트: 0, 최근거래: [] } };
-  const t = await askClaude(key, model, '후보 자료(JSON):\n' + JSON.stringify(sample), fetch, SYSTEM, 300);
+  const t = await askClaude(key, model, '후보 자료(JSON):\n' + JSON.stringify(sample), fetch, SYSTEM, 4000);
   console.log('원문: ' + JSON.stringify(t).slice(0, 400));
   try { console.log('✓ 해석: ' + JSON.stringify(parseDecision(t))); } catch (e) { console.log('✗ ' + e.message); process.exitCode = 1; }
 }

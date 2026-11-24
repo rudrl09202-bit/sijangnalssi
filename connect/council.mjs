@@ -27,8 +27,8 @@ export function parseVote(text) {
   return { vote, confidence: Math.max(0, Math.min(100, Math.round(Number(j.confidence) || 0))), reason: String(j.reason || '').slice(0, 120) };
 }
 
-export async function askClaude(key, model, user, fetchImpl, system = SYSTEM, maxTokens = 300) {
-  const to = withTimeout(120000);
+export async function askClaude(key, model, user, fetchImpl, system = SYSTEM, maxTokens = 4000) { // 생각(thinking)까지 들어갈 만큼 넉넉하게
+  const to = withTimeout(150000);
   try {
     const r = await fetchImpl('https://api.anthropic.com/v1/messages', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
