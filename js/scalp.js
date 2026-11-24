@@ -46,6 +46,7 @@
       const bw = bbWidth(d.c, P.bbN, P.bbK);
       X[s] = { d, map: T.map((t) => (idx[t] == null ? -1 : idx[t])), eF: ema(d.c, P.emaF), eS: ema(d.c, P.emaS), eP: ema(d.c, P.emaP), atr: atr(d.h, d.l, d.c, P.atrN), rsi: rsi(d.c, P.rsiN),
         bw, bwR: pctRank(bw, P.sqzLook), hi: hiPrev(d.h, P.brk), lo: loPrev(d.l, P.brk), vAvg: sma(d.v || d.c.map(() => 0), 20) };
+      Object.assign(X[s], mkFeatures(d, X[s].atr));
     });
     return { T, X, syms: Object.keys(X) };
   }
@@ -61,8 +62,77 @@
     return { trend, text: T + ' · RSI ' + Math.round(x.rsi[j]) + ' · ' + wait };
   }
 
+  /* ---------- 민경기 봇(MK) 지표: 리만 가설·나비에-스토크스에서 착안한 비유 지표 ----------
+   * 수학 난제를 푼 것이 아니라, 두 이론의 '모양'을 가격에 빌려 온 것입니다.
+   * [리만] 제타 함수 ζ(s)=Σ n^-s 처럼, 여러 주기(8~144봉)의 방향을 n^-1/2 무게로 더한 '파동 정렬 점수' Z(-1~+1)
+   *        모든 영점이 한 줄(임계선 1/2) 위에 있다는 가설처럼, 여러 이동평균의 평균을 '균형선'으로 보고 거기서 얼마나 벗어났는지(ATR 배수)
+   *        영점 사이 간격이 서로 밀어내며 고르게 퍼지는 성질처럼, 변곡점(8EMA 방향 바뀜) 간격이 고른지·다음 변곡이 올 때가 됐는지
+   * [나비에-스토크스] 흐름이 매끄러우면(층류) 따라가고, 소용돌이(난류)면 피함
+   *        효율비 ER(16봉 순이동 ÷ 움직인 거리 합) = 매끄러움, 단기/장기 변동성 비 × (1-ER) 의 순위 = 난류 지수 TI(0~1) */
+  const MK_N = [8, 13, 21, 34, 55, 89, 144];
+  function mkFeatures(d, A) {
+    const c = d.c, n = c.length, S = MK_N.map((k) => sma(c, k)), W = MK_N.map((k) => 1 / Math.sqrt(k)), WS = W.reduce((a, b) => a + b, 0);
+    const Z = new Array(n).fill(null), eq = new Array(n).fill(null), dev = new Array(n).fill(null), er = new Array(n).fill(null), tiRaw = new Array(n).fill(null);
+    const phase = new Array(n).fill(null), reg = new Array(n).fill(null), turn = new Array(n).fill(0), e8 = ema(c, 8);
+    const r = c.map((v, i) => (i ? Math.log(v / c[i - 1]) : 0));
+    const sd = (i, k) => { let m = 0; for (let j = i - k + 1; j <= i; j++) m += r[j]; m /= k; let v = 0; for (let j = i - k + 1; j <= i; j++) v += (r[j] - m) ** 2; return Math.sqrt(v / k); };
+    let lastTurn = null, prevSgn = 0; const gaps = [];
+    for (let i = 0; i < n; i++) {
+      if (S[S.length - 1][i] != null) {
+        let z = 0, e = 0; S.forEach((a, k) => { z += W[k] * Math.sign(c[i] - a[i]); e += a[i]; });
+        Z[i] = z / WS; eq[i] = e / S.length; if (A[i]) dev[i] = (c[i] - eq[i]) / A[i];
+      }
+      if (i >= 16) { let path = 0; for (let j = i - 15; j <= i; j++) path += Math.abs(c[j] - c[j - 1]); er[i] = path ? Math.abs(c[i] - c[i - 16]) / path : 0; }
+      if (i >= 96 && er[i] != null) { const lg = sd(i, 96); tiRaw[i] = lg ? (sd(i, 16) / lg) * (1 - er[i]) : null; }
+      if (i >= 9 && e8[i] != null && e8[i - 1] != null) {
+        const sg = Math.sign(e8[i] - e8[i - 1]);
+        if (sg && prevSgn && sg !== prevSgn) { turn[i] = sg; if (lastTurn != null) { gaps.push(i - lastTurn); if (gaps.length > 12) gaps.shift(); } lastTurn = i; }
+        if (sg) prevSgn = sg;
+        if (gaps.length >= 6 && lastTurn != null) {
+          const m = gaps.reduce((a, b) => a + b, 0) / gaps.length, v = Math.sqrt(gaps.reduce((a, b) => a + (b - m) ** 2, 0) / gaps.length);
+          phase[i] = (i - lastTurn) / m; reg[i] = Math.max(0, 1 - v / m);
+          if (turn[i]) phase[i] = gaps[gaps.length - 1] / m; // 방금 변곡: 직전 간격이 평균 대비 어땠는지
+        }
+      }
+    }
+    return { mkZ: Z, mkEq: eq, mkDev: dev, mkEr: er, mkTi: pctRank(tiRaw, 192), mkPhase: phase, mkReg: reg, mkTurn: turn };
+  }
+  function mkRead(x, j) {
+    const z = x.mkZ[j], dv = x.mkDev[j], ti = x.mkTi[j], er = x.mkEr[j];
+    if (z == null || dv == null || ti == null) return null;
+    const flow = ti >= 0.85 ? '난류' : ti >= 0.6 ? '소용돌이 조짐' : er >= 0.3 ? '층류' : '잔잔함';
+    return { z: round(z, 2), dev: round(dv, 2), ti: round(ti, 2), er: round(er, 2), phase: x.mkPhase[j] == null ? null : round(x.mkPhase[j], 2), reg: x.mkReg[j] == null ? null : round(x.mkReg[j], 2), flow,
+      text: '파동 정렬 ' + (z > 0 ? '+' : '') + z.toFixed(2) + ' · 균형선 ' + (dv > 0 ? '+' : '') + dv.toFixed(1) + 'ATR · 난류 ' + Math.round(ti * 100) + '% (' + flow + ')' };
+  }
+  function mkSetups(x, j, P) {
+    const out = [];
+    if (j < 2 || x.atr[j] == null) return out;
+    const c = x.d.c[j], a = x.atr[j]; if (a / c * 100 > P.atrMaxPct) return out;
+    const z = x.mkZ[j], z1 = x.mkZ[j - 1], dv = x.mkDev[j], ti = x.mkTi[j], er = x.mkEr[j], ph = x.mkPhase[j], rg = x.mkReg[j], tn = x.mkTurn[j];
+    if (z == null || z1 == null || dv == null || ti == null || er == null) return out;
+    const tiMax = P.mkTiMax == null ? 0.85 : P.mkTiMax;
+    if (ti > tiMax) return out; // 나비에-스토크스: 난류면 쉼
+    const size = P.mkNoSize ? 1 : ti <= 0.5 ? 1 : 0.5;
+    const tiTxt = ' · 난류 ' + Math.round(ti * 100) + '%' + (size < 1 ? ' → 절반 크기' : '');
+    // ① 층류 추세: 여러 주기가 막 한 방향으로 정렬(Z가 문턱을 새로 넘음) + 흐름이 매끄러움 + 균형선에서 너무 멀지 않음
+    const zk = P.mkZ || 0.7;
+    if (!P.mkOnly || P.mkOnly === 'flow') {
+      if (z >= zk && z1 < zk && er >= 0.3 && dv >= 0 && dv <= 2) out.push({ side: 'long', kind: 'mk-flow', size, why: '파동 정렬 +' + z.toFixed(2) + ' (7개 주기 중 대부분 위) · 층류 ER ' + er.toFixed(2) + tiTxt });
+      if (z <= -zk && z1 > -zk && er >= 0.3 && dv <= 0 && dv >= -2) out.push({ side: 'short', kind: 'mk-flow', size, why: '파동 정렬 ' + z.toFixed(2) + ' (7개 주기 중 대부분 아래) · 층류 ER ' + er.toFixed(2) + tiTxt });
+    }
+    // ② 균형선 복귀: 균형선에서 2.5ATR 넘게 벗어난 뒤, 변곡 간격이 고르고(밀어내기) 제때 방향이 꺾임
+    if (!P.mkOnly || P.mkOnly === 'revert') {
+      const due = ph != null && ph >= 0.7 && ph <= 1.6 && rg != null && rg >= 0.15;
+      if (dv >= 2.5 && tn === -1 && due) out.push({ side: 'short', kind: 'mk-revert', size, why: '균형선 위 ' + dv.toFixed(1) + 'ATR 과열 · 변곡 간격 고름(' + Math.round(rg * 100) + '%) · 제때 꺾임' + tiTxt });
+      if (dv <= -2.5 && tn === 1 && due) out.push({ side: 'long', kind: 'mk-revert', size, why: '균형선 아래 ' + Math.abs(dv).toFixed(1) + 'ATR 과매도 · 변곡 간격 고름(' + Math.round(rg * 100) + '%) · 제때 꺾임' + tiTxt });
+    }
+    out.forEach((s) => { s.setup = s.kind; delete s.kind; s.atr = a; s.str = s.setup === 'mk-flow' ? 2 : 1; s.ref = c; s.hl = [x.d.h[j], x.d.l[j]]; });
+    return out;
+  }
+
   /* ---------- 후보 찾기 (봉 마감 j 기준) ---------- */
   function setups(x, j, P) {
+    if (P.mk) return mkSetups(x, j, P);
     const out = [];
     if (j < 2 || x.eS[j] == null || x.atr[j] == null || x.rsi[j - 1] == null) return out;
     const c = x.d.c[j], o = x.d.o[j], h = x.d.h[j], l = x.d.l[j], a = x.atr[j];
@@ -125,7 +195,7 @@
         const entry = op * (o.side === 'long' ? 1 + P.slipIn : 1 - P.slipIn), eq = markEq(acc, (s) => px(s, i, 'o'));
         const stopDist = Math.max(o.atr * P.stopAtr, entry * P.minStopPct / 100), liqDist = Math.abs(entry - liqPrice(o.side, entry, P));
         if (stopDist > liqDist * 0.5) return;
-        let qty = eq * P.riskPct / 100 / stopDist;
+        let qty = eq * P.riskPct / 100 / stopDist * (o.size || 1);
         const used = Object.values(acc.pos).reduce((a, p) => a + p.qty * (px(p.sym, i, 'o') || p.entry), 0);
         qty = Math.min(qty, eq * P.maxLevCoin / entry, Math.max(0, eq * P.maxLevTotal - used) / entry);
         if (qty * entry < eq * 0.05) return;
@@ -197,7 +267,8 @@
       avgMins: n ? Math.round(tr.reduce((a, x) => a + x.mins, 0) / n) : null, perDay: null, byKind, fees: Math.round(acc.feesPaid), funding: Math.round(acc.fundingPaid), liq: acc.liquidations, kills: acc.killed };
   }
 
-  const Scalp = { CFG, COINS, prepare, setups, describe, newAccount, simulate, backtest, daily, stats, liqPrice, _: { ema, atr, rsi, bbWidth, pctRank } };
+  const MK_CFG = Object.assign({}, CFG, { mk: true });
+  const Scalp = { CFG, MK_CFG, mkRead, COINS, prepare, setups, describe, newAccount, simulate, backtest, daily, stats, liqPrice, _: { ema, atr, rsi, bbWidth, pctRank } };
   root.Scalp = Scalp;
   if (typeof module !== 'undefined' && module.exports) module.exports = Scalp;
 })(typeof window !== 'undefined' ? window : globalThis);

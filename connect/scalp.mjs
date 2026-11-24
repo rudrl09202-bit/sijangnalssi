@@ -115,6 +115,23 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   }
   log('  셋업별: ' + Object.entries(bs.byKind).map(([k, v]) => k + ' ' + v.n + '번 승률 ' + v.winRate + '% 평균 ' + v.avgR + 'R').join(' · '));
 
+  // ── 2-3) 민경기 봇(MK): 리만·나비에-스토크스 착안 지표 — 같은 15분봉·같은 수수료·같은 안전 규칙으로 따로 검증
+  const MP = SC.MK_CFG, mkStudy = [];
+  const mkVariants = [['민경기 봇', {}], ['층류 추세만', { mkOnly: 'flow' }], ['균형선 복귀만', { mkOnly: 'revert' }], ['난류 필터 끔', { mkTiMax: 1.01, mkNoSize: true }], ['정렬 문턱 0.5', { mkZ: 0.5 }], ['목표 3R', { tpR: 3 }]];
+  for (const [name, over] of mkVariants) {
+    const PP = Object.assign({}, MP, over), row = { name };
+    for (const [k, a, b] of [['all', 0, W.T.length - 1], ['h1', 0, half], ['h2', half, W.T.length - 1]]) {
+      const ac = SC.newAccount(PP); SC.simulate(W, PP, ac, a, b); const s2 = SC.stats(ac);
+      row[k] = { ret: Math.round((ac.equity[ac.equity.length - 1][1] / ac.start - 1) * 1000) / 10, n: s2.trades, win: s2.winRate, pf: s2.pf, avgR: s2.avgR };
+      if (k === 'all' && name === '민경기 봇') { row.byKind = s2.byKind; const dc = SC.daily(ac.equity); row.curve = dc; row.mdd = (Q.metrics(dc, ac.trades) || {}).mdd ?? null; row.recent = ac.trades.slice(-10).reverse(); }
+    }
+    mkStudy.push(row);
+    log('  민경기 ' + name.padEnd(10) + ' 전체 ' + row.all.ret + '% (' + row.all.n + '번, 승률 ' + row.all.win + '%, PF ' + row.all.pf + ') · 앞 ' + row.h1.ret + '% · 뒤 ' + row.h2.ret + '%');
+  }
+  // 합격 기준(실전 전 확인): 거래 30번 이상 · 앞·뒤 절반 모두 플러스 · PF 1.15 이상 · 최대낙폭 -15% 이내
+  const mk0 = mkStudy[0], mkPass = { trades: mk0.all.n >= 30, halves: mk0.h1.ret > 0 && mk0.h2.ret > 0, pf: (mk0.all.pf || 0) >= 1.15, mdd: mk0.mdd == null || mk0.mdd > -15 };
+  mkPass.ok = mkPass.trades && mkPass.halves && mkPass.pf && mkPass.mdd;
+
   // ── 3) 실시간 (Claude 결정)
   mkdirSync(dir, { recursive: true });
   const stFile = join(dir, 'scalp-state.json');
@@ -204,8 +221,12 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   if (!st.shadow) { st.shadow = SC.newAccount(P); st.shadowFrom = st.shadowFrom || W.T[last]; }
   const sf = st.shadow.lastT == null ? last : W.T.findIndex((t) => t > st.shadow.lastT);
   if (sf >= 0) SC.simulate(W, P, st.shadow, sf, last, { collect: false });
+  // 민경기 봇 실시간 모의 계좌 (엔진 규칙대로, AI 없이)
+  if (!st.mk) { st.mk = { inception: W.T[last], acc: SC.newAccount(MP) }; log('민경기 봇 모의 계좌를 새로 엽니다'); }
+  const mkf = st.mk.acc.lastT == null ? last : W.T.findIndex((t) => t > st.mk.acc.lastT);
+  if (mkf >= 0) SC.simulate(W, MP, st.mk.acc, mkf, last, { collect: true });
   st.decisions = st.decisions.slice(-120);
-  const fresh = A.events.slice().map((e) => ({ ...e, who: '조심형' })).concat(B2.acc.events.map((e) => ({ ...e, who: '적극형' }))).concat(M3.acc.events.map((e) => ({ ...e, who: '다수결' }))); A.events = []; B2.acc.events = []; M3.acc.events = []; st.updatedAt = now.toISOString();
+  const fresh = A.events.slice().map((e) => ({ ...e, who: '조심형' })).concat(B2.acc.events.map((e) => ({ ...e, who: '적극형' }))).concat(M3.acc.events.map((e) => ({ ...e, who: '다수결' }))).concat(st.mk.acc.events.map((e) => ({ ...e, who: '민경기' }))); A.events = []; B2.acc.events = []; M3.acc.events = []; st.mk.acc.events = []; st.updatedAt = now.toISOString();
   writeFileSync(stFile, JSON.stringify(st));
 
   // ── 4) 앱용 결과
@@ -244,6 +265,11 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
     shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), trades: S2.trades.slice(-10).reverse(), open: Object.keys(S2.pos).length }; })(),
     major: summarize(M3),
+    mk: (() => { const X = summarize({ inception: st.mk.inception, acc: st.mk.acc, decisions: [] }); delete X.decisions; delete X.aiStats;
+      X.curve = st.mk.acc.equity.slice(-400).filter((e, k, a) => k % 4 === 0 || k === a.length - 1).map(([t, v]) => [isoT(t), v]);
+      X.status = st.mk.acc.killUntilT > W.T[last] ? 'killed' : st.mk.acc.dayBlock ? 'dayblock' : 'ok';
+      X.read = SC.COINS.filter((c) => W.X[c.sym]).map((c) => { const x = W.X[c.sym], j = x.map[last]; const r = j >= 0 ? SC.mkRead(x, j) : null; return r ? { sym: c.sym, name: c.name, ...r } : null; }).filter(Boolean);
+      X.study = mkStudy; X.pass = mkPass; return X; })(),
     aiCard: aiScore(M3),
     bold: summarize(B2),
     decisions: st.decisions.slice(-30).reverse(), aiStats: { asked: dec.length, enter: dec.filter((d) => d.decision === 'enter').length },
@@ -253,7 +279,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
     coins: SC.COINS.filter((c) => series[c.sym]).map((c) => ({ sym: c.sym, name: c.name, price: mark(c.sym) })), errors
   };
   writeFileSync(join(dir, 'scalp-live.json'), JSON.stringify(out));
-  log('단타 모의: 조심형 ' + out.live.ret + '% · 적극형 ' + out.bold.ret + '% (' + out.bold.stats.trades + '번) · 다수결 ' + out.major.ret + '% (' + out.major.stats.trades + '번) · 엔진 혼자 ' + out.shadow.ret + '% (' + out.shadow.stats.trades + '번) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
+  log('단타 모의: 조심형 ' + out.live.ret + '% · 적극형 ' + out.bold.ret + '% (' + out.bold.stats.trades + '번) · 다수결 ' + out.major.ret + '% (' + out.major.stats.trades + '번) · 엔진 혼자 ' + out.shadow.ret + '% (' + out.shadow.stats.trades + '번) · 민경기 ' + out.mk.ret + '% (' + out.mk.stats.trades + '번) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
 
   // ── 5) 푸시
   const moves = fresh.filter((e) => e.kind === 'open' || e.kind === 'close' || e.kind === 'vault');

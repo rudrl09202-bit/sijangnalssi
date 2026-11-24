@@ -1605,7 +1605,7 @@
       <p class="muted xs">비용: 국내 수수료 0.015%+매도세 0.20%, 미국 수수료·환전 각 0.1%, 코인 0.1%, 슬리피지 0.05~0.1%. 신호는 종가, 체결은 다음 거래일 시가.</p></section>`;
     const cav = `<section class="card note"><p class="b">솔직한 한계</p>${(P.caveats || []).map((c) => `<p class="muted xs">· ${esc(c)}</p>`).join('')}
       <p class="muted xs">· 실제 돈으로 넘어가는 건 아래 "실전 전환 조건"을 모두 통과한 봇만, 아주 작은 금액부터.</p></section>`;
-    return head + summary + scalpEntry() + futuresEntry() + filingsCard() + feed + office + detail + vault + cav;
+    return head + summary + mkEntry() + scalpEntry() + futuresEntry() + filingsCard() + feed + office + detail + vault + cav;
   }
   function paperTeam(P, bots) {
     const T = P.team;
@@ -1928,12 +1928,12 @@
     if (S.scLoading || (S.sc && !force && Date.now() - S.scAt < 2 * 60e3)) return;
     S.scLoading = true;
     fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/scalp-live.json?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures'].indexOf(route()) >= 0) render(); } });
+      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures', 'mk'].indexOf(route()) >= 0) render(); } });
   }
   const scT = (u, addMin) => { const t = Date.parse(String(u).replace(' ', 'T') + ':00Z') + (addMin || 0) * 60e3; if (!isFinite(t)) return String(u); const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   const SC_ST = { ok: ['정상 운용', 'neu'], dayblock: ['오늘 진입 금지', 'warn'], pause: ['연패 휴식', 'warn'], killed: ['킬 스위치 휴식', 'neg'] };
   const SC_DEC = { enter: ['진입', 'live'], skip: ['건너뜀', 'neu'], error: ['응답 실패', 'warn'], late: ['늦어서 건너뜀', 'neu'], nokey: ['키 없음', 'warn'] };
-  const SETUP = { pullback: '눌림목', squeeze: '수축 돌파' };
+  const SETUP = { pullback: '눌림목', squeeze: '수축 돌파', 'mk-flow': '층류 추세', 'mk-revert': '균형선 복귀' };
   function scTrades(list, n) {
     if (!list || !list.length) return '<p class="muted sm">아직 끝난 거래가 없어요.</p>';
     return list.slice(0, n || 10).map((x) => `<div class="tl"><div class="row between"><p class="b sm"><span class="side ${SIDE[x.side][1]}">${SIDE[x.side][0]}</span> ${esc(x.name)} <span class="muted xs">${scT(x.in)} · ${x.mins >= 60 ? Math.floor(x.mins / 60) + '시간 ' : ''}${x.mins % 60}분 · ${SETUP[x.kind] || ''}</span></p>
@@ -1953,6 +1953,7 @@
       ${accRow('조심형 Claude', '애매하면 건너뜀', L.equity, L.ret, L.stats.trades, L.positions.length, D.aiStats.asked ? D.aiStats.enter + '/' + D.aiStats.asked + ' 진입' : '', tabSc === 'careful')}
       ${BD ? accRow('적극형 Claude', '기본은 진입', BD.equity, BD.ret, BD.stats.trades, BD.positions.length, BD.aiStats.asked ? BD.aiStats.enter + '/' + BD.aiStats.asked + ' 진입' : '', tabSc === 'bold') : ''}
       ${MJ ? accRow('AI 3명 다수결', 'Claude·Gemini·GPT 중 2명 찬성', MJ.equity, MJ.ret, MJ.stats.trades, MJ.positions.length, MJ.aiStats.asked ? MJ.aiStats.enter + '/' + MJ.aiStats.asked + ' 진입' : '', tabSc === 'major') : ''}
+      ${D.mk ? `<a href="#mk" class="sc-link">${accRow('민경기 봇 ›', '리만·나비에-스토크스 지표 (AI 없이)', D.mk.equity, D.mk.ret, D.mk.stats.trades, D.mk.positions.length, '')}</a>` : ''}
       ${SH ? accRow('엔진 혼자', '후보를 전부 진입 (비교 기준)', SH.equity, SH.ret, SH.stats.trades, SH.open, '') : ''}
       <p class="muted xs" style="margin-top:8px">${scT(D.inception, 15)}부터${BD ? ' · 적극형은 ' + scT(BD.inception, 15) + '부터' : ''}</p></section>
       ${BD ? `<div class="seg" role="tablist">${[['careful', '조심형'], ['bold', '적극형']].concat(MJ ? [['major', '다수결']] : []).map(([k, l]) => `<button role="tab" class="${tabSc === k ? 'on' : ''}" data-act="sc-tab" data-v="${k}">${l}</button>`).join('')}</div>` : ''}`;
@@ -2007,6 +2008,60 @@
       <div class="kv"><span>금고</span><b>하루 ${c.dayLoss}% 정지 · ${c.streakPause}연패 ${c.pauseBars * c.bar / 60}시간 휴식 · ${c.ddKill}% 킬</b></div>
       <div class="kv"><span>비용</span><b>수수료 ${(c.taker * 100).toFixed(2)}% · 미끄러짐 · 펀딩</b></div></section>`;
     return head + hero + now + newsCard + pos + dec + aiCard + trades + honest + rules;
+  }
+
+  /* ---------- 민경기 봇: 리만 가설·나비에-스토크스에서 착안한 15분봉 코인 선물 봇 ---------- */
+  function mkEntry() {
+    loadScalp();
+    const M = S.sc && S.sc.mk;
+    return `<a class="card fut-entry" href="#mk"><div class="row between"><div><p class="kicker">내 봇 · 코인 선물 15분봉 · 수학 실험</p><p class="b">민경기 봇</p><p class="muted xs">리만 가설 · 나비에-스토크스 착안</p></div>
+      <div class="right"><p class="num b ${dirClass(M && M.ret)}">${M ? pct(M.ret, 2) : '—'}</p><p class="muted xs">${M ? '거래 ' + M.stats.trades + ' · 포지션 ' + M.positions.length : '불러오는 중'}</p></div></div></a>`;
+  }
+  function viewMk() {
+    loadScalp();
+    const D = S.sc, M = D && D.mk;
+    const head = `<header class="top"><div><a href="#paper" class="back">‹ 투자봇</a><p class="kicker">MK · 15분봉 롱·숏 · 가상 1억 · 실제 돈 아님</p><h1>민경기 봇</h1></div>${tools()}</header>`;
+    if (!M) return head + `<section class="card empty"><p class="h-md">민경기 봇 결과를 불러오는 중이에요</p><p class="muted sm">15분마다 자동으로 돌아요. 처음 만든 직후엔 다음 봉까지 기다려 주세요.</p></section>`;
+    const st = SC_ST[M.status] || SC_ST.ok, P0 = M.study && M.study[0], PS = M.pass || {};
+    const idea = `<section class="card"><h2>어떤 생각으로 만들었나</h2>
+      <p class="sm">두 수학 난제의 <b>모양</b>을 가격 움직임에 빌려 왔어요. 난제를 푼 게 아니라 <b>비유로 만든 지표</b>예요.</p>
+      <div class="fil"><p class="b">리만 가설 → 어디로 갈지 (방향)</p>
+        <p class="sm">· <b>파동 정렬 점수</b>: 제타 함수처럼 7개 주기(8~144봉)의 방향을 1/√n 무게로 더해요. +1이면 모든 주기가 위, -1이면 모두 아래.</p>
+        <p class="sm">· <b>균형선</b>: 여러 평균선의 평균을 "임계선"으로 보고, 지금 가격이 거기서 몇 ATR 벗어났는지 봐요.</p>
+        <p class="sm">· <b>변곡 간격</b>: 영점 간격이 고르게 퍼지듯, 방향이 꺾이는 간격이 고르면 "꺾일 때가 됐다"를 미리 알 수 있는지 봐요.</p></div>
+      <div class="fil"><p class="b">나비에-스토크스 → 들어가도 되나 (크기·보류)</p>
+        <p class="sm">· <b>층류</b>(흐름이 매끄러움)면 정상 크기, <b>소용돌이 조짐</b>이면 절반 크기, <b>난류</b>(난류 지수 85% 이상)면 진입하지 않아요.</p></div>
+      <p class="muted xs" style="margin-top:6px">진입 신호 두 가지: ① <b>층류 추세</b> — 주기들이 막 한 방향으로 정렬 + 흐름이 매끄러울 때 따라감 ② <b>균형선 복귀</b> — 균형선에서 2.5ATR 넘게 벗어난 뒤 제때 꺾이면 반대로 들어감</p></section>`;
+    const verdict = P0 ? `<section class="card panel"><div class="row between"><h2>실전 전 시험 결과</h2><span class="act ${PS.ok ? 'live' : 'warn'}">${PS.ok ? '합격' : '아직 불합격'}</span></div>
+      <p class="muted xs">최근 약 ${D.bt.days}일 15분봉으로, 수수료·미끄러짐·펀딩까지 넣고 시험했어요. 기간을 앞·뒤 절반으로 나눠 둘 다 버는지도 봐요.</p>
+      <div class="grid3">${mini('수익', pct(P0.all.ret, 1), '거래 ' + P0.all.n + '번')}${mini('최대 낙폭', P0.mdd == null ? '—' : pct(P0.mdd, 0), '승률 ' + (P0.all.win == null ? '—' : P0.all.win + '%'))}${mini('손익비(PF)', P0.all.pf == null ? '—' : String(P0.all.pf), '앞 ' + pct(P0.h1.ret, 1) + ' · 뒤 ' + pct(P0.h2.ret, 1))}</div>
+      <div class="kv"><span>거래 30번 이상</span><b>${PS.trades ? '✓' : '✗'}</b></div>
+      <div class="kv"><span>앞·뒤 절반 모두 플러스</span><b>${PS.halves ? '✓' : '✗'}</b></div>
+      <div class="kv"><span>손익비 1.15 이상</span><b>${PS.pf ? '✓' : '✗'}</b></div>
+      <div class="kv"><span>최대 낙폭 -15% 이내</span><b>${PS.mdd ? '✓' : '✗'}</b></div>
+      <p class="sm" style="margin-top:8px">${PS.ok ? '네 가지 기준을 모두 넘었어요. 그래도 과거 시험이라, 아래 실시간 모의 계좌가 2~4주 동안 비슷하게 가는지 확인한 뒤에 실제로 쓰는 게 안전해요.' : '아직 기준을 다 넘지 못했어요. 숫자를 억지로 맞추지 않고 그대로 보여 드려요. 실시간 모의 계좌는 계속 돌면서 기록을 쌓아요.'}</p>
+      <details class="pro-inline"><summary>설정을 바꿔 본 결과 (난류 필터가 도움이 되는지 등)</summary><div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>설정</th><th>전체</th><th>앞 절반</th><th>뒤 절반</th><th>거래</th><th>PF</th></tr></thead><tbody>${M.study.map((r) => `<tr><td>${esc(r.name)}</td><td class="${dirClass(r.all.ret)}">${pct(r.all.ret, 1)}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 1)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 1)}</td><td>${r.all.n}</td><td>${r.all.pf == null ? '—' : r.all.pf}</td></tr>`).join('')}</tbody></table></div>
+      <p class="muted xs">"난류 필터 끔"보다 "민경기 봇"이 나으면, 나비에-스토크스 필터가 실제로 손실을 줄인다는 뜻이에요.</p></details></section>` : '';
+    const live = `<section class="card"><div class="row between"><h2>실시간 모의 계좌</h2><span class="act ${st[1]}">${st[0]}</span></div>
+      <div class="grid3">${mini('수익', pct(M.ret, 2), won(M.equity))}${mini('거래', String(M.stats.trades), '승률 ' + (M.stats.winRate == null ? '—' : M.stats.winRate + '%'))}${mini('포지션', String(M.positions.length) + (M.pending.length ? ' +대기 ' + M.pending.length : ''), '최대 2개')}</div>
+      <p class="muted xs">${scT(M.inception, 15)}부터 · AI 없이 규칙대로만 진입해요.</p>
+      ${M.positions.map((p) => `<div class="fpos"><div class="row between"><p class="b"><span class="side ${SIDE[p.side][1]}">${SIDE[p.side][0]}</span> ${esc(p.name)} <span class="muted xs">${p.lev}배 · ${SETUP[p.kind] || ''}</span></p><p class="num b ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</p></div>
+        <div class="kv"><span>진입→현재</span><b class="num">${usd(p.entry)} → ${usd(p.mark)}</b></div><div class="kv"><span>손절 · 목표</span><b class="num">${usd(p.stop)} · ${usd(p.tp)}</b></div>${tvButton('perp', p.sym, p.name + ' 무기한 선물', '15')}</div>`).join('')}
+      ${M.pending.map((o) => `<div class="fpos pend"><div class="row between"><p class="b"><span class="side ${SIDE[o.side][1]}">${SIDE[o.side][0]}</span> ${esc(o.name)} <span class="muted xs">${SETUP[o.kind] || ''}</span></p><span class="act warn">체결 대기</span></div><p class="muted xs" style="margin:4px 0 0">${esc(o.why || '')}</p></div>`).join('')}</section>`;
+    const read = (M.read || []).length ? `<section class="card"><h2>지금 코인별 읽기</h2>
+      ${M.read.map((r) => `<div class="fil"><div class="row between"><p class="b">${esc(r.name)}</p><span class="act ${r.flow === '난류' ? 'warn' : 'neu'}">${esc(r.flow)}</span></div>
+        <div class="kv"><span>파동 정렬 (-1~+1)</span><b class="num ${dirClass(r.z)}">${r.z > 0 ? '+' : ''}${r.z.toFixed(2)}</b></div>
+        <div class="kv"><span>균형선에서</span><b class="num">${r.dev > 0 ? '+' : ''}${r.dev.toFixed(1)} ATR</b></div>
+        <div class="kv"><span>난류 지수</span><b class="num">${Math.round(r.ti * 100)}%</b></div>
+        ${r.phase != null ? `<div class="kv"><span>다음 변곡까지 (1 = 평소 간격)</span><b class="num">${r.phase.toFixed(2)}</b></div>` : ''}</div>`).join('')}
+      <p class="muted xs">파동 정렬이 ±0.7을 새로 넘고 흐름이 매끄러우면 따라가요. 균형선에서 ±2.5ATR 넘게 벗어난 뒤 꺾이면 반대로 들어가요.</p></section>` : '';
+    const trades = `<section class="card"><h2>최근 거래</h2>${M.trades.length ? scTrades(M.trades, 10) : P0 && P0.recent && P0.recent.length ? '<p class="muted xs">실시간 거래는 아직 없어요. 아래는 시험(백테스트) 때의 최근 거래예요.</p>' + scTrades(P0.recent, 8) : '<p class="muted sm">아직 거래가 없어요.</p>'}</section>`;
+    const rules = `<section class="card"><h2>안전 규칙 (다른 단타 계좌와 같음)</h2>
+      <div class="kv"><span>한 번에 거는 돈</span><b>계좌 ${D.cfg.riskPct}% (난류 조짐이면 절반)</b></div>
+      <div class="kv"><span>손절 · 목표</span><b>${D.cfg.stopAtr} ATR · ${D.cfg.tpR}R · 1R 가면 본전</b></div>
+      <div class="kv"><span>보유</span><b>최대 ${D.cfg.maxBars * D.cfg.bar / 60}시간</b></div>
+      <div class="kv"><span>금고</span><b>하루 ${D.cfg.dayLoss}% 정지 · ${D.cfg.ddKill}% 킬</b></div></section>`;
+    return head + verdict + live + read + idea + trades + rules;
   }
   const SC_COIN = { BTC: '비트코인', ETH: '이더리움', SOL: '솔라나', XRP: '엑스알피', DOGE: '도지코인' };
   function scalpEntry() {
@@ -2608,8 +2663,8 @@
       ${auditLog(AUD)}`;
   }
 
-  const VIEWS = { quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
-  const TAB_OF = { quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
+  const TAB_OF = { mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { const h = (location.hash || '#home').slice(1); return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };

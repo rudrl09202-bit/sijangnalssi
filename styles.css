@@ -830,3 +830,4 @@ html.big body { zoom: 1.15; }
 /* 내 주식 공시 칩 */
 .fil-chip { margin-top: 4px; } .fil-chip summary { list-style: none; cursor: pointer; display: inline-block; } .fil-chip summary::-webkit-details-marker { display: none; }
 .fil-chip[open] { background: var(--bg-soft, rgba(0,0,0,.03)); border-radius: 8px; padding: 4px 6px 6px; }
+.sc-link { display: block; color: inherit; text-decoration: none; }
