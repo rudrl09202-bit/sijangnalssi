@@ -2059,6 +2059,24 @@
       <div class="right"><p class="num b ${dirClass(M && M.ret)}">${M ? pct(M.ret, 2) : '—'}</p><p class="muted xs">${M ? '거래 ' + M.n : ''}</p></div></div></a>`;
   }
   const MK3_ST = { ok: ['정상 운용', 'neu'], half: ['위험 절반', 'warn'], dayblock: ['오늘 진입 금지', 'warn'], killed: ['킬 스위치 휴식', 'neg'] };
+  /* ---------- 바이낸스 데모(가짜 돈) 계좌: 민경기 봇 주문을 실제 거래소에 넣어 본 결과 ---------- */
+  function loadExec() {
+    if (S.exLoading || (S.exAt && Date.now() - S.exAt < 5 * 60e3)) return;
+    S.exLoading = true;
+    fetch('https://raw.githubusercontent.com/' + futRepo() + '/deriv-data/exec-live.json?t=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((j) => { S.exLoading = false; S.exAt = Date.now(); if (j && j.at) { S.ex = j; if (['mk', 'bot'].indexOf(route()) >= 0) render(); } });
+  }
+  function execCard() {
+    loadExec();
+    const X = S.ex;
+    if (!X) return `<section class="card"><div class="card-head"><h2>바이낸스 데모 계좌</h2><span class="act neu">준비 중</span></div><p class="muted sm">서울 서버에 바이낸스 데모 키를 넣으면, 민경기 봇이 들어갈 때마다 바이낸스 데모(가짜 돈) 계좌에 <b>진짜 주문</b>을 넣고 손절 주문도 거래소에 걸어요. 모의 계산과 실제 체결이 얼마나 다른지 확인하는 단계예요.</p></section>`;
+    const age = Date.now() - Date.parse(X.at);
+    return `<section class="card"><div class="card-head"><h2>바이낸스 데모 계좌</h2><span class="act ${age > 3 * 3600e3 ? 'warn' : 'live'}">${age > 3 * 3600e3 ? '갱신 늦음' : '연결됨'}</span></div>
+      <div class="kpis k3">${kpi('잔고 (가짜 돈)', nf(X.equity, 0) + ' USDT', '', '평가 ' + (X.upnl >= 0 ? '+' : '') + nf(X.upnl, 1))}${kpi('포지션', String(X.positions.length), '', '봇 ' + X.botLive.positions + '개')}${kpi('체결 차이', X.slip == null ? '—' : X.slip + 'bp', X.slip > 10 ? 'down' : '', '봇 진입가 대비')}</div>
+      ${X.positions.length ? `<div class="tbl" style="margin-top:8px">${X.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.sym.replace('USDT', ''))}</b> <span class="muted xs">${p.qty}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)}${p.stop ? ' · 거래소 손절 ' + usd(p.stop) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${nf(p.upnl, 1)}$</span></div>`).join('')}</div>` : ''}
+      ${X.actions.length ? `<details class="pro-inline"><summary>최근 주문 기록</summary>${X.actions.slice(0, 12).map((a) => `<p class="xs news-line"><span class="muted num">${kT(a.t)}</span> ${esc(a.m)}</p>`).join('')}</details>` : ''}
+      <p class="muted xs">${kT(X.at)} 확인 · 매시간 5분 · 실제 돈 아님 (바이낸스 데모 트레이딩)</p></section>`;
+  }
   function viewMk() {
     loadMk(); loadScalp();
     const D = S.mk3, G2 = S.mk, G1 = S.sc && S.sc.mk;
@@ -2103,7 +2121,7 @@
       <p class="sm">③ 리만(파동 정렬·균형선)·나비에-스토크스(난류) 지표, 펀딩비, 테이커 매수 쏠림, 비트코인 분위기 등 ${FEATS3_N}개 재료를 봐요.</p>
       <p class="sm" style="margin:8px 0 4px">많이 본 재료</p>${Mo.imp.slice(0, 6).map((x) => `<div class="kv"><span>${esc(x.label)}</span><b class="num">${x.v}%</b></div>`).join('')}
       <p class="muted xs" style="margin-top:6px">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 매주 다시 학습 · 안전 규칙: 한 번에 ${D.cfg.riskPct}%(크게 ${D.cfg.riskPct * 1.5}%) · 동시 ${D.cfg.maxPos}개 · 전체 ${D.cfg.maxLevTotal}배 이하 · 하루 ${D.cfg.dayLoss}% 정지 · ${D.cfg.ddHalve}% 위험 절반 · ${D.cfg.ddKill}% 킬</p></section>`;
-    return head + hero + pos + verdict + judge + dec + watch + trades + learned + older;
+    return head + hero + pos + execCard() + verdict + judge + dec + watch + trades + learned + older;
   }
   const FEATS3_N = 24;
   function mkGen2(D) {
@@ -2967,7 +2985,7 @@
       body = `<section class="card"><h2>포지션 ${a.positions.length}</h2>${a.positions.length ? `<div class="tbl">${a.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.name)}</b> <span class="muted xs">${p.lev != null ? p.lev + '배' : ''}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)} · ${p.be || (p.stop != null && Math.abs(p.stop / p.entry - 1) < 1e-6) ? '본전 손절' : p.trail ? '추적 손절' : '손절'} ${usd(p.stop)}${p.tp ? ' · 목표 ' + usd(p.tp) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">지금은 포지션이 없어요.</p>'}</section>
         <section class="card"><h2>거래 기록 ${x.n}</h2>${x.n ? `<div class="tbl">${a.trades.slice(0, 40).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${kT(t.in)} → ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')} · ${rr(t.R || 0)}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     } else if (tab === 'ana') body = anaBlocks(a.trades, a.name);
-    else body = valBlock(a);
+    else body = valBlock(a) + (a.id === 'mk' ? execCard() : '');
     return head(a.name, a.code + ' · 가상 1억 · 실제 돈 아님') + top + chart + seg + body + `<a class="lrow-mini pad" href="${a.href}">전략 화면 자세히 보기 ›</a>`;
   }
   function anaBlocks(trades, who) {

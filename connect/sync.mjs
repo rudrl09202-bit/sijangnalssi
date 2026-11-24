@@ -158,6 +158,8 @@ console.log('\n저장: ' + OUT + '\n앱을 새로고침하면 "내 자산"에 �
 await sendToPhone(out);
 // 선물 시장 데이터(펀딩비·미결제약정·롱숏 비율) 모으기 — 민경기 봇 학습 재료 (공개 데이터)
 if (!env.SNW_SKIP_DERIV) { try { const { run: deriv } = await import('./deriv.mjs'); await deriv({ env, log: (m) => console.log('\n' + m) }); } catch (e) { console.log('\n✗ 선물 데이터: ' + e.message); } }
+// 바이낸스 선물 데모(가짜 돈) 계좌에 민경기 봇 포지션을 실제 주문으로 따라 넣기 — 데모 키가 있을 때만
+if (env.BINANCE_DEMO_KEY && !env.SNW_SKIP_EXEC) { try { const { run: exec } = await import('./exec.mjs'); await exec({ env, log: (m) => console.log(m) }); } catch (e) { console.log('\n✗ 바이낸스 데모: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '')); } }
 
 /* ---------- 휴대폰으로 보내기: 비밀번호로 잠근 파일만 GitHub 에 올림 ----------
  * - 키(빗썸·토스)는 절대 올리지 않습니다. 보유 내역만 AES-256-GCM 으로 암호화합니다.
