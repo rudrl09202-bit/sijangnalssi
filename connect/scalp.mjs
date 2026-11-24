@@ -25,7 +25,7 @@ const SYSTEM = `당신은 코인 무기한 선물 단타 트레이더입니다. 
 반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
 
 export function parseDecision(text) {
-  const m = String(text || '').match(/\{[\s\S]*?\}/); if (!m) throw new Error('JSON 없음');
+  const m = String(text || '').match(/\{[\s\S]*?\}/); if (!m) throw new Error('JSON 없음: ' + String(text || '(빈 응답)').replace(/\s+/g, ' ').slice(0, 120));
   const j = JSON.parse(m[0]), d = String(j.decision || '').toLowerCase().trim();
   if (d !== 'enter' && d !== 'skip') throw new Error('decision 값 이상');
   return { decision: d, confidence: Math.max(0, Math.min(100, Math.round(Number(j.confidence) || 0))), reason: String(j.reason || '').slice(0, 120) };
@@ -80,6 +80,23 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   const days = bdc.length; bs.perDay = days ? Math.round(bs.trades / days * 10) / 10 : null;
   log('백테스트(엔진만, ' + days + '일): 수익 ' + Math.round((bt.equity[bt.equity.length - 1][1] / bt.start - 1) * 1000) / 10 + '% · 최대낙폭 ' + (bm && bm.mdd) + '% · 거래 ' + bs.trades + '번(하루 ' + bs.perDay + ') · 승률 ' + bs.winRate + '% · PF ' + bs.pf + ' · 평균 ' + bs.avgR + 'R · 수수료 ' + Math.round(bs.fees / 1e4) + '만');
 
+  // ── 2-2) 설정 비교 (앞 절반 / 뒤 절반 따로) — 숫자 맞추기가 아니라 어디서 지는지 보기
+  const half = Math.floor(W.T.length / 2), study = [];
+  const variants = [
+    ['기본', {}], ['눌림목만', { only: 'pullback' }], ['돌파만', { only: 'squeeze' }], ['목표 3R', { tpR: 3 }], ['목표 1.5R', { tpR: 1.5 }],
+    ['손절 2.5ATR', { stopAtr: 2.5 }], ['본전이동 없음', { beR: 99 }], ['보유 12시간', { maxBars: 48 }], ['1시간 추세 강할 때만', { strong: true }]
+  ];
+  for (const [name, over] of variants) {
+    const PP = Object.assign({}, P, over), row = { name };
+    for (const [k, a, b] of [['all', 0, W.T.length - 1], ['h1', 0, half], ['h2', half, W.T.length - 1]]) {
+      const ac = SC.newAccount(PP); SC.simulate(W, PP, ac, a, b); const s2 = SC.stats(ac);
+      row[k] = { ret: Math.round((ac.equity[ac.equity.length - 1][1] / ac.start - 1) * 1000) / 10, n: s2.trades, win: s2.winRate, pf: s2.pf, avgR: s2.avgR };
+    }
+    study.push(row);
+    log('  비교 ' + name.padEnd(12) + ' 전체 ' + row.all.ret + '% (' + row.all.n + '번, PF ' + row.all.pf + ') · 앞 ' + row.h1.ret + '% · 뒤 ' + row.h2.ret + '%');
+  }
+  log('  셋업별: ' + Object.entries(bs.byKind).map(([k, v]) => k + ' ' + v.n + '번 승률 ' + v.winRate + '% 평균 ' + v.avgR + 'R').join(' · '));
+
   // ── 3) 실시간 (Claude 결정)
   mkdirSync(dir, { recursive: true });
   const stFile = join(dir, 'scalp-state.json');
@@ -127,7 +144,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
     decisions: st.decisions.slice(-30).reverse(), aiStats: { asked: dec.length, enter: dec.filter((d) => d.decision === 'enter').length },
     log: A.log.slice(-12).reverse(),
-    bt: { days, from: bdc.length ? bdc[0][0] : null, ret: Math.round((bt.equity[bt.equity.length - 1][1] / bt.start - 1) * 1000) / 10, metrics: bm, stats: bs, curve: bdc, recent: bt.trades.slice(-15).reverse() },
+    study, bt: { days, from: bdc.length ? bdc[0][0] : null, ret: Math.round((bt.equity[bt.equity.length - 1][1] / bt.start - 1) * 1000) / 10, metrics: bm, stats: bs, curve: bdc, recent: bt.trades.slice(-15).reverse() },
     coins: SC.COINS.filter((c) => series[c.sym]).map((c) => ({ sym: c.sym, name: c.name, price: mark(c.sym) })), errors
   };
   writeFileSync(join(dir, 'scalp-live.json'), JSON.stringify(out));

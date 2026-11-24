@@ -76,6 +76,8 @@
     const sq = x.bwR[j - 1] != null && x.bwR[j - 1] <= P.sqzPct, volOk = !x.vAvg[j] || (x.d.v && x.d.v[j] >= x.vAvg[j] * P.volK);
     if (sq && volOk && x.hi[j] != null && c > x.hi[j] && !dn) out.push({ side: 'long', kind: 'squeeze', why: '변동성 수축 후 ' + P.brk + '봉 고점 돌파 + 거래량' });
     if (sq && volOk && x.lo[j] != null && c < x.lo[j] && !up) out.push({ side: 'short', kind: 'squeeze', why: '변동성 수축 후 ' + P.brk + '봉 저점 이탈 + 거래량' });
+    if (P.only) for (let k = out.length - 1; k >= 0; k--) if (out[k].kind !== P.only) out.splice(k, 1);
+    if (P.strong) { const slope = x.eS[j - 16] ? (x.eS[j] / x.eS[j - 16] - 1) * 100 : 0; for (let k = out.length - 1; k >= 0; k--) if (out[k].side === 'long' ? slope < 0.15 : slope > -0.15) out.splice(k, 1); }
     out.forEach((s) => { s.setup = s.kind; delete s.kind; s.atr = a; s.str = s.setup === 'squeeze' ? 2 : 1; s.ref = c; s.hl = [h, l]; });
     return out;
   }
