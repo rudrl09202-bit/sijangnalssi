@@ -37,7 +37,9 @@ export function brief(W, P, i, o, acc) {
   const last = acc.trades.slice(-5).map((t) => t.name + ' ' + (t.side === 'long' ? '롱' : '숏') + ' ' + (t.R >= 0 ? '+' : '') + t.R + 'R');
   return {
     시각_UTC: new Date(W.T[i]).toISOString().slice(0, 16), 코인: o.name + '(' + o.sym + ')', 방향: o.side === 'long' ? '롱' : '숏', 셋업: o.why,
-    현재가: r(x.d.c[j]), EMA20: r(x.eP[j]), EMA50: r(x.eF[j]), EMA200: r(x.eS[j]), RSI: Math.round(x.rsi[j]), ATR_퍼센트: Math.round(x.atr[j] / x.d.c[j] * 1000) / 100,
+    현재가: r(x.d.c[j]), EMA20: r(x.eP[j]), EMA50: r(x.eF[j]), EMA200: r(x.eS[j]), RSI: Math.round(x.rsi[j]), ATR_퍼센트: Math.round(x.atr[j] / x.d.c[j] * 10000) / 100,
+    ...(() => { const c = x.d.c[j], sd = Math.max(x.atr[j] * P.stopAtr, c * P.minStopPct / 100), sg = o.side === 'long' ? 1 : -1;
+      return { 손절가: r(c - sg * sd), 목표가: r(c + sg * sd * P.tpR), 손절_퍼센트: Math.round(sd / c * 10000) / 100, 목표_퍼센트: Math.round(sd * P.tpR / c * 10000) / 100, 왕복수수료_퍼센트: Math.round((P.taker * 2 + P.slipIn + P.slipStop) * 10000) / 100 }; })(),
     수익률_퍼센트: { '1시간': ret(x.d.c, j, 4), '4시간': ret(x.d.c, j, 16), '24시간': ret(x.d.c, j, 96) },
     최근16봉: x.d.c.slice(Math.max(0, j - 15), j + 1).map((v, k, a) => { const jj = j - (a.length - 1) + k; return [r(x.d.o[jj]), r(x.d.h[jj]), r(x.d.l[jj]), r(v)]; }),
     BTC: { '1시간': ret(b.d.c, bj, 4), '4시간': ret(b.d.c, bj, 16), 추세: b.eF[bj] > b.eS[bj] ? '15분 정배열' : '15분 역배열' },
