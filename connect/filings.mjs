@@ -16,8 +16,11 @@ const DAY = 864e5;
 
 export const KR_BAD = [/유상증자/, /전환사채/, /신주인수권부사채/, /교환사채/, /감자/, /관리종목/, /상장폐지/, /감사의견/, /의견거절/, /횡령|배임/, /불성실공시/, /거래정지|매매거래정지/, /회생절차|파산/, /소송/, /최대주주.*변경/];
 export const KR_GOOD = [/자기주식.*취득|자사주.*취득/, /현금.*배당|현물배당/, /무상증자/, /단일판매|공급계약/, /자기주식.*소각/];
-export const US_BAD_ITEMS = { '1.03': '파산·회생', '2.06': '자산 손상', '3.01': '상장 유지 기준 미달·상장폐지 통지', '4.01': '감사인 변경', '4.02': '과거 재무제표 신뢰 불가(재작성)', '5.02': '경영진·이사 교체' };
-const US_BAD_FORMS = { 'S-1': '신규 주식 발행 신고(희석)', 'S-3': '주식·채권 발행 신고(희석 가능)', '424B5': '증자·채권 발행 확정', 'NT 10-K': '연간 보고서 지연 제출', 'NT 10-Q': '분기 보고서 지연 제출', '25-NSE': '상장폐지' };
+export const US_BAD_ITEMS = { '1.03': '파산·회생', '2.06': '자산 손상', '3.01': '상장 유지 기준 미달·상장폐지 통지', '4.01': '감사인 변경', '4.02': '과거 재무제표 신뢰 불가(재작성)' };
+export const US_INFO_ITEMS = { '5.02': '경영진·이사 변동', '2.02': '실적 발표', '1.01': '중요 계약 체결' };
+const US_BAD_FORMS = { 'S-1': '신규 주식 발행 신고(희석)', 'NT 10-K': '연간 보고서 지연 제출', 'NT 10-Q': '분기 보고서 지연 제출' };
+// 대기업은 회사채 발행·채권 상장폐지에도 내는 서류라 '참고'로만
+const US_INFO_FORMS = { 'S-3': '증권 발행 등록 (대기업은 회사채인 경우가 많음)', '424B5': '증권 발행 확정 (회사채인 경우가 많음)', '424B2': '채권 발행', '25-NSE': '특정 증권 상장폐지 (주식이 아닌 채권일 수 있음)' };
 
 export function classifyKr(name) {
   const bad = KR_BAD.find((r) => r.test(name)), good = KR_GOOD.find((r) => r.test(name));
@@ -28,6 +31,9 @@ export function classifyUs(form, items) {
   const badItem = its.find((x) => US_BAD_ITEMS[x]);
   if (form === '8-K' && badItem) return { level: 'bad', note: US_BAD_ITEMS[badItem] };
   if (US_BAD_FORMS[form]) return { level: 'bad', note: US_BAD_FORMS[form] };
+  if (US_INFO_FORMS[form]) return { level: 'info', note: US_INFO_FORMS[form] };
+  const infoItem = its.find((x) => US_INFO_ITEMS[x]);
+  if (form === '8-K' && infoItem) return { level: 'info', note: US_INFO_ITEMS[infoItem] };
   if (form === '10-Q' || form === '10-K') return { level: 'info', note: form === '10-K' ? '연간 실적 보고서' : '분기 실적 보고서' };
   if (form === '8-K' && its.includes('2.02')) return { level: 'info', note: '실적 발표' };
   return null;
