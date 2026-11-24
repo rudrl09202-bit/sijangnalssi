@@ -47,6 +47,30 @@ export async function collectK4({ now = Date.now(), fetchImpl = fetch, log = con
   const b = out.BTC; log('4시간봉 역사: ' + ok + '/' + DERIV_COINS.length + '코인 · 비트코인 ' + (b ? b.t.length + '봉 (' + new Date(b.t[0]).toISOString().slice(0, 10) + '부터)' : '없음') + (errs.length ? ' · 오류 ' + errs.join(' / ') : ''));
   return out;
 }
+// 15분봉 (류신영 봇 단타 학습용) — 5코인 · 최근 약 540일 · 파일: .cache/k15-<코인>.json
+export const K15_COINS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'];
+const M15 = 15 * 60e3, K15_DAYS = 540;
+export async function collectK15({ now = Date.now(), fetchImpl = fetch, log = console.log, dir = join(HERE, '.cache') } = {}) {
+  const out = {}; let ok = 0; const errs = [];
+  for (const c of K15_COINS) {
+    const f = join(dir, 'k15-' + c + '.json');
+    let K = { t: [], o: [], h: [], l: [], c: [], v: [], tb: [] }; try { K = JSON.parse(readFileSync(f, 'utf8')); } catch (e) { /* 처음 */ }
+    try {
+      let st = K.t.length ? K.t[K.t.length - 1] + M15 : now - K15_DAYS * DAY;
+      for (let k = 0; k < 45 && st < now - M15; k++) {
+        const j = await getJ(BASE + '/fapi/v1/klines?symbol=' + c + 'USDT&interval=15m&limit=1500&startTime=' + st, fetchImpl);
+        const rows = j.filter((r) => Number(r[6]) < now);
+        rows.forEach((r) => { const t = Number(r[0]); if (K.t.length && t <= K.t[K.t.length - 1]) return; K.t.push(t); K.o.push(+r[1]); K.h.push(+r[2]); K.l.push(+r[3]); K.c.push(+r[4]); K.v.push(+r[7]); K.tb.push(+r[10]); });
+        if (j.length < 1500) break; st = Number(j[j.length - 1][0]) + M15; await sleep(200);
+      }
+      // 오래된 것 잘라내기 (파일 크기 유지)
+      const cut = K.t.findIndex((t) => t >= now - (K15_DAYS + 5) * DAY); if (cut > 0) Object.keys(K).forEach((k) => { K[k] = K[k].slice(cut); });
+      mkdirSync(dir, { recursive: true }); writeFileSync(f, JSON.stringify(K)); out[c] = K; ok++;
+    } catch (e) { errs.push(c + ': ' + e.message); if (K.t.length) out[c] = K; }
+  }
+  const b = out.BTC; log('15분봉 역사: ' + ok + '/' + K15_COINS.length + '코인 · 비트코인 ' + (b ? b.t.length + '봉 (' + new Date(b.t[0]).toISOString().slice(0, 10) + '부터)' : '없음') + (errs.length ? ' · 오류 ' + errs.join(' / ') : ''));
+  return out;
+}
 export async function collect({ db, now = Date.now(), fetchImpl = fetch, log = console.log } = {}) {
   db = db || { v: 1, coins: {} };
   let ok = 0; const errs = [];
@@ -102,7 +126,7 @@ export function compact(db) {
   return out;
 }
 // GitHub 'deriv-data' 브랜치에 올리기 (없으면 만듦)
-async function upload(db, env, fetchImpl = fetch, log = console.log, k4 = null) {
+async function upload(db, env, fetchImpl = fetch, log = console.log, k4 = null, k15 = null) {
   const token = env.GITHUB_TOKEN, repo = env.GITHUB_REPO;
   if (!token || !repo) { log('· 선물 데이터: GITHUB_TOKEN·GITHUB_REPO 가 없어 서버에만 저장'); return false; }
   const api = 'https://api.github.com/repos/' + repo, H = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'User-Agent': 'sijangnalssi-deriv' };
@@ -120,6 +144,7 @@ async function upload(db, env, fetchImpl = fetch, log = console.log, k4 = null) 
   };
   await put('deriv.json', compact(db));
   for (const [c, K] of Object.entries(k4 || {})) { try { await put('k4-' + c + '.json', K); } catch (e) { log('✗ ' + e.message); } }
+  for (const [c, K] of Object.entries(k15 || {})) { try { await put('k15-' + c + '.json', { t: K.t, o: K.o, h: K.h, l: K.l, c: K.c, v: K.v.map((x) => Math.round(x)), tb: K.tb.map((x) => Math.round(x)) }); } catch (e) { log('✗ ' + e.message); } }
   log('✓ 선물 데이터 올림 (deriv-data 브랜치' + (k4 ? ' · 4시간봉 ' + Object.keys(k4).length + '코인' : '') + ')'); return true;
 }
 
@@ -131,7 +156,11 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log } = {
   let k4 = null; try { k4 = await collectK4({ fetchImpl, log }); } catch (e) { log('✗ 4시간봉: ' + e.message); }
   const h = new Date().getUTCHours(), first = !existsSync(join(HERE, '.cache', 'k4-uploaded'));
   if (k4 && !(first || h % 4 === 0)) k4 = null;
-  if (r.ok) { try { await upload(r.db, env, fetchImpl, log, k4); if (k4) writeFileSync(join(HERE, '.cache', 'k4-uploaded'), new Date().toISOString()); } catch (e) { log('✗ 선물 데이터 올리기: ' + e.message); } }
+  // 15분봉: 매시간 모으고, 하루 한 번(00시 UTC) 또는 처음에 올림
+  let k15 = null; try { k15 = await collectK15({ fetchImpl, log }); } catch (e) { log('✗ 15분봉: ' + e.message); }
+  const first15 = !existsSync(join(HERE, '.cache', 'k15-uploaded'));
+  if (k15 && !(first15 || h === 0)) k15 = null;
+  if (r.ok) { try { await upload(r.db, env, fetchImpl, log, k4, k15); if (k4) writeFileSync(join(HERE, '.cache', 'k4-uploaded'), new Date().toISOString()); if (k15) writeFileSync(join(HERE, '.cache', 'k15-uploaded'), new Date().toISOString()); } catch (e) { log('✗ 선물 데이터 올리기: ' + e.message); } }
   return r;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
