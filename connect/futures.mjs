@@ -100,7 +100,7 @@ function liveView(F, Q, W, L, h4, lastIdx) {
   const lev = positions.reduce((a, p) => a + p.notional, 0) / (eqNow || 1);
   return { equity: eqNow, start: L.start, ret: Math.round((eqNow / L.start - 1) * 10000) / 100, days: ldc.length, metrics: lm, curve: L.equity.slice(-540).map(([t, v]) => [isoT(t), v]),
     positions, lev: Math.round(lev * 100) / 100, pending: L.pending.filter((o) => o.kind === 'open' && (!o.needVote || o.approved)).map((o) => ({ sym: o.sym, name: o.name, side: o.side, why: o.why })),
-    trades: L.trades.slice(-40).reverse(), status: L.killUntil > lastIdx ? 'killed' : L.dayBlock ? 'dayblock' : L.half ? 'half' : 'ok', liq: L.liquidations, peak: Math.round(L.peak),
+    trades: L.trades.slice(-40).reverse(), status: (L.killUntilT || 0) > W.T[lastIdx] ? 'killed' : L.dayBlock ? 'dayblock' : L.half ? 'half' : 'ok', liq: L.liquidations, peak: Math.round(L.peak),
     funding: Math.round(L.fundingPaid), fees: Math.round(L.feesPaid), months: F.monthStats(ldc, GOAL) };
 }
 

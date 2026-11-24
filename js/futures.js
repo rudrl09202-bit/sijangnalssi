@@ -61,7 +61,7 @@
   /* ---------- 계좌 ---------- */
   function newAccount(cfg) {
     return { cash: cfg.startCash, start: cfg.startCash, peak: cfg.startCash, pos: {}, pending: [], trades: [], equity: [], events: [],
-      dayKey: null, dayStart: cfg.startCash, dayBlock: false, half: false, killUntil: -1, killed: 0, liquidations: 0, fundingPaid: 0, feesPaid: 0, lastT: null };
+      dayKey: null, dayStart: cfg.startCash, dayBlock: false, half: false, killUntilT: 0, killed: 0, liquidations: 0, fundingPaid: 0, feesPaid: 0, lastT: null };
   }
   const liqPrice = (side, entry, cfg) => (side === 'long' ? entry * (1 - 1 / cfg.isoLev + cfg.mm) : entry * (1 + 1 / cfg.isoLev - cfg.mm));
   function markEquity(acc, px) { let u = 0; Object.values(acc.pos).forEach((p) => { const m = px(p.sym); if (m != null) u += (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty; }); return acc.cash + u; }
@@ -94,7 +94,7 @@
         const op = px(o.sym, i, 'o'); if (op == null) return;
         if (o.kind === 'exit') { const p = acc.pos[o.sym]; if (p) closePos(acc, p, op * (p.side === 'long' ? 1 - cfg.slipIn : 1 + cfg.slipIn), t, o.reason, cfg, ev); return; }
         if (o.needVote && !o.approved) return; // AI 회의에서 만장일치가 안 나온 후보
-        if (acc.pos[o.sym] || acc.dayBlock || i < acc.killUntil) return;
+        if (acc.pos[o.sym] || acc.dayBlock || t < (acc.killUntilT || 0)) return;
         const entry = op * (o.side === 'long' ? 1 + cfg.slipIn : 1 - cfg.slipIn);
         const eq = markEquity(acc, (s) => px(s, i, 'o'));
         const stopDist = o.atr * P.stopAtr, liqDist = entry - liqPrice('long', entry, cfg);
@@ -138,12 +138,12 @@
       acc.peak = Math.max(acc.peak, eq);
       const dd = (eq / acc.peak - 1) * 100;
       if (!acc.dayBlock && (eq / acc.dayStart - 1) * 100 <= cfg.dayLoss) { acc.dayBlock = true; if (ev) acc.events.push({ t: iso(t), kind: 'vault', msg: '하루 손실 ' + cfg.dayLoss + '% 도달 — 오늘 신규 진입 금지' }); }
-      if (dd <= cfg.ddKill && i >= acc.killUntil) {
+      if (dd <= cfg.ddKill && t >= (acc.killUntilT || 0)) {
         Object.values(acc.pos).forEach((p) => acc.pending.push({ kind: 'exit', sym: p.sym, reason: '킬 스위치' }));
-        acc.killUntil = i + P.killBars; acc.killed++; acc.half = true; acc.peak = eq; // 재개 기준을 새로 잡음
+        acc.killUntilT = t + P.killBars * P.barH * 3600e3; acc.killed++; acc.half = true; acc.peak = eq; // 재개 기준을 새로 잡음
         if (ev) acc.events.push({ t: iso(t), kind: 'vault', msg: '고점 대비 ' + cfg.ddKill + '% — 전부 청산, ' + Math.round(P.killBars * P.barH / 24) + '일 휴식' });
       } else if (dd <= cfg.ddHalve && !acc.half) { acc.half = true; if (ev) acc.events.push({ t: iso(t), kind: 'vault', msg: '고점 대비 ' + cfg.ddHalve + '% — 위험 절반으로' }); }
-      else if (acc.half && dd > cfg.ddResume && i >= acc.killUntil) { acc.half = false; }
+      else if (acc.half && dd > cfg.ddResume && t >= (acc.killUntilT || 0)) { acc.half = false; }
       acc.equity.push([t, Math.round(eq)]);
       Object.values(acc.pos).forEach((p) => {
         const x = X[p.sym], j = x.map[i]; if (j < 0) return;
@@ -151,7 +151,7 @@
         if (p.side === 'long') { p.ext = Math.max(p.ext, x.d.h[j]); const tr = p.ext - P.trailAtr * a; if (c > p.entry + a) p.stop = Math.max(p.stop, tr); if (x.eF[j] < x.eS[j]) acc.pending.push({ kind: 'exit', sym: p.sym, reason: '추세 꺾임' }); }
         else { p.ext = Math.min(p.ext, x.d.l[j]); const tr = p.ext + P.trailAtr * a; if (c < p.entry - a) p.stop = Math.min(p.stop, tr); if (x.eF[j] > x.eS[j]) acc.pending.push({ kind: 'exit', sym: p.sym, reason: '추세 꺾임' }); }
       });
-      if (acc.dayBlock || i + 1 < acc.killUntil) continue;
+      if (acc.dayBlock || t + P.barH * 3600e3 < (acc.killUntilT || 0)) continue;
       const bj = X.BTC.map[i], btcBear = bj >= 0 && X.BTC.reg[bj] != null && X.BTC.d.c[bj] < X.BTC.reg[bj];
       const cands = [];
       W.syms.forEach((s) => {

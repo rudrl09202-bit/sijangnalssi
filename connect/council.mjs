@@ -27,32 +27,32 @@ export function parseVote(text) {
   return { vote, confidence: Math.max(0, Math.min(100, Math.round(Number(j.confidence) || 0))), reason: String(j.reason || '').slice(0, 120) };
 }
 
-async function askClaude(key, model, user, fetchImpl) {
+export async function askClaude(key, model, user, fetchImpl, system = SYSTEM, maxTokens = 300) {
   const to = withTimeout(120000);
   try {
     const r = await fetchImpl('https://api.anthropic.com/v1/messages', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model, max_tokens: 300, system: SYSTEM, messages: [{ role: 'user', content: user }] }) });
+      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }) });
     const j = await r.json(); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + ((j.error && j.error.message) || ''));
     return (j.content || []).map((c) => c.text || '').join('');
   } finally { to.done(); }
 }
-async function askGemini(key, model, user, fetchImpl) {
+export async function askGemini(key, model, user, fetchImpl, system = SYSTEM, maxTokens = 300) {
   const to = withTimeout(70000);
   try {
     const r = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { responseMimeType: 'application/json' } }) });
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { responseMimeType: 'application/json' } }) });
     const j = await r.json(); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + ((j.error && j.error.message) || ''));
     return (((j.candidates || [])[0] || {}).content || { parts: [] }).parts.map((p) => p.text || '').join('');
   } finally { to.done(); }
 }
-async function askGpt(key, model, user, fetchImpl) {
+export async function askGpt(key, model, user, fetchImpl, system = SYSTEM, maxTokens = 300) {
   const to = withTimeout(150000);
   try {
     const r = await fetchImpl('https://api.openai.com/v1/chat/completions', { method: 'POST', signal: to.signal,
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
-      body: JSON.stringify({ model, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], response_format: { type: 'json_object' } }) });
+      body: JSON.stringify({ model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], response_format: { type: 'json_object' } }) });
     const j = await r.json(); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + ((j.error && j.error.message) || ''));
     return ((j.choices || [])[0] || { message: {} }).message.content || '';
   } finally { to.done(); }

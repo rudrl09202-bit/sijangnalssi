@@ -1,0 +1,53 @@
+name: 코인 선물 단타 모의투자 (10분마다 · Claude 결정)
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scalp
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: 지난 상태 가져오기 (bot-data 브랜치)
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: bot-data
+          path: botdata
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 알림 발송 도구 설치
+        run: npm install --no-audit --no-fund
+      - name: 단타 봇 (15분봉 · Claude)
+        run: mkdir -p botdata && node connect/scalp.mjs
+        env:
+          SCALP_DIR: botdata
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
+          SCALP_MODEL: ${{ secrets.SCALP_MODEL }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_EMAIL: ${{ secrets.VAPID_EMAIL }}
+          PUSH_SUBSCRIPTIONS: ${{ secrets.PUSH_SUBSCRIPTIONS }}
+      - name: 상태 저장 (기록 1개만 유지 — 덮어쓰기)
+        run: |
+          cd botdata
+          rm -rf .git
+          git init -q
+          git checkout -q -b bot-data
+          git config user.name "sijangnalssi-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "단타 상태 $(date -u +'%F %H:%M')"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" bot-data
