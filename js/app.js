@@ -1937,24 +1937,23 @@
     const head = `<header class="top"><div><a href="#paper" class="back">‹ 투자봇</a><p class="kicker">SCALP · 15분봉 롱·숏 · Claude가 결정 · 가상 1억 · 실제 돈 아님</p><h1>단타 데스크</h1></div>${tools()}</header>`;
     if (!D) return head + `<section class="card empty"><p class="h-md">단타 봇 결과를 불러오는 중이에요</p><p class="muted sm">10분마다 자동으로 돌아요. 처음 몇 분은 결과가 없을 수 있어요.</p></section>`;
     const L = D.live, st = SC_ST[L.status] || SC_ST.ok, ageMin = Math.round((Date.now() - Date.parse(D.generatedAt)) / 60e3), SH = D.shadow;
-    const shEq = SH ? SH.equity : null, diff = SH ? L.equity - shEq : null;
-    const acct = (title, sub, eqv, ret, trades, open, note, main) => `<div class="sc-acct${main ? ' main' : ''}"><p class="xs muted">${title}</p><p class="num b">${won(eqv)}</p><p class="num sm ${dirClass(ret)}">${pct(ret, 2)}</p><p class="xs muted">거래 ${trades}번 · 포지션 ${open}개</p>${note ? `<p class="xs" style="margin-top:4px">${note}</p>` : ''}</div>`;
-    const hero = `<section class="card panel"><div class="row between"><p class="kicker">${scT(D.lastBar, 15)} 마감 봉까지 · 마지막 확인 ${ageMin < 1 ? '방금' : agoTxt(ageMin * 60e3)}</p><span class="act ${st[1]}">${st[0]}</span></div>
-      <div class="sc-accts">
-        ${acct('Claude 계좌', '', L.equity, L.ret, L.stats.trades, L.positions.length, D.aiStats.asked ? `Claude ${D.aiStats.asked}번 판단 · ${D.aiStats.enter}번 진입` : '', true)}
-        ${SH ? acct('엔진 혼자 (비교)', '', shEq, SH.ret, SH.stats.trades, SH.open, '후보를 전부 들어감') : ''}
-      </div>
-      <p class="sm" style="margin-top:12px">${L.stats.trades + L.positions.length === 0
-        ? `Claude 계좌는 <b>Claude가 "진입"을 고를 때만</b> 거래해요. 지금까지 후보를 모두 건너뛰어서 1억 그대로예요.`
-        : `Claude 계좌는 Claude가 "진입"을 고른 거래만 담겨 있어요.`}
-        ${diff != null && Math.abs(diff) >= 1e4 ? ` 같은 기간 엔진 혼자보다 <b class="${dirClass(diff)}">${diff >= 0 ? '+' : ''}${man(diff)}</b> ${diff >= 0 ? '앞서' : '뒤처져'} 있어요${diff >= 0 && L.stats.trades === 0 ? ' — 건너뛴 덕분에 손실을 피한 셈이에요' : ''}.` : ''}</p>
-      <p class="muted xs">${scT(D.inception, 15)}부터 · 레버리지 ${L.lev}배</p></section>`;
+    const BD = D.bold, tabSc = S.ui.scTab === 'bold' && BD ? 'bold' : 'careful';
+    const accRow = (name, desc, eqv, ret, trades, open, extra, on) => `<div class="sc-row${on ? ' on' : ''}"><div><p class="b">${name}</p><p class="muted xs">${desc}</p></div>
+      <div class="right"><p class="num b ${dirClass(ret)}">${pct(ret, 2)}</p><p class="muted xs num">${won(eqv)}</p><p class="muted xs">거래 ${trades} · 포지션 ${open}${extra ? ' · ' + extra : ''}</p></div></div>`;
+    const hero = `<section class="card panel"><div class="row between"><p class="kicker">${scT(D.lastBar, 15)} 마감 봉까지 · 확인 ${ageMin < 1 ? '방금' : agoTxt(ageMin * 60e3)}</p><span class="act ${st[1]}">${st[0]}</span></div>
+      <p class="muted xs" style="margin:6px 0 4px">같은 후보로 세 계좌가 동시에 가상 1억씩 굴러가요. 다른 건 "들어갈지 말지"를 누가 정하느냐뿐이에요.</p>
+      ${accRow('조심형 Claude', '애매하면 건너뜀', L.equity, L.ret, L.stats.trades, L.positions.length, D.aiStats.asked ? D.aiStats.enter + '/' + D.aiStats.asked + ' 진입' : '', tabSc === 'careful')}
+      ${BD ? accRow('적극형 Claude', '기본은 진입', BD.equity, BD.ret, BD.stats.trades, BD.positions.length, BD.aiStats.asked ? BD.aiStats.enter + '/' + BD.aiStats.asked + ' 진입' : '', tabSc === 'bold') : ''}
+      ${SH ? accRow('엔진 혼자', '후보를 전부 진입 (비교 기준)', SH.equity, SH.ret, SH.stats.trades, SH.open, '') : ''}
+      <p class="muted xs" style="margin-top:8px">${scT(D.inception, 15)}부터${BD ? ' · 적극형은 ' + scT(BD.inception, 15) + '부터' : ''}</p></section>
+      ${BD ? `<div class="seg" role="tablist"><button role="tab" class="${tabSc === 'careful' ? 'on' : ''}" data-act="sc-tab" data-v="careful">조심형 보기</button><button role="tab" class="${tabSc === 'bold' ? 'on' : ''}" data-act="sc-tab" data-v="bold">적극형 보기</button></div>` : ''}`;
+    const V = tabSc === 'bold' ? { positions: BD.positions, decisions: BD.decisions, trades: BD.trades, stats: BD.stats, label: '적극형' } : { positions: L.positions, decisions: D.decisions, trades: L.trades, stats: L.stats, label: '조심형' };
     const lg = (D.log || [])[0];
     const now = `<section class="card"><div class="row between"><h2>지금 봇은</h2><p class="muted xs">${lg ? scT(lg.t, 15) + ' 판단' : ''}</p></div>
       ${lg ? (lg.state ? `<p class="sm"><span class="act warn">${esc(lg.state)}</span></p>` : '') + lg.coins.map((c) => `<div class="kv sc-coin"><span>${esc(c.sym)}</span><b class="sm">${esc(c.text)}</b></div>`).join('')
         + `<p class="sm" style="margin-top:8px">${lg.cands.length ? '후보: <b>' + lg.cands.map(esc).join(', ') + '</b> → Claude에게 물어봄' : '이번 봉엔 후보 없음 — 조건이 맞을 때까지 기다려요'}</p>` : '<p class="muted sm">판단 기록이 아직 없어요.</p>'}
       <p class="muted xs" style="margin-top:6px">15분봉이 끝날 때마다 판단하고, 10분마다 결과를 올려요.</p></section>`;
-    const pos = `<section class="card"><h2>지금 포지션 ${L.positions.length}개 <span class="muted xs">· 최대 ${D.cfg.maxPos}개</span></h2>${L.positions.length ? L.positions.map((p) => `<div class="fpos">
+    const pos = `<section class="card"><h2>${V.label} 포지션 ${V.positions.length}개 <span class="muted xs">· 최대 ${D.cfg.maxPos}개</span></h2>${V.positions.length ? V.positions.map((p) => `<div class="fpos">
       <div class="row between"><p class="b"><span class="side ${SIDE[p.side][1]}">${SIDE[p.side][0]}</span> ${esc(p.name)} <span class="muted xs">${p.lev}배 · ${SETUP[p.kind] || ''}</span></p><p class="num b ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</p></div>
       <div class="kv"><span>진입→현재</span><b class="num">${usd(p.entry)} → ${usd(p.mark)}</b></div>
       <div class="kv"><span>${p.be ? '손절(본전으로 올림)' : '손절'}</span><b class="num">${usd(p.stop)} <span class="muted xs">${p.toStop}%</span></b></div>
@@ -1962,8 +1961,8 @@
       <div class="kv"><span>청산가</span><b class="num">${usd(p.liq)} <span class="muted xs">${p.toLiq}%</span></b></div>
       <div class="kv"><span>남은 시간</span><b class="num">${Math.round(p.barsLeft * 15 / 60 * 10) / 10}시간 뒤 정리</b></div>
       ${p.ai ? `<p class="xs" style="margin:6px 0 0">Claude ${p.ai.confidence}: ${esc(p.ai.reason)}</p>` : ''}${tvButton('perp', p.sym, p.name + ' 무기한 선물', '15')}</div>`).join('') : '<p class="muted sm">지금은 포지션이 없어요.</p>'}</section>`;
-    const dec = `<section class="card"><h2>Claude 결정 기록</h2>${(D.decisions || []).length ? D.decisions.slice(0, 12).map((d) => `<div class="vote"><div class="row between"><p class="b sm"><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 15)} · ${SETUP[d.kind] || ''}</span></p><span class="act ${(SC_DEC[d.decision] || SC_DEC.error)[1]}">${(SC_DEC[d.decision] || SC_DEC.error)[0]}${d.confidence ? ' ' + d.confidence : ''}</span></div><p class="xs vote-line">${esc(d.reason || '')}</p></div>`).join('') : '<p class="muted sm">아직 후보가 없었어요.</p>'}</section>`;
-    const trades = `<section class="card"><h2>최근 거래 <span class="muted xs">· ${L.stats.trades}번 · 승률 ${L.stats.winRate == null ? '—' : L.stats.winRate + '%'} · 수수료 ${man(L.stats.fees)}</span></h2>${scTrades(L.trades, 10)}</section>
+    const dec = `<section class="card"><h2>${V.label} Claude 결정 기록</h2>${(V.decisions || []).length ? V.decisions.slice(0, 12).map((d) => `<div class="vote"><div class="row between"><p class="b sm"><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 15)} · ${SETUP[d.kind] || ''}</span></p><span class="act ${(SC_DEC[d.decision] || SC_DEC.error)[1]}">${(SC_DEC[d.decision] || SC_DEC.error)[0]}${d.confidence ? ' ' + d.confidence : ''}</span></div><p class="xs vote-line">${esc(d.reason || '')}</p></div>`).join('') : '<p class="muted sm">아직 후보가 없었어요.</p>'}</section>`;
+    const trades = `<section class="card"><h2>${V.label} 최근 거래 <span class="muted xs">· ${V.stats.trades}번 · 승률 ${V.stats.winRate == null ? '—' : V.stats.winRate + '%'} · 수수료 ${man(V.stats.fees)}</span></h2>${scTrades(V.trades, 10)}</section>
       ${SH && SH.trades.length ? `<section class="card"><h2>비교: 엔진 혼자 최근 거래</h2>${scTrades(SH.trades, 6)}</section>` : ''}`;
     const B = D.bt, bs = B.stats;
     const honest = `<section class="card"><h2>솔직한 검증 · 엔진만 최근 ${B.days}일</h2>
@@ -2526,6 +2525,7 @@
     else if (act === 'paper-bot') { S.ui.paperBot = v; if (v !== 'team' && !S.ui.paperTab) S.ui.paperTab = 'live'; render(); }
     else if (act === 'paper-tab') { S.ui.paperTab = v; render(); }
     else if (act === 'tv') openTV(v, b.dataset.name, b.dataset.iv);
+    else if (act === 'sc-tab') { S.ui.scTab = v; render(); }
     else if (act === 'fut-tab') { S.ui.futTab = v; render(); window.scrollTo(0, 0); }
     else if (act === 'vault-forget') { store.set('snw.vaultKey', null); location.reload(); }
     else if (act === 'demo') { S.demo = !S.demo; store.set('snw.demo', S.demo); LIVE = S.demo ? DEMO : REAL; S.ui.scoreResult = null; render(); loadPrices([]).then(render); allHoldings().filter((h) => h.type === 'coin').forEach((h) => ensureCloses(h.market)); }

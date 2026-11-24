@@ -24,6 +24,12 @@ const SYSTEM = `당신은 코인 무기한 선물 단타 트레이더입니다. 
 - 주어진 자료만 근거로 하세요. 이후 가격을 안다고 가정하지 마세요.
 반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
 
+const SYSTEM_BOLD = `당신은 코인 무기한 선물 단타 트레이더(적극형)입니다. 15분봉 규칙 엔진이 진입 후보를 올리면, 실제로 들어갈지(enter) 건너뛸지(skip) 결정합니다.
+- 손절·익절·크기·레버리지는 규칙으로 고정입니다(손절 1.5 ATR, 익절 2R, 계좌 1% 위험). 당신은 진입 여부만 정합니다.
+- 기본은 진입입니다. 셋업이 성립하면 들어가고, 명확히 나쁜 근거(뚜렷한 역방향 흐름, 바로 앞의 강한 지지/저항, 과열 추격 등)가 있을 때만 건너뛰세요.
+- 주어진 자료만 근거로 하세요. 이후 가격을 안다고 가정하지 마세요.
+반드시 JSON 한 줄로만 답하세요: {"decision":"enter" 또는 "skip","confidence":0~100 정수,"reason":"한국어 한 문장(60자 이내)"}`;
+
 export function parseDecision(text) {
   const m = String(text || '').match(/\{[\s\S]*?\}/); if (!m) throw new Error('JSON 없음: ' + String(text || '(빈 응답)').replace(/\s+/g, ' ').slice(0, 120));
   const j = JSON.parse(m[0]), d = String(j.decision || '').toLowerCase().trim();
@@ -106,39 +112,50 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   let from;
   if (!st) { st = { v: 1, inception: W.T[last], acc: SC.newAccount(P), decisions: [] }; from = last; log('단타 모의 계좌를 새로 엽니다'); }
   else from = W.T.findIndex((t) => t > st.acc.lastT);
-  const A = st.acc; A.events = [];
   const key = env.ANTHROPIC_API_KEY, model = env.SCALP_MODEL || env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
   let asked = 0;
-  if (from >= 0) for (let i = from; i <= last; i++) {
-    SC.simulate(W, P, A, i, i, { collect: true, vote: true, log: true });
-    for (const o of A.pending.filter((x) => x.kind === 'open' && x.needVote && x.approved == null)) {
-      const age = now.getTime() - (W.T[i] + BAR), rec = { t: isoT(W.T[i]), sym: o.sym, name: o.name, side: o.side, kind: o.setup, why: o.why, price: o.ref };
-      const recent = st.decisions.slice().reverse().find((d) => d.sym === o.sym && d.side === o.side && d.decision === 'skip'); // 건너뜀만 1시간 쉼 (실패는 바로 다시)
-      if (recent && W.T[i] - Date.parse(recent.t.replace(' ', 'T') + ':00Z') < 60 * 60e3) { o.approved = false; continue; } // 같은 후보는 1시간 안에 다시 안 물음
-      if (age > 2 * 3600e3) { o.approved = false; st.decisions.push({ ...rec, decision: 'late', reason: '실행이 늦어 2시간 지난 신호 — 건너뜀' }); continue; }
-      if (!key) { o.approved = false; st.decisions.push({ ...rec, decision: 'nokey', reason: 'Claude 키 없음' }); continue; }
-      let d;
-      const msg = '후보 자료(JSON):\n' + JSON.stringify(brief(W, P, i, o, A));
-      // 같은 모델 2번 → 그래도 비면 다른 Claude 모델로 (빈 응답 대비)
-      const models = [model, model, env.SCALP_BACKUP_MODEL || 'claude-opus-5-5'];
-      let lastErr = '';
-      for (let k = 0; k < models.length && !d; k++) {
-        try { d = parseDecision(await askClaude(key, models[k], msg, fetchImpl, SYSTEM, 4000)); if (models[k] !== model) d.reason = d.reason + ' (' + models[k] + ')'; }
-        catch (e) { lastErr = String(e.message || e); log('Claude 시도 ' + (k + 1) + ' 실패: ' + lastErr.slice(0, 120)); await sleep(1500); }
+  // Claude 계좌 하나를 마감된 봉마다 진행 (조심형·적극형 공통)
+  async function runClaudeAcc(A, decisions, system, label, fromIdx) {
+    A.events = [];
+    if (fromIdx < 0) return;
+    for (let i = fromIdx; i <= last; i++) {
+      SC.simulate(W, P, A, i, i, { collect: true, vote: true, log: true });
+      for (const o of A.pending.filter((x) => x.kind === 'open' && x.needVote && x.approved == null)) {
+        const age = now.getTime() - (W.T[i] + BAR), rec = { t: isoT(W.T[i]), sym: o.sym, name: o.name, side: o.side, kind: o.setup, why: o.why, price: o.ref };
+        const recent = decisions.slice().reverse().find((d) => d.sym === o.sym && d.side === o.side && d.decision === 'skip'); // 건너뜀만 1시간 쉼 (실패는 바로 다시)
+        if (recent && W.T[i] - Date.parse(recent.t.replace(' ', 'T') + ':00Z') < 60 * 60e3) { o.approved = false; continue; }
+        if (age > 2 * 3600e3) { o.approved = false; decisions.push({ ...rec, decision: 'late', reason: '실행이 늦어 2시간 지난 신호 — 건너뜀' }); continue; }
+        if (!key) { o.approved = false; decisions.push({ ...rec, decision: 'nokey', reason: 'Claude 키 없음' }); continue; }
+        let d;
+        const msg = '후보 자료(JSON):\n' + JSON.stringify(brief(W, P, i, o, A));
+        // 같은 모델 2번 → 그래도 비면 다른 Claude 모델로 (빈 응답 대비)
+        const models = [model, model, env.SCALP_BACKUP_MODEL || 'claude-opus-5-5'];
+        let lastErr = '';
+        for (let k = 0; k < models.length && !d; k++) {
+          try { d = parseDecision(await askClaude(key, models[k], msg, fetchImpl, system, 4000)); if (models[k] !== model) d.reason = d.reason + ' (' + models[k] + ')'; }
+          catch (e) { lastErr = String(e.message || e); log(label + ' Claude 시도 ' + (k + 1) + ' 실패: ' + lastErr.slice(0, 120)); await sleep(1500); }
+        }
+        if (!d) d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + lastErr.slice(0, 100) };
+        asked++;
+        o.approved = d.decision === 'enter'; o.ai = { decision: d.decision, confidence: d.confidence, reason: d.reason };
+        decisions.push({ ...rec, ...d, model });
+        log(label + ': ' + o.name + ' ' + (o.side === 'long' ? '롱' : '숏') + ' (' + o.why + ') → ' + d.decision + ' ' + d.confidence + ' · ' + d.reason);
       }
-      if (!d) d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + lastErr.slice(0, 100) };
-      asked++;
-      o.approved = d.decision === 'enter'; o.ai = { decision: d.decision, confidence: d.confidence, reason: d.reason };
-      st.decisions.push({ ...rec, ...d, model });
-      log('Claude: ' + o.name + ' ' + (o.side === 'long' ? '롱' : '숏') + ' (' + o.why + ') → ' + d.decision + ' ' + d.confidence + ' · ' + d.reason);
     }
   }
+  const A = st.acc;
+  await runClaudeAcc(A, st.decisions, SYSTEM, '조심형', from);
+  // 적극형 Claude 계좌 (처음이면 지금부터)
+  if (!st.bold) { st.bold = { inception: W.T[last], acc: SC.newAccount(P), decisions: [] }; log('적극형 Claude 계좌를 새로 엽니다'); }
+  const B2 = st.bold, bfrom = B2.acc.lastT == null ? last : W.T.findIndex((t) => t > B2.acc.lastT);
+  await runClaudeAcc(B2.acc, B2.decisions, SYSTEM_BOLD, '적극형', bfrom);
+  B2.decisions = B2.decisions.slice(-120);
   // 비교용: 같은 엔진 후보를 전부 들어가는 계좌 (Claude 없이)
   if (!st.shadow) { st.shadow = SC.newAccount(P); st.shadowFrom = st.shadowFrom || W.T[last]; }
   const sf = st.shadow.lastT == null ? last : W.T.findIndex((t) => t > st.shadow.lastT);
   if (sf >= 0) SC.simulate(W, P, st.shadow, sf, last, { collect: false });
   st.decisions = st.decisions.slice(-120);
-  const fresh = A.events.slice(); A.events = []; st.updatedAt = now.toISOString();
+  const fresh = A.events.slice().map((e) => ({ ...e, who: '조심형' })).concat(B2.acc.events.map((e) => ({ ...e, who: '적극형' }))); A.events = []; B2.acc.events = []; st.updatedAt = now.toISOString();
   writeFileSync(stFile, JSON.stringify(st));
 
   // ── 4) 앱용 결과
@@ -156,19 +173,25 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       positions, lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-40).reverse(),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
     shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), trades: S2.trades.slice(-10).reverse(), open: Object.keys(S2.pos).length }; })(),
+    bold: (() => { const BA = B2.acc, e2 = BA.equity.length ? BA.equity[BA.equity.length - 1][1] : BA.cash, dd = B2.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
+      const pos = Object.values(BA.pos).map((p) => { const m = mark(p.sym), u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
+        return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, lev: Math.round(m * p.qty / e2 * 100) / 100, upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be,
+          toStop: Math.round(Math.abs(m / p.stop - 1) * 1000) / 10, toLiq: Math.round(Math.abs(m / p.liq - 1) * 1000) / 10, ai: p.ai, barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / BAR)) }; });
+      return { inception: isoT(B2.inception), equity: e2, start: BA.start, ret: Math.round((e2 / BA.start - 1) * 10000) / 100, stats: SC.stats(BA), positions: pos, trades: BA.trades.slice(-20).reverse(),
+        decisions: B2.decisions.slice(-20).reverse(), aiStats: { asked: dd.length, enter: dd.filter((d) => d.decision === 'enter').length } }; })(),
     decisions: st.decisions.slice(-30).reverse(), aiStats: { asked: dec.length, enter: dec.filter((d) => d.decision === 'enter').length },
     log: A.log.slice(-12).reverse(),
     study, bt: { days, from: bdc.length ? bdc[0][0] : null, ret: Math.round((bt.equity[bt.equity.length - 1][1] / bt.start - 1) * 1000) / 10, metrics: bm, stats: bs, curve: bdc, recent: bt.trades.slice(-15).reverse() },
     coins: SC.COINS.filter((c) => series[c.sym]).map((c) => ({ sym: c.sym, name: c.name, price: mark(c.sym) })), errors
   };
   writeFileSync(join(dir, 'scalp-live.json'), JSON.stringify(out));
-  log('단타 모의: Claude ' + Math.round(eq / 1e4).toLocaleString('ko-KR') + '만 (' + out.live.ret + '%) · 엔진 혼자 ' + out.shadow.ret + '% (' + out.shadow.stats.trades + '번) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
+  log('단타 모의: 조심형 ' + out.live.ret + '% · 적극형 ' + out.bold.ret + '% (' + out.bold.stats.trades + '번) · 엔진 혼자 ' + out.shadow.ret + '% (' + out.shadow.stats.trades + '번) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
 
   // ── 5) 푸시
   const moves = fresh.filter((e) => e.kind === 'open' || e.kind === 'close' || e.kind === 'vault');
   if (sendPush && moves.length) {
     const side = (s) => (s === 'long' ? '롱' : '숏');
-    const lines = moves.slice(-5).map((e) => e.kind === 'open' ? `${side(e.side)} 진입 ${e.name} ${e.lev}배 · 손절 ${e.stop} · 목표 ${e.tp}` : e.kind === 'close' ? `${side(e.side)} 청산 ${e.name} ${e.pnl >= 0 ? '+' : ''}${Math.round(e.pnl / 1e4).toLocaleString('ko-KR')}만 (${e.reason})` : '금고: ' + e.msg);
+    const lines = moves.slice(-5).map((e) => (e.who ? e.who + ' ' : '') + (e.kind === 'open' ? `${side(e.side)} 진입 ${e.name} ${e.lev}배 · 손절 ${e.stop} · 목표 ${e.tp}` : e.kind === 'close' ? `${side(e.side)} 청산 ${e.name} ${e.pnl >= 0 ? '+' : ''}${Math.round(e.pnl / 1e4).toLocaleString('ko-KR')}만 (${e.reason})` : '금고: ' + e.msg));
     await push(env, { title: '단타 봇 ' + moves.length + '건', body: lines.join('\n'), url: './index.html#scalp', tag: 'snw-scalp' }, log);
   }
   return out;
