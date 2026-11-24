@@ -1604,7 +1604,7 @@
       <p class="muted xs">비용: 국내 수수료 0.015%+매도세 0.20%, 미국 수수료·환전 각 0.1%, 코인 0.1%, 슬리피지 0.05~0.1%. 신호는 종가, 체결은 다음 거래일 시가.</p></section>`;
     const cav = `<section class="card note"><p class="b">솔직한 한계</p>${(P.caveats || []).map((c) => `<p class="muted xs">· ${esc(c)}</p>`).join('')}
       <p class="muted xs">· 실제 돈으로 넘어가는 건 아래 "실전 전환 조건"을 모두 통과한 봇만, 아주 작은 금액부터.</p></section>`;
-    return head + summary + scalpEntry() + futuresEntry() + feed + office + detail + vault + cav;
+    return head + summary + scalpEntry() + futuresEntry() + filingsCard() + feed + office + detail + vault + cav;
   }
   function paperTeam(P, bots) {
     const T = P.team;
@@ -1910,6 +1910,8 @@
       ${row('미국 근원물가', f.coreCpiYoY, p1, f.coreCpiYoY && f.coreCpiYoY.date.slice(0, 7))}
       ${row('미국 실업률', f.unrate, p1, f.unrate && f.unrate.date.slice(0, 7))}
       ${row('한국 물가 (전년비)', e.krCpiYoY, p1)}
+      ${e.leading ? `<div class="kv"><span>한국 경기선행지수<br><span class="muted xs">통계청 · 100 위면 확장 · 3개월 ${e.leading.chg3 >= 0 ? '+' : ''}${e.leading.chg3} (오르면 코스피에 순풍)</span></span><b class="num ${dirClass(e.leading.value - e.leading.prev)}">${e.leading.value.toFixed(1)} <span class="muted xs">${esc(pd(e.leading.date))}</span></b></div>` : ''}
+      ${e.coincident ? `<div class="kv"><span>한국 경기동행지수<br><span class="muted xs">지금 경기 · 100 위면 확장</span></span><b class="num">${e.coincident.value.toFixed(1)} <span class="muted xs">${esc(pd(e.coincident.date))}</span></b></div>` : ''}
       ${row('미국 2년물 금리', f.us2y, p2)}
       ${f.curve || f.real10y || f.m2YoY || f.hySpread ? `<p class="sm" style="margin-top:12px"><b>경기·돈 흐름 신호</b></p>
       ${f.curve ? `<div class="kv"><span>장단기 금리차<br><span class="muted xs">10년−2년 · 마이너스면 경기침체 경고</span></span><b class="num ${f.curve.value < 0 ? 'down' : ''}">${f.curve.value > 0 ? '+' : ''}${f.curve.value.toFixed(2)}%p</b></div>` : ''}
@@ -2315,6 +2317,28 @@
     </svg>`;
   }
 
+
+  /* ---------- 공시 위험 확인 (DART·SEC) ---------- */
+  function loadFilings() {
+    if (S.filLoading || S.fil) return;
+    S.filLoading = true;
+    fetch('data/filings-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => { S.filLoading = false; if (j && j.items) { S.fil = j; if (['paper', 'hq'].indexOf(route()) >= 0) render(); } });
+  }
+  const filOf = (id) => S.fil && S.fil.items.find((x) => x.id === String(id).toUpperCase());
+  function filingsCard() {
+    loadFilings();
+    const F = S.fil; if (!F || !F.items.length) return '';
+    const bad = F.items.filter((x) => x.bad), good = F.items.filter((x) => !x.bad && x.good), checked = F.items.filter((x) => x.checked).length;
+    const line = (f) => `<p class="xs news-line"><span class="act ${f.level === 'bad' ? 'warn' : f.level === 'good' ? 'live' : 'neu'}">${f.level === 'bad' ? '주의' : f.level === 'good' ? '호재' : '공시'}</span> ${esc(f.date.slice(5).replace('-', '/'))} ${esc(f.note ? f.note + ' · ' + f.title : f.title)}${f.url ? ` <a href="${esc(f.url)}" target="_blank" rel="noopener">원문</a>` : ''}</p>`;
+    const item = (x) => `<div class="fil"><div class="row between"><p class="b">${esc(x.name)} <span class="muted xs">${esc(x.id)} · ${x.src}</span></p>${x.bad ? `<span class="act warn">위험 공시 ${x.bad}</span>` : x.good ? '<span class="act live">호재 공시</span>' : ''}</div>
+      <p class="muted xs" style="margin:2px 0 0">${esc(x.why.join(' · '))}</p>${x.filings.filter((f) => f.level !== 'info').slice(0, 3).map(line).join('')}</div>`;
+    return `<section class="card"><h2>봇이 사려는 종목 공시 확인</h2>
+      <p class="muted xs">보유·주문 대기·매수 후보 ${F.items.length}종목의 최근 30일 공시를 DART(한국)·SEC(미국)에서 확인했어요. 유상증자·전환사채·감사의견·상장폐지 같은 공시는 주가에 나쁠 수 있어요.</p>
+      ${bad.length ? bad.map(item).join('') : '<p class="sm" style="margin-top:8px">위험 공시가 있는 종목은 없어요 ✓</p>'}
+      ${good.length ? `<details class="pro-inline"><summary>호재 공시 ${good.length}종목 보기</summary>${good.map(item).join('')}</details>` : ''}
+      <p class="muted xs" style="margin-top:6px">${new Date(F.generatedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })} 확인 · ${checked}종목 공시 받음</p></section>`;
+  }
+
   // 모의투자 방 기록: 지금 후보 종목과 이유 (단타·선물·주식 봇 모두)
   function paperCands(PP) {
     const out = [], SD = { long: '롱', short: '숏' }, V = { enter: '진입', skip: '건너뜀', error: '응답 실패', late: '늦어서 건너뜀', nokey: '키 없음' };
@@ -2345,7 +2369,9 @@
       if (v) out.push({ cls: v.result === 'approved' ? 'ok' : '', html: `<b>선물·AI 회의</b> ${esc(v.name)} ${SD[v.side]} · ${v.result === 'approved' ? '만장일치 진입' : '보류'}`, why: esc(v.votes.map((x) => x.name + ': ' + x.reason).join(' / ')) });
     }
     // 주식·코인 봇: 다음 거래일 주문 대기
-    PP.bots.filter((b) => !b.retired && b.live).forEach((b) => (b.live.orders || []).slice(0, 2).forEach((o) => out.push({ cls: o.side === 'sell' ? 'alert' : '', html: `<b>${esc(b.code)}</b> ${esc(o.name)} ${o.side === 'buy' ? '매수' : '매도'} 대기`, why: esc(o.why || '') })));
+    loadFilings();
+    PP.bots.filter((b) => !b.retired && b.live).forEach((b) => (b.live.orders || []).slice(0, 2).forEach((o) => { const fl = filOf(o.id), badF = fl && fl.bad ? fl.filings.find((f) => f.level === 'bad') : null;
+      out.push({ cls: o.side === 'sell' || badF ? 'alert' : '', html: `<b>${esc(b.code)}</b> ${esc(o.name)} ${o.side === 'buy' ? '매수' : '매도'} 대기${badF ? ' · <span class="act warn">공시 주의</span>' : ''}`, why: esc((badF ? (badF.note || badF.title) + ' (' + badF.date.slice(5) + ') · ' : '') + (o.why || '')) }); }));
     // 오늘 체결
     (PP.today || []).slice(-2).reverse().forEach((e) => out.push({ cls: e.side === 'vault' ? 'alert' : 'ok', html: `<b>${esc(e.botCode || '')}</b> ${e.side === 'buy' ? '매수 체결' : e.side === 'sell' ? '매도 체결' : '금고'} ${esc(e.name || '')} <span class="muted">${esc((e.d || '').slice(5))}</span>`, why: esc(e.why || e.reason || '') }));
     return out;

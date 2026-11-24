@@ -92,6 +92,19 @@ export async function fetchEcos(key, { fetchImpl = fetch, now = new Date() } = {
     const p = rows[rows.length - 2], pyago = rows.find((r) => r.t === String(Number(p.t.slice(0, 4)) - 1) + p.t.slice(4));
     out.krCpiYoY = { value: Math.round((last.v / yago.v - 1) * 1000) / 10, date: last.t.slice(0, 4) + '-' + last.t.slice(4), prev: pyago ? Math.round((p.v / pyago.v - 1) * 1000) / 10 : null };
   } catch (e) { errors.push('물가: ' + e.message); }
+  // 경기종합지수 (통계청 작성 · ECOS 901Y067): 선행지수·동행지수 순환변동치 — 100 위면 확장, 아래면 수축
+  try {
+    const il = await getJson('https://ecos.bok.or.kr/api/StatisticItemList/' + encodeURIComponent(key) + '/json/kr/1/100/901Y067', fetchImpl);
+    const items = (il.StatisticItemList && il.StatisticItemList.row) || [];
+    const find = (re) => (items.find((r) => re.test(String(r.ITEM_NAME).replace(/\s/g, ''))) || {}).ITEM_CODE;
+    for (const [k, re] of [['leading', /선행지수순환변동치/], ['coincident', /동행지수순환변동치/]]) {
+      const code = find(re); if (!code) { errors.push(k + ': 항목 없음'); continue; }
+      const rows = await ecosRows(key, '901Y067', 'M', yyyymm(new Date(now - 430 * 864e5)), yyyymm(now), code, fetchImpl);
+      if (rows.length < 2) { errors.push(k + ': 값 부족'); continue; }
+      const L = rows[rows.length - 1], Pv = rows[rows.length - 2], P3 = rows[Math.max(0, rows.length - 4)];
+      out[k] = { value: L.v, prev: Pv.v, chg3: Math.round((L.v - P3.v) * 10) / 10, date: L.t.slice(0, 4) + '-' + L.t.slice(4) };
+    }
+  } catch (e) { errors.push('경기종합지수: ' + e.message); }
   out.errors = errors;
   return out;
 }

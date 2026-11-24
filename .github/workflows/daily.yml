@@ -55,6 +55,12 @@ jobs:
           PUSH_SUBSCRIPTIONS: ${{ secrets.PUSH_SUBSCRIPTIONS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: 공시 위험 확인 (DART·SEC)
+        run: node connect/filings.mjs
+        continue-on-error: true
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
       - name: 알림·모의투자 기록 저장
         run: |
           git config user.name "sijangnalssi-bot"
@@ -68,6 +74,7 @@ jobs:
           mkdir -p _site
           cp -r index.html styles.css manifest.webmanifest sw.js icons js _site/
           mkdir -p _site/data && cp data/futures-live.json data/policy-live.json _site/data/ 2>/dev/null || true
+          cp data/filings-live.json _site/data/ 2>/dev/null || true
           cp data/futures-live.json _site/data/ 2>/dev/null || true
           rm -f _site/js/holdings-live.js
           echo "window.SNW_CONFIG = { vapidPublicKey: '${VAPID_PUBLIC_KEY}' };" > _site/js/config.js
