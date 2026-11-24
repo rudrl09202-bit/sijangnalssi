@@ -232,6 +232,7 @@
     if (b) ind.splice(3, 0, hcard('비트코인', won(b.krw), sign(b.chg24, 2) + '%', dirClass(b.chg24)));
     return `
       <header class="top"><div><p class="kicker">${esc(todayLabel())}</p><h1>시장날씨</h1></div>${tools()}</header>${demoBanner()}
+      ${guideCard()}
       ${hero}
       <a class="card link-card hq-entry" href="#hq"><div class="card-head"><div><p class="kicker">본부</p><p class="b">내 자산 · 모의투자 · 시장 · 실전 대기실을 한눈에</p></div>${CHEV}</div></a>
       <section class="card">
@@ -436,10 +437,12 @@
     const liveSum = live.reduce((t, r) => t + (r.v || 0), 0) + (REAL.cashKrw || 0);
     const gap = liveSum - REAL.totalKrw;
     if (Math.abs(gap) < REAL.totalKrw * 0.1) return '';
+    if (live.some((r) => r.v == null)) return ''; // 가격 못 받은 종목 안내가 따로 나옴
     const diff = live.filter((r) => r.v == null || Math.abs(r.v - r.h.syncValue) > Math.max(r.h.syncValue * 0.15, 100000))
       .map((r) => esc(r.h.name) + ' ' + (r.v == null ? '가격 없음' : won(r.v)) + ' / 동기화 ' + won(r.h.syncValue));
-    return `<section class="card note"><p class="b">동기화 총액과 차이 ${won(gap)}</p>
-      <p class="muted sm">동기화 때 계산한 총액은 ${won(REAL.totalKrw)}입니다. 차이 나는 종목: ${diff.join(' · ') || '없음'}</p></section>`;
+    return `<details class="card note"><summary><span class="b">합계가 거래소 숫자와 ${won(Math.abs(gap))} 달라요</span><span class="pro-tag">왜 그런지 보기</span></summary>
+      <p class="muted sm" style="margin-top:8px">가격을 아직 못 받은 종목이 있거나, 마지막 동기화 이후 가격이 많이 움직였을 때 생겨요. 잠시 뒤 새로고침하면 대부분 맞춰져요.</p>
+      <p class="muted xs">동기화 때 총액 ${won(REAL.totalKrw)} · 차이 나는 종목: ${diff.join(' · ') || '없음'}</p></details>`;
   }
   // 토스 해외주식 원금을 토스 앱과 맞추기 (토스가 원화 원금 합계를 안 보내 줄 때 직접 입력)
   function tossCostCard(rows) {
@@ -515,13 +518,14 @@
       </section>`;
     };
     const srcOf = (list) => Array.from(new Set(list.map((r) => r.h.source))).join(' · ');
-    const coinBlock = block('CRYPTO · 코인', srcOf(coins) + ' · 실시간 시세', coins, coinV);
-    const stockBlock = block('EQUITY · 주식', srcOf(stocks) + ' · 동기화 시점 가격', stocks, stockV);
+    const coinBlock = block('코인', srcOf(coins) + ' · 실시간 시세', coins, coinV);
+    const stockBlock = block('주식', srcOf(stocks) + ' · 동기화 시점 가격', stocks, stockV);
 
     return `
       <header class="top"><div><p class="kicker">${esc((LIVE ? LIVE.sources : []).join(' · ') || '직접 입력')}</p><h1>내 자산</h1></div>${tools()}</header>${demoBanner()}
-      ${vaultCard()}${summary}${snowCard()}${calMini()}${reviewMini()}${guideBox()}${seg}
+      ${vaultCard()}${summary}${guideBox()}${seg}
       ${tab !== 'stock' ? coinBlock : ''}${tab !== 'coin' ? stockBlock : ''}
+      ${snowCard()}${calMini()}${reviewMini()}
       <p class="muted xs pad">금액 단위: 원 (현재가는 미국 주식만 달러). 업종은 분류표로 자동 지정되며, 주식 아래 칸에서 바꿀 수 있습니다. 점수 = 다중 조건 진단점수(100점). 누르면 근거를 볼 수 있습니다. ${S.priceSource ? '코인 시세: ' + esc(S.priceSource) + '.' : ''}</p>
       ${syncInfo()}${addBox()}`;
   }
@@ -1506,24 +1510,32 @@
     </svg>
     <div class="legend xs">${norm.map((l) => `<span><i class="eq-key ${l.cls || ''}"></i>${esc(l.name)} <b class="num ${dirClass(l.p[l.p.length - 1][1] - 100)}">${pct(l.p[l.p.length - 1][1] - 100, 0)}</b></span>`).join('')}</div>`;
   }
+  // 전문가용 내용은 접어 두기 (처음 보는 사람은 핵심만, 전문가는 펼쳐서)
+  function proFold(title, inner) {
+    const body = String(inner || '').replace(/^\s*<section class="card[^"]*">/, '').replace(/<\/section>\s*$/, '');
+    return `<details class="card pro"><summary><span class="b">${title}</span><span class="pro-tag">전문가용 · 펼치기</span></summary><div class="pro-body">${body}</div></details>`;
+  }
+  const kDate = (d) => { const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? Number(m[2]) + '월 ' + Number(m[3]) + '일' : String(d || ''); };
   const BENCH_NAME = { spx: 'S&P500(원화)', kospi: '코스피', btc: '비트코인(원화)' };
   function metricGrid(m, opt) {
     if (!m) return '<p class="muted sm">기록이 쌓이면 성적표가 나옵니다.</p>';
     const cell = (k, v, cls, tip) => `<div class="mg"><p class="muted xs">${k}</p><p class="num b ${cls || ''}">${v}</p>${tip ? `<p class="muted xs">${tip}</p>` : ''}</div>`;
     const cells = [
-      cell('연 수익률(CAGR)', pct(m.cagr), dirClass(m.cagr), m.years + '년'),
-      cell('최대 낙폭', pct(m.mdd), m.mdd < -25 ? 'warn' : '', '회복까지 최장 ' + m.longestDD + '일'),
-      cell('샤프 지수', m.sharpe == null ? '—' : m.sharpe, '', '1 넘으면 좋음'),
+      cell('1년 평균 수익', pct(m.cagr), dirClass(m.cagr), m.years + '년 평균 (CAGR)'),
+      cell('가장 크게 떨어진 폭', pct(m.mdd), m.mdd < -25 ? 'warn' : '', '회복까지 최장 ' + m.longestDD + '일')
+    ];
+    const pro = [
+      cell('샤프 지수', m.sharpe == null ? '—' : m.sharpe, '', '흔들림 대비 수익 · 1 넘으면 좋음'),
       cell('소르티노', m.sortino == null ? '—' : m.sortino, '', '하락만 따진 샤프'),
       cell('칼마', m.calmar == null ? '—' : m.calmar, '', '수익 ÷ 최대 낙폭'),
-      cell('변동성(연)', m.vol + '%', '', '')
+      cell('변동성(연)', m.vol + '%', '', '1년에 흔들리는 정도')
     ];
     if (!(opt && opt.noTrades) && m.trades) cells.push(
       cell('거래 수', m.trades + '번', '', '평균 ' + m.avgDays + '일 보유'),
       cell('승률', m.winRate + '%', '', '평균 ' + pct(m.avgWin) + ' / ' + pct(m.avgLoss)),
       cell('손익비(PF)', m.pf == null ? '—' : m.pf, m.pf >= 1.3 ? 'up' : m.pf < 1 ? 'down' : '', '총이익 ÷ 총손실'),
       cell('기대값', m.expR == null ? '—' : (m.expR > 0 ? '+' : '') + m.expR + 'R', '', '한 번에 건 위험 대비'));
-    return `<div class="mgrid">${cells.join('')}</div>`;
+    return `<div class="mgrid">${cells.join('')}</div><details class="pro-inline"><summary>전문가 지표 더 보기</summary><div class="mgrid">${pro.join('')}</div></details>`;
   }
   function heatMonths(monthly) {
     const ys = Array.from(new Set(Object.keys(monthly || {}).map((k) => k.slice(0, 4)))).sort().reverse().slice(0, 10);
@@ -1564,9 +1576,9 @@
     const tLive = P.team.live && P.team.live.metrics, tBt = P.team.bt.full;
     const totalStart = P.startCash * bots.length, totalNow = bots.reduce((t, b) => t + (b.live ? b.live.equity : P.startCash), 0);
     const summary = `<section class="card panel">
-      <div class="row between"><p class="kicker">봇 ${bots.length}개 합산 · 가상 계좌</p><p class="kicker num">${esc(P.asOf)} 기준</p></div>
+      <div class="row between"><p class="kicker">봇 ${bots.length}개 합산 · 가상 계좌</p><p class="kicker num">${kDate(P.asOf)} 기준</p></div>
       <p class="nav num">${won(totalNow)}</p>
-      <p class="hero-sub ${dirClass(totalNow - totalStart)}">${totalNow >= totalStart ? '+' : ''}${won(totalNow - totalStart)} (${pct((totalNow / totalStart - 1) * 100, 2)})</p><p class="muted xs">${esc(P.inception)}부터 모의 매매 중</p>
+      <p class="hero-sub ${dirClass(totalNow - totalStart)}">${totalNow >= totalStart ? '+' : ''}${won(totalNow - totalStart)} (${pct((totalNow / totalStart - 1) * 100, 2)})</p><p class="muted xs">${kDate(P.inception)}부터 모의 매매 중 · 실제 돈이 아닌 가상 1억씩</p>
       <div class="kv"><span>10년 검증 · 팀</span><b class="num ${dirClass(tBt && tBt.cagr)}">${tBt ? pct(tBt.cagr) + '/년' : '—'} <span class="muted xs">낙폭 ${tBt ? pct(tBt.mdd, 0) : '—'}</span></b></div>
       <div class="kv"><span>S&P500만 샀다면</span><b class="num">${P.bench.spx ? pct(P.bench.spx.metrics.cagr) + '/년' : '—'} <span class="muted xs">낙폭 ${P.bench.spx ? pct(P.bench.spx.metrics.mdd, 0) : '—'}</span></b></div>
       <div class="kv"><span>코스피만 샀다면</span><b class="num">${P.bench.kospi ? pct(P.bench.kospi.metrics.cagr) + '/년' : '—'} <span class="muted xs">낙폭 ${P.bench.kospi ? pct(P.bench.kospi.metrics.mdd, 0) : '—'}</span></b></div>
@@ -1580,7 +1592,7 @@
       ${all.map((b) => botTile(b, sel === b.id)).join('')}</div>`;
     const detail = sel === 'team' ? paperTeam(P, all) : paperBot(P, all.find((b) => b.id === sel) || bots[0], tab);
     void retired;
-    const vault = `<section class="card"><h2>리스크 금고 (모든 봇 공통 규칙)</h2>
+    const vault = `<section class="card"><h2>안전 규칙 (모든 봇 공통)</h2><p class="muted xs">봇이 어떤 판단을 해도 이 규칙은 넘을 수 없어요.</p>
       <div class="kv"><span>한 종목 최대 비중</span><b>${P.vault.maxPosPct}%</b></div>
       <div class="kv"><span>한 업종 최대 비중</span><b>${P.vault.maxSectorPct}%</b></div>
       <div class="kv"><span>하루 손실 차단</span><b>${P.vault.dayLossStop}% 넘으면 다음 날 신규 진입 금지</b></div>
@@ -1603,12 +1615,12 @@
     return `<section class="card"><h2>10년 검증 · 팀 vs 시장</h2>
         ${lineSvg([{ name: '팀(퇴출 봇 제외, 균등)', pts: T.bt.curve, cls: 'l1' }, P.bench.spx && { name: BENCH_NAME.spx, pts: P.bench.spx.curve, cls: 'l2' }, P.bench.kospi && { name: '코스피', pts: P.bench.kospi.curve, cls: 'l3' }], { log: true, label: '팀 자산 곡선' })}
         ${metricGrid(T.bt.full, { noTrades: true })}
-        ${T.bt.vs ? `<p class="muted xs">S&P500 대비 — 베타 ${T.bt.vs.beta} · 상관 ${T.bt.vs.corr} · 연 알파 ${pct(T.bt.vs.alphaYr)}. 베타가 1보다 작으면 시장보다 덜 흔들림.</p>` : ''}
+        ${T.bt.vs ? `<details class="pro-inline"><summary>시장과 얼마나 같이 움직이나 (전문가용)</summary><p class="muted xs">S&P500 대비 — 베타 ${T.bt.vs.beta} · 상관 ${T.bt.vs.corr} · 연 알파 ${pct(T.bt.vs.alphaYr)}. 베타가 1보다 작으면 시장보다 덜 흔들려요.</p></details>` : ''}
       </section>
-      <section class="card"><h2>봇 순위표 (10년 검증 · 표본 밖 = 최근 30% 구간)</h2>${board}
+      ${proFold('봇 순위표 · 10년 검증', `<section class="card"><div class="lb-scroll">${board}</div>
         <p class="muted xs">"표본 밖"은 규칙을 만들 때 보지 않은 최근 구간의 연 수익률입니다. 여기서도 버는 봇이 진짜에 가깝습니다.</p>
-        ${bots.some((b) => b.bt.robust) ? `<p class="muted xs">승자 제외 검사: 10년 동안 가장 많이 오른 종목 ${bots.find((b) => b.bt.robust).bt.robust.dropped}개(${esc((P.robustNames || []).slice(0, 5).join(', '))} 등)를 빼고 다시 돌린 연 수익률 — ${bots.filter((b) => b.bt.robust).map((b) => esc(b.code) + ' ' + pct(b.bt.robust.cagr)).join(' · ')}. 원래 숫자와 차이가 클수록 "지금 와서 아는 승자" 덕을 본 것입니다.</p>` : ''}</section>
-      ${studyCard(P)}
+        ${bots.some((b) => b.bt.robust) ? `<p class="muted xs">승자 제외 검사: 10년 동안 가장 많이 오른 종목 ${bots.find((b) => b.bt.robust).bt.robust.dropped}개(${esc((P.robustNames || []).slice(0, 5).join(', '))} 등)를 빼고 다시 돌린 연 수익률 — ${bots.filter((b) => b.bt.robust).map((b) => esc(b.code) + ' ' + pct(b.bt.robust.cagr)).join(' · ')}. 원래 숫자와 차이가 클수록 "지금 와서 아는 승자" 덕을 본 것입니다.</p>` : ''}</section>`)}
+      ${S.ui.noStudy ? '' : proFold('앱 점수가 실제로 맞았나 · 10년 검증', studyCard(P))}
       ${T.bt.mc ? mcCard(T.bt.mc, '팀') : ''}
       ${T.live && T.live.curve.length >= 5 ? `<section class="card"><h2>모의 계좌 · 팀</h2>${lineSvg([{ name: '팀 모의', pts: T.live.curve, cls: 'l1' }], { label: '팀 모의 곡선' })}${T.live.curve.length >= 20 ? metricGrid(T.live.metrics, { noTrades: true }) : '<p class="muted xs">20거래일이 지나면 성적표가 나옵니다.</p>'}</section>` : ''}`;
   }
@@ -1619,16 +1631,16 @@
     const A = S2.alert || {};
     return `<section class="card"><h2>앱 점수 검증 · 10년 (${esc(S2.from.slice(0, 4))}~${esc(S2.to.slice(0, 4))})</h2>
       <p class="muted xs">${S2.dates}개 시점마다 모든 종목을 채점하고, 그 뒤 60거래일(약 3개월) 동안 같은 날 평균보다 얼마나 더 올랐는지 비교했습니다 — 총 ${nf(S2.obs)}건.</p>
-      <div class="lb"><div class="lb-r th st-r"><span>점수 항목</span><span class="right">IC</span><span class="right">적중</span><span class="right">상위</span><span class="right">하위</span><span class="right">판정</span></div>
+      <div class="lb-scroll"><div class="lb"><div class="lb-r th st-r"><span>점수 항목</span><span class="right">IC</span><span class="right">적중</span><span class="right">상위</span><span class="right">하위</span><span class="right">판정</span></div>
       ${S2.factors.map((f) => { const v = verdict(f.ic60); return `<div class="lb-r st-r"><span class="xs">${esc(f.name)}</span><span class="right num">${f.ic60.toFixed(3)}</span><span class="right num">${f.hit}%</span>
-        <span class="right num ${dirClass(f.q[4])}">${pct(f.q[4])}</span><span class="right num ${dirClass(f.q[0])}">${pct(f.q[0])}</span><span class="right"><span class="act ${v[1]}">${v[0]}</span></span></div>`; }).join('')}</div>
+        <span class="right num ${dirClass(f.q[4])}">${pct(f.q[4])}</span><span class="right num ${dirClass(f.q[0])}">${pct(f.q[0])}</span><span class="right"><span class="act ${v[1]}">${v[0]}</span></span></div>`; }).join('')}</div></div>
       <p class="muted xs">IC = 점수 순위와 이후 수익 순위의 상관. 0.05 넘으면 월가에서도 쓸 만한 신호, 0 근처면 동전 던지기. 적중 = 시점별로 IC가 플러스였던 비율. 상위·하위 = 점수 상위 20%·하위 20% 종목의 3개월 초과수익.</p>
       <div class="kv"><span>지금 알림 조건 (70점 이상 + 분할 매수 검토)<br><span class="muted xs">${nf(A.n || 0)}번 해당 · 3개월 뒤 평균보다 높았던 비율 ${A.win60 == null ? '—' : A.win60 + '%'}</span></span>
         <b class="num ${dirClass(A.x60)}">${pct(A.x60, 2)}<br><span class="muted xs">나머지 ${pct(A.restX60, 2)}</span></b></div>
       <p class="muted xs">${esc(S2.note || '')}</p></section>`;
   }
   function mcCard(mc, who) {
-    return `<section class="card"><h2>몬테카를로 · 앞으로 1년 (과거 수익을 500번 섞어 본 결과)</h2>
+    return `<section class="card"><h2>앞으로 1년, 어느 정도 범위일까</h2><p class="muted xs">과거 수익을 500번 섞어 계산한 예상 범위예요 (몬테카를로).</p>
       <div class="grid3">${mini('나쁜 해 (하위 5%)', pct(mc.ret5, 0), '최대 낙폭 ' + pct(mc.mdd5, 0))}${mini('보통 해 (중간)', pct(mc.ret50, 0), '보통 낙폭 ' + pct(mc.mdd50, 0))}${mini('좋은 해 (상위 5%)', pct(mc.ret95, 0), '1년 손실 확률 ' + mc.lossProb + '%')}</div>
       <p class="muted xs">${esc(who)}에게 "나쁜 해"가 와도 버틸 수 있는 금액만 실전에 넣는 게 원칙입니다.</p></section>`;
   }
@@ -1887,11 +1899,12 @@
     if (!P) return `<section class="card"><h2>금리·물가</h2><p class="muted sm">ECOS·FRED 키를 넣으면 한국·미국 기준금리와 물가가 4시간마다 자동으로 바뀌어요. 지금은 저장된 값을 보여줘요.</p>
       ${SNAP.rates.slice(0, 2).map((r) => `<div class="kv"><span>${esc(r.name)}</span><b class="num">${esc(r.rate)}</b></div>`).join('')}</section>`;
     const f = P.fred || {}, e = P.ecos || {};
-    const row = (label, o, fmt, sub) => o ? `<div class="kv"><span>${label}</span><b class="num">${fmt(o.value)}${o.prev != null && o.prev !== o.value ? ` <span class="muted xs">직전 ${fmt(o.prev)}</span>` : ''} <span class="muted xs">${esc(sub || o.date)}</span></b></div>` : '';
+    const pd = (d) => { const m = String(d || '').match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/); return !m ? String(d || '') : m[3] ? Number(m[2]) + '/' + Number(m[3]) : Number(m[2]) + '월분'; };
+    const row = (label, o, fmt, sub) => o ? `<div class="kv"><span>${label}</span><b class="num">${fmt(o.value)}${o.prev != null && o.prev !== o.value ? ` <span class="muted xs">직전 ${fmt(o.prev)}</span>` : ''} <span class="muted xs">${esc(pd(sub || o.date))}${/변경/.test(sub || '') ? ' 변경' : ''}</span></b></div>` : '';
     const p2 = (v) => v.toFixed(2) + '%', p1 = (v) => v.toFixed(1) + '%';
     const up = SNAP.events.filter((x) => x.live && R.daysUntil(x.date, now()) >= 0).slice(0, 3);
     return `<section class="card"><div class="row between"><h2>금리·물가</h2><p class="muted xs">FRED·ECOS 자동 · ${new Date(P.fetchedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</p></div>
-      ${f.fedUpper ? `<div class="kv"><span>미국 기준금리</span><b class="num">${f.fedLower ? f.fedLower.value.toFixed(2) + '~' : ''}${p2(f.fedUpper.value)} <span class="muted xs">${esc(f.fedUpper.date)}</span></b></div>` : ''}
+      ${f.fedUpper ? `<div class="kv"><span>미국 기준금리</span><b class="num">${f.fedLower ? f.fedLower.value.toFixed(2) + '~' : ''}${p2(f.fedUpper.value)} <span class="muted xs">${esc(pd(f.fedUpper.date))}</span></b></div>` : ''}
       ${row('한국 기준금리', e.bokRate, p2, e.bokRate && e.bokRate.date + ' 변경')}
       ${row('미국 물가 (전년비)', f.cpiYoY, p1, f.cpiYoY && f.cpiYoY.date.slice(0, 7))}
       ${row('미국 근원물가', f.coreCpiYoY, p1, f.coreCpiYoY && f.coreCpiYoY.date.slice(0, 7))}
@@ -1959,7 +1972,7 @@
         ? `<p class="sm" style="margin-top:8px">규칙만으로 15분봉 단타를 하면 <b>수수료를 못 이기고 손실</b>이에요. 이 기간 수수료만 ${man(bs.fees)}였어요.${allNeg ? ' 손절·목표·보유시간·셋업을 바꿔도 모두 손실이라, 숫자를 맞추지 않고 그대로 두었어요.' : ''}</p>`
         : `<p class="sm" style="margin-top:8px">최근 ${B.days}일은 엔진만으로도 수익이었어요. 다만 기간이 짧고 수수료가 ${man(bs.fees)}나 들어서, 시장 분위기가 바뀌면 쉽게 손실로 돌아설 수 있어요.</p>`; })()}
       <p class="muted xs">그래서 이 봇의 실험은 하나예요: <b>Claude가 엔진 후보 중 나쁜 걸 걸러내서 손실을 수익으로 바꿀 수 있나?</b> 위의 "엔진 혼자" 계좌와 비교하면 알 수 있어요.</p>
-      ${(D.study || []).length ? `<div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>설정</th><th>전체</th><th>앞 절반</th><th>뒤 절반</th><th>거래</th></tr></thead><tbody>${D.study.map((r) => `<tr><td>${esc(r.name)}</td><td class="${dirClass(r.all.ret)}">${pct(r.all.ret, 1)}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 1)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 1)}</td><td>${r.all.n}</td></tr>`).join('')}</tbody></table></div>` : ''}</section>`;
+      ${(D.study || []).length ? `<details class="pro-inline"><summary>설정을 바꿔 본 결과 (전문가용)</summary><div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>설정</th><th>전체</th><th>앞 절반</th><th>뒤 절반</th><th>거래</th></tr></thead><tbody>${D.study.map((r) => `<tr><td>${esc(r.name)}</td><td class="${dirClass(r.all.ret)}">${pct(r.all.ret, 1)}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 1)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 1)}</td><td>${r.all.n}</td></tr>`).join('')}</tbody></table></div></details>` : ''}</section>`;
     const c = D.cfg;
     const rules = `<section class="card"><h2>규칙</h2>
       <div class="kv"><span>셋업</span><b>추세 눌림목 · 수축 후 돌파 (롱·숏)</b></div>
@@ -2004,6 +2017,44 @@
       ${policyCard()}`;
   }
   /* ---------- 화면: 더보기 ---------- */
+
+  /* ---------- 처음 안내 · 쉬운 용어 사전 ---------- */
+  function guideCard() {
+    let done = false; try { done = !!localStorage.getItem('snw.guide'); } catch (err) { /* 무시 */ }
+    if (done) return '';
+    return `<section class="card guide"><p class="b">처음 오셨나요? 이렇게 보면 돼요</p>
+      <ol class="guide-list"><li><b>오늘의 시장날씨</b> — 지금 시장 분위기를 날씨로 알려줘요. 맑으면 유리, 비·폭풍이면 조심.</li>
+      <li><b>내 자산</b> — 가진 종목마다 "유지·매수 검토·손절 점검" 같은 할 일을 알려줘요.</li>
+      <li><b>투자봇</b> — 가상 돈 1억으로 규칙대로 사고파는 실험이에요. 실제 돈은 움직이지 않아요.</li></ol>
+      <p class="muted xs">모르는 말은 더보기 → <a href="#words">쉬운 용어 사전</a>에서 찾아보세요.</p>
+      <button class="btn primary" data-act="guide-done">알겠어요</button></section>`;
+  }
+  const WORDS = [
+    ['손절', '정해둔 만큼 떨어지면 손해를 받아들이고 파는 것. 더 큰 손실을 막는 안전벨트예요.'],
+    ['낙폭 (최대 낙폭)', '가장 높았을 때보다 얼마나 떨어졌는지. -20%면 1억이 8천만 원까지 내려갔다는 뜻이에요.'],
+    ['분할 매수', '한 번에 다 사지 않고 몇 번에 나눠 사는 것. 타이밍 실수를 줄여요.'],
+    ['비중', '내 전체 자산 중 그 종목이 차지하는 몫. 한 종목이 40%를 넘으면 위험해요.'],
+    ['롱 / 숏', '롱은 오르면 버는 쪽, 숏은 내리면 버는 쪽에 거는 거예요. 선물에서만 숏이 돼요.'],
+    ['선물 · 무기한 선물', '코인을 직접 사지 않고 가격 오르내림에만 거는 상품. 원금보다 크게 잃을 수 있어요.'],
+    ['레버리지', '내 돈보다 크게 거는 배수. 3배면 1% 움직일 때 3% 벌거나 잃어요.'],
+    ['청산 (강제 청산)', '선물에서 손실이 증거금만큼 커지면 거래소가 강제로 정리하는 것. 돈을 다 잃어요. 그래서 손절을 먼저 걸어요.'],
+    ['펀딩비', '선물을 들고 있으면 8시간마다 주고받는 작은 비용. 보통 롱이 내고 숏이 받아요.'],
+    ['모의투자', '진짜 돈 대신 가상 돈으로 하는 연습. 결과는 진짜 시세로 계산해요.'],
+    ['백테스트', '같은 규칙을 과거 데이터에 돌려 봤을 때의 성적. 과거 성적이 미래를 보장하진 않아요.'],
+    ['표본 밖 검증', '규칙을 만들 때 보지 않은 최근 기간으로 다시 시험한 결과. 여기서도 벌어야 믿을 만해요.'],
+    ['승률 · 손익비(PF)', '승률은 이긴 거래 비율, 손익비는 번 돈 ÷ 잃은 돈. 손익비가 1보다 커야 결국 남아요.'],
+    ['R (위험 단위)', '한 번 거래에서 잃기로 정한 금액. +2R이면 그 금액의 2배를 벌었다는 뜻이에요.'],
+    ['이동평균선 (EMA)', '최근 며칠 평균 가격을 이은 선. 가격이 이 선 위면 오르는 흐름이라고 봐요.'],
+    ['RSI', '최근에 얼마나 많이 올랐나/내렸나를 0~100으로. 70 넘으면 과열, 30 아래면 과매도.'],
+    ['ATR', '하루(또는 한 봉)에 보통 얼마나 움직이는지. 손절 폭을 정할 때 써요.'],
+    ['봉 (15분봉·4시간봉·일봉)', '그 시간 동안의 시작·최고·최저·마지막 가격을 막대 하나로 그린 것.'],
+    ['샤프 지수', '흔들림에 비해 수익이 얼마나 좋았나. 1이 넘으면 괜찮은 편이에요.'],
+    ['CAGR (연평균 수익률)', '여러 해 동안 매년 평균 몇 %씩 불었는지.']
+  ];
+  function viewWords() {
+    return `<header class="top"><div><a href="#more" class="back">‹ 더보기</a><p class="kicker">모르는 말을 한 줄로</p><h1>쉬운 용어 사전</h1></div></header>
+      <section class="card words">${WORDS.map(([k, v]) => `<div class="word"><p class="b">${esc(k)}</p><p class="sm">${esc(v)}</p></div>`).join('')}</section>`;
+  }
   function viewMore() {
     const dark = document.documentElement.dataset.theme === 'dark';
     const tg = (act, on, ic, t, sub) => `<button class="lrow" data-act="${act}" role="switch" aria-checked="${on}"><span class="ic">${ic}</span><span class="grow"><p class="t">${t}</p><p class="s">${sub}</p></span><span class="toggle ${on ? 'on' : ''}"></span></button>`;
@@ -2012,9 +2063,13 @@
         ${lrow('#journal', IC.journal, '투자 일지', '산 이유·판 이유 적고 돌아보기')}
         ${lrow('#calendar', IC.cal, '자산 달력', '하루하루 내 자산 변화')}
         ${lrow('#review', IC.review, '포트폴리오 평가', '투자성향별 비중과 냉정한 점수')}</section>
+      <section class="card menu-group"><h2>도움말</h2>
+        ${lrow('#words', IC.info, '쉬운 용어 사전', '낙폭·손절·롱숏·레버리지가 뭔지 한 줄로')}
+        <button class="lrow" data-act="guide-reset"><span class="ic">${IC.info}</span><span class="grow"><p class="t">처음 안내 다시 보기</p><p class="s">홈에 사용법 안내 카드를 다시 띄워요</p></span></button></section>
       <section class="card menu-group"><h2>알림</h2>
         ${lrow('#alerts', IC.bell, '매수 후보 알림', '휴대폰 알림 켜기·테스트')}</section>
       <section class="card menu-group"><h2>화면</h2>
+        ${tg('bigtext', !!(document.documentElement.classList && document.documentElement.classList.contains('big')), IC.info, '글씨 크게', '모든 화면 글씨를 크게')}
         ${tg('theme', dark, IC.moon, '어두운 화면', '밤에 눈이 편하게')}
         ${tg('demo', !!S.demo, IC.present, '발표 모드', '실제 자산 대신 예시 데이터로 보여주기')}</section>
       <section class="card menu-group"><h2>정보</h2>
@@ -2387,7 +2442,7 @@
       const pos = [[0, 0], [3, 0], [0, 3], [2.2, 3.6]];
       paper = {
         href: '#paper', kick: 'ROOM 2', title: '모의투자 방', wallName: 'PAPER BOTS', series: (PP.team.live && PP.team.live.curve.length > 2 ? PP.team.live.curve : PP.team.bt.curve.slice(-120)).map((x) => x[1]),
-        num: (r >= 0 ? '+' : '') + r.toFixed(2) + '%', numCls: dirClass(r), sub: '가상 ' + bots.length + '억 · ' + esc(PP.inception) + '~',
+        num: (r >= 0 ? '+' : '') + r.toFixed(2) + '%', numCls: dirClass(r), sub: '가상 ' + bots.length + '억 · ' + kDate(PP.inception) + '부터',
         staff: bots.slice(0, 4).map((b, k) => { const st = b.live ? b.live.status : 'ok'; const n = b.live ? b.live.positions.length : 0, o = b.live ? b.live.orders.length : 0;
           return { code: b.code, i: pos[k][0], j: pos[k][1], tone: st === 'paused' ? 'alert' : '', say: st === 'paused' ? '금고 정지' : n ? '보유 ' + n : o ? '주문 ' + o : '대기' }; }),
         log: (PP.today || []).slice(-3).reverse().map((e) => ({ cls: e.side === 'vault' ? 'alert' : '', html: `<b>${esc(e.botCode || '')}</b> ${e.side === 'buy' ? '매수' : e.side === 'sell' ? '매도' : '금고'} ${esc(e.name || '')} <span class="muted">${esc((e.d || '').slice(5))}</span>` }))
@@ -2423,8 +2478,8 @@
       ${auditLog(AUD)}`;
   }
 
-  const VIEWS = { scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
-  const TAB_OF = { scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewPaper, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
+  const TAB_OF = { words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { const h = (location.hash || '#home').slice(1); return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
@@ -2464,6 +2519,9 @@
     if (act === 'basis') { S.ui.compareBasis = v; render(); }
     else if (act === 'phase') { S.ui.phase = Number(v); render(); }
     else if (act === 'coin') { S.ui.coin = v; render(); ensureCloses(v); }
+    else if (act === 'bigtext') { const on = !document.documentElement.classList.contains('big'); document.documentElement.classList.toggle('big', on); try { localStorage.setItem('snw.big', on ? '1' : ''); } catch (err) { /* 무시 */ } render(); }
+    else if (act === 'guide-done') { try { localStorage.setItem('snw.guide', '1'); } catch (err) { /* 무시 */ } render(); }
+    else if (act === 'guide-reset') { try { localStorage.removeItem('snw.guide'); } catch (err) { /* 무시 */ } location.hash = '#home'; }
     else if (act === 'theme') { const d = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = d; try { localStorage.setItem('snw.theme', d); } catch (err) { /* 무시 */ } const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = d === 'dark' ? '#101013' : '#F2F4F6'; render(); }
     else if (act === 'paper-bot') { S.ui.paperBot = v; if (v !== 'team' && !S.ui.paperTab) S.ui.paperTab = 'live'; render(); }
     else if (act === 'paper-tab') { S.ui.paperTab = v; render(); }
