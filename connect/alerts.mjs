@@ -132,7 +132,7 @@ export async function run({ fetchImpl = fetch, sendImpl, env = loadEnv(), now = 
   mkdirSync(join(root, 'data'), { recursive: true });
   writeFileSync(stateFile, JSON.stringify(state, null, 1));
   const items = cands.length ? cands.map((x) => ({ kind: x.kind, id: x.id, name: x.name, market: x.market, score: x.score, line: lineOf(x) })) : [];
-  writeFileSync(join(root, 'js', 'alerts-live.js'), '/* 자동 생성 — connect/alerts.mjs */\nwindow.SNW_ALERTS = ' + JSON.stringify({ generatedAt: now.toISOString(), note: '시장날씨 ' + weather.title + ' · 오늘 후보 ' + items.length + '개', items, history: state.history.slice(0, 30) }) + ';\n');
+  writeFileSync(join(root, 'js', 'alerts-live.js'), '/* 자동 생성 — connect/alerts.mjs */\nwindow.SNW_ALERTS = ' + JSON.stringify({ generatedAt: now.toISOString(), note: '시장날씨 ' + weather.title + ' · 오늘 후보 ' + items.length + '개', items, history: state.history.slice(0, 30), top: all.filter((x) => x.kind !== 'coin' && x.score != null).sort((a, b) => b.score - a.score).slice(0, 20).map((x) => ({ id: x.id, name: x.name, market: x.market, score: x.score })) }) + ';\n');
   log('알림 ' + sent + '건 발송' + (failed ? ' · 실패 ' + failed + '건' : ''));
   return { all, cands, sent, failed, weather };
 }

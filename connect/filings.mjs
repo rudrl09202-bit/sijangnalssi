@@ -39,11 +39,12 @@ function loadWindow(file, key) {
   return ctx.window[key] || null;
 }
 export function targets(root) {
-  const map = new Map(), add = (id, name, why) => { if (!id) return; const k = String(id).toUpperCase(); if (!map.has(k)) map.set(k, { id: k, name, why: [] }); map.get(k).why.push(why); };
+  const map = new Map(), add = (id, name, why) => { if (!id) return; const k = String(id).toUpperCase().replace(/^A(?=\d{6})/, '').replace(/[-.](KS|KQ)$/, ''); if (!map.has(k)) map.set(k, { id: k, name, why: [] }); map.get(k).why.push(why); };
   const P = loadWindow(join(root, 'js', 'paper-live.js'), 'SNW_PAPER');
   if (P) P.bots.forEach((b) => { if (!b.live || b.retired) return; (b.live.positions || []).forEach((p) => p.cur !== 'COIN' && !/^C_|^KRW-/.test(p.id) && add(p.id, p.name, b.code + ' 보유')); (b.live.orders || []).forEach((o) => o.cur !== 'COIN' && !/^C_|^KRW-/.test(o.id) && add(o.id, o.name, b.code + ' ' + (o.side === 'buy' ? '매수' : '매도') + ' 대기')); });
   const A = loadWindow(join(root, 'js', 'alerts-live.js'), 'SNW_ALERTS');
   if (A) (A.items || []).filter((x) => x.kind !== 'coin').forEach((x) => add(x.id, x.name, '오늘 매수 후보'));
+  if (A) (A.top || []).forEach((x) => add(x.id, x.name, '앱 점수 상위 ' + x.score + '점'));
   return [...map.values()].filter((t) => /^\d{6}$/.test(t.id) || /^[A-Z][A-Z.\-]{0,5}$/.test(t.id));
 }
 
