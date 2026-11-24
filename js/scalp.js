@@ -240,6 +240,13 @@
       Object.values(acc.pos).forEach((p) => {
         const c = px(p.sym, i), L = p.side === 'long'; if (c == null) return;
         if (!p.be && (L ? c >= p.entry + p.R * P.beR : c <= p.entry - p.R * P.beR)) { p.stop = p.entry; p.be = true; }
+        // 긴급 탈출(켜졌을 때): 거래량 3배 이상 + 내 반대 방향 장대봉(0.5ATR↑) + 20EMA를 반대로 뚫고 마감 → 다음 봉 시가에 정리
+        if (P.panic) { const x = X[p.sym], j = x.map[i];
+          if (j >= 0 && x.vAvg[j] && x.atr[j] && x.eP[j] != null) {
+            const v = x.d.v ? x.d.v[j] : 0, body = x.d.c[j] - x.d.o[j], vk = v / x.vAvg[j];
+            const against = L ? body <= -0.5 * x.atr[j] && c < x.eP[j] : body >= 0.5 * x.atr[j] && c > x.eP[j];
+            if (vk >= (P.panicVol || 3) && against) { acc.pending.push({ kind: 'exit', sym: p.sym, reason: '긴급 탈출 (거래량 ' + vk.toFixed(1) + '배 · 반대 장대봉 · 20EMA 돌파)' }); return; }
+          } }
         if ((t - p.t) / (P.bar * 60e3) >= P.maxBars - 1) acc.pending.push({ kind: 'exit', sym: p.sym, reason: '시간 정리(' + (P.maxBars * P.bar / 60) + '시간)' });
       });
       const tn = t + P.bar * 60e3, blocked = acc.dayBlock || tn < acc.killUntilT || tn < acc.pauseUntilT;

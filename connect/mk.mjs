@@ -271,11 +271,11 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
     const wf = walkForward(W, F, L, P, { log });
     const iA = W.T.findIndex((t) => t >= wf.from), half = Math.floor((iA + last) / 2);
     const study = [];
-    for (const [name, margin, over] of [['민경기 봇 (기대 +0.1R 이상)', 0.1, {}], ['기준 낮춤 (0R 이상)', 0, {}], ['기준 높임 (+0.3R 이상)', 0.3, {}], ['롱만', 0.1, { only: 'long' }], ['숏만', 0.1, { only: 'short' }]]) {
+    for (const [name, margin, over] of [['민경기 봇 (기대 +0.1R 이상)', 0.1, {}], ['기준 낮춤 (0R 이상)', 0, {}], ['기준 높임 (+0.3R 이상)', 0.3, {}], ['롱만', 0.1, { only: 'long' }], ['숏만', 0.1, { only: 'short' }], ['긴급 탈출 켬', 0.1, { panic: true }]]) {
       const sg = {}; W.syms.forEach((s) => { sg[s] = wf.sig[s].map((g) => { if (!g) return null; if (over.only && g.side !== over.only) return null; return g.ev >= margin ? g : null; }); });
       const row = { name };
       for (const [k, a, b] of [['all', iA, last], ['h1', iA, half], ['h2', half, last]]) {
-        const ac = runAcc(SC, W, P, sg, a, b), s2 = SC.stats(ac);
+        const ac = runAcc(SC, W, over.panic ? Object.assign({}, P, { panic: true }) : P, sg, a, b), s2 = SC.stats(ac);
         row[k] = { ret: r2((ac.equity[ac.equity.length - 1][1] / ac.start - 1) * 100, 1), n: s2.trades, win: s2.winRate, pf: s2.pf, avgR: s2.avgR };
         if (k === 'all' && !study.length) { const dc = SC.daily(ac.equity), mt = Q.metrics(dc, ac.trades) || {}; row.mdd = mt.mdd ?? null; row.cagr = mt.cagr ?? null; row.sharpe = mt.sharpe ?? null; row.curve = dc.filter((e, k2, a2) => k2 % 3 === 0 || k2 === a2.length - 1); row.monthly = mt.monthly || null; row.recent = ac.trades.slice(-12).reverse(); row.fees = Math.round(ac.feesPaid); }
       }

@@ -102,7 +102,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   const half = Math.floor(W.T.length / 2), study = [];
   const variants = [
     ['기본', {}], ['눌림목만', { only: 'pullback' }], ['돌파만', { only: 'squeeze' }], ['목표 3R', { tpR: 3 }], ['목표 1.5R', { tpR: 1.5 }],
-    ['손절 2.5ATR', { stopAtr: 2.5 }], ['본전이동 없음', { beR: 99 }], ['보유 12시간', { maxBars: 48 }], ['1시간 추세 강할 때만', { strong: true }]
+    ['손절 2.5ATR', { stopAtr: 2.5 }], ['본전이동 없음', { beR: 99 }], ['보유 12시간', { maxBars: 48 }], ['1시간 추세 강할 때만', { strong: true }], ['긴급 탈출 켬', { panic: true }]
   ];
   for (const [name, over] of variants) {
     const PP = Object.assign({}, P, over), row = { name };
