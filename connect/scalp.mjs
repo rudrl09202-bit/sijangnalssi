@@ -124,6 +124,10 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       log('Claude: ' + o.name + ' ' + (o.side === 'long' ? '롱' : '숏') + ' (' + o.why + ') → ' + d.decision + ' ' + d.confidence + ' · ' + d.reason);
     }
   }
+  // 비교용: 같은 엔진 후보를 전부 들어가는 계좌 (Claude 없이)
+  if (!st.shadow) { st.shadow = SC.newAccount(P); st.shadowFrom = st.shadowFrom || W.T[last]; }
+  const sf = st.shadow.lastT == null ? last : W.T.findIndex((t) => t > st.shadow.lastT);
+  if (sf >= 0) SC.simulate(W, P, st.shadow, sf, last, { collect: false });
   st.decisions = st.decisions.slice(-120);
   const fresh = A.events.slice(); A.events = []; st.updatedAt = now.toISOString();
   writeFileSync(stFile, JSON.stringify(st));
@@ -142,13 +146,14 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
     live: { equity: eq, start: A.start, ret: Math.round((eq / A.start - 1) * 10000) / 100, days: ldc.length, stats: ls, curve: A.equity.slice(-400).map(([t, v]) => [isoT(t), v]),
       positions, lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-40).reverse(),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
+    shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), trades: S2.trades.slice(-10).reverse(), open: Object.keys(S2.pos).length }; })(),
     decisions: st.decisions.slice(-30).reverse(), aiStats: { asked: dec.length, enter: dec.filter((d) => d.decision === 'enter').length },
     log: A.log.slice(-12).reverse(),
     study, bt: { days, from: bdc.length ? bdc[0][0] : null, ret: Math.round((bt.equity[bt.equity.length - 1][1] / bt.start - 1) * 1000) / 10, metrics: bm, stats: bs, curve: bdc, recent: bt.trades.slice(-15).reverse() },
     coins: SC.COINS.filter((c) => series[c.sym]).map((c) => ({ sym: c.sym, name: c.name, price: mark(c.sym) })), errors
   };
   writeFileSync(join(dir, 'scalp-live.json'), JSON.stringify(out));
-  log('단타 모의: ' + Math.round(eq / 1e4).toLocaleString('ko-KR') + '만 (' + out.live.ret + '%) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
+  log('단타 모의: Claude ' + Math.round(eq / 1e4).toLocaleString('ko-KR') + '만 (' + out.live.ret + '%) · 엔진 혼자 ' + out.shadow.ret + '% (' + out.shadow.stats.trades + '번) · 포지션 ' + positions.length + ' · 거래 ' + ls.trades + ' · Claude 판단 ' + asked + '건 · 새 이벤트 ' + fresh.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
 
   // ── 5) 푸시
   const moves = fresh.filter((e) => e.kind === 'open' || e.kind === 'close' || e.kind === 'vault');
@@ -159,4 +164,13 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   }
   return out;
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) run({ reset: process.argv.includes('--reset') }).catch((e) => { console.error('✗ ' + e.message); process.exit(1); });
+async function ping() {
+  const env = loadEnv(), key = env.ANTHROPIC_API_KEY, model = env.SCALP_MODEL || env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+  const sample = { 시각_UTC: '2026-11-24T05:00', 코인: '비트코인(BTC)', 방향: '롱', 셋업: '상승추세 눌림목 반등 (20EMA 지지, RSI 54)', 현재가: 98000, EMA20: 97800, EMA50: 97000, EMA200: 95000, RSI: 54, ATR_퍼센트: 0.45,
+    최근16봉: [[97500, 97900, 97400, 97800], [97800, 98100, 97700, 98000]], BTC: { 추세: '15분 정배열' }, 계좌: { 원금대비_퍼센트: 0, 최근거래: [] } };
+  const t = await askClaude(key, model, '후보 자료(JSON):\n' + JSON.stringify(sample), fetch, SYSTEM, 300);
+  console.log('원문: ' + JSON.stringify(t).slice(0, 400));
+  try { console.log('✓ 해석: ' + JSON.stringify(parseDecision(t))); } catch (e) { console.log('✗ ' + e.message); process.exitCode = 1; }
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv.includes('--ping')) ping();
+else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) run({ reset: process.argv.includes('--reset') }).catch((e) => { console.error('✗ ' + e.message); process.exit(1); });
