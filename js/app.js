@@ -1500,7 +1500,7 @@
   const BOT_STATUS = { ok: ['가동 중', 'live'], probation: ['절반 가동', 'neu'], halve: ['연속 손실 · 절반', 'neu'], dayblock: ['하루 쉼', 'neu'], paused: ['금고 정지', 'neg'] };
   const pct = (v, d) => { if (v == null || isNaN(v)) return '—'; const t = Number(v).toFixed(d == null ? 1 : d); return (/^-0(\.0+)?$/.test(t) ? t.slice(1) : (v > 0 ? '+' : '') + t) + '%'; };
   const rr = (x) => { const t = x.toFixed(1); return (t === '-0.0' ? '0.0' : (x > 0 ? '+' : '') + t) + 'R'; };
-  const man = (v) => (v == null ? '—' : (Math.abs(v) >= 1e8 ? (v / 1e8).toFixed(2) + '억' : Math.round(v / 1e4).toLocaleString('ko-KR') + '만') + '원');
+  const man = (v) => (v == null ? '—' : (Math.abs(v) >= 1e8 ? (v / 1e8).toFixed(2) + '억' : (Math.round(v / 1e4) || 0).toLocaleString('ko-KR') + '만') + '원');
   const pxOf = (v, cur) => (v == null ? '—' : cur === 'USD' ? '$' + nf(v, v < 10 ? 3 : 2) : v >= 100 ? nf(Math.round(v)) + '원' : nf(v, 2) + '원');
   function paperData() { return window.SNW_PAPER || null; }
   function loadRemotePaper() { // 컴퓨터에서 열었을 때: GitHub Pages 에 있는 최신 결과를 불러옴
@@ -1604,7 +1604,7 @@
   }
   function viewPaper() {
     const P = paperData();
-    const head = `<header class="top"><div><p class="kicker">가상 1억 원씩 · 매일 자동 · 실제 돈 아님</p><h1>투자봇</h1></div><div class="tools"><a class="icon-btn" href="#hq" title="본부" aria-label="본부 보기">${SV('<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>')}</a></div></header>`;
+    const head = `<header class="top"><div><p class="kicker">가상 1억 원씩 · 24시간 자동 · 실제 돈 아님</p><h1>투자봇</h1></div><div class="tools"><a class="icon-btn" href="#hq" title="본부" aria-label="본부 보기">${SV('<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>')}</a></div></header>`;
     if (!P) { loadRemotePaper(); return head + `<section class="card empty"><p class="h-md">아직 봇 결과가 없어요</p><p class="muted sm">GitHub 자동 실행(평일 오후 4시 10분·오전 7시 30분)이 한 번 돌면 이 화면이 채워집니다. 바로 보려면 GitHub → Actions → "매일 자동 분석·알림" → Run workflow.</p></section>`; }
     const sel = S.ui.paperBot || 'team', tab = S.ui.paperTab || 'live';
     const all = P.bots.filter((b) => !b.empty), bots = all.filter((b) => !b.retired), retired = all.filter((b) => b.retired);
@@ -2179,9 +2179,33 @@
     moon: SV('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'), present: SV('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/>'),
     info: SV('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>')
   };
+  /* ---------- 시장: 코인 선물 시장 데이터 (서울 서버가 모은 바이낸스 펀딩비·미결제약정·롱숏 비율) ---------- */
+  function loadDeriv() {
+    if (S.dvLoading || (S.dvAt && Date.now() - S.dvAt < 10 * 60e3)) return;
+    S.dvLoading = true;
+    fetch('https://raw.githubusercontent.com/' + futRepo() + '/deriv-data/deriv.json?t=' + Math.floor(Date.now() / 6e5), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((j) => { S.dvLoading = false; S.dvAt = Date.now(); if (j && j.coins) { S.dv = j; if (['explore', 'home'].indexOf(route()) >= 0) render(); } });
+  }
+  function derivCard() {
+    loadDeriv();
+    const D = S.dv; if (!D) return '';
+    const NM = { BTC: '비트코인', ETH: '이더리움', SOL: '솔라나', XRP: '엑스알피', DOGE: '도지코인', BNB: '바이낸스코인', ADA: '에이다', LINK: '체인링크' };
+    const lastV = (S2) => { if (!S2 || !S2.v || !S2.v.length) return null; for (let i = S2.v.length - 1; i >= 0; i--) if (S2.v[i] != null) return [i, S2.v[i]]; return null; };
+    const rows = Object.keys(NM).filter((c) => D.coins[c]).map((c) => { const C = D.coins[c], f = C.f.length ? C.f[C.f.length - 1][1] * 100 : null, o = lastV(C.oi), ls = lastV(C.ls);
+      const oi24 = o && o[0] >= 24 && C.oi.v[o[0] - 24] ? (o[1] / C.oi.v[o[0] - 24] - 1) * 100 : null;
+      return { c, name: NM[c], f, oi24, ls: ls ? ls[1] : null }; });
+    const hot = rows.filter((r) => r.f != null && r.f >= 0.03), cold = rows.filter((r) => r.f != null && r.f < 0);
+    return `<section class="card"><div class="card-head"><h2>코인 선물 시장</h2><span class="muted xs">바이낸스 · ${kDate(D.updatedAt)}</span></div>
+      <p class="muted xs">펀딩비가 높으면 롱이 과열(롱이 숏에게 돈을 냄), 마이너스면 숏이 과열이에요. 롱숏 비율 1보다 크면 개인 계정이 롱 쪽에 많아요.</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>코인</th><th>펀딩비(8시간)</th><th>미결제약정 하루</th><th>롱숏 비율</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="${r.f >= 0.03 ? 'up' : r.f < 0 ? 'down' : ''}">${r.f == null ? '—' : r.f.toFixed(4) + '%'}</td><td class="${dirClass(r.oi24)}">${r.oi24 == null ? '—' : sign(r.oi24, 1) + '%'}</td><td>${r.ls == null ? '—' : r.ls.toFixed(2)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="sm" style="margin-top:8px">${hot.length ? '롱 과열: <b>' + hot.map((r) => esc(r.name)).join(', ') + '</b> — 급락(롱 청산)에 주의해요. ' : ''}${cold.length ? '숏 과열: <b>' + cold.map((r) => esc(r.name)).join(', ') + '</b> — 급반등(숏 청산)이 나올 수 있어요.' : ''}${!hot.length && !cold.length ? '지금은 한쪽으로 크게 쏠린 코인이 없어요.' : ''}</p>
+      <p class="muted xs">민경기 봇은 이 데이터도 학습 재료로 써요.</p></section>`;
+  }
   function viewExplore() {
     return `<header class="top"><div><p class="kicker">종목과 시장 찾아보기</p><h1>시장</h1></div>${tools()}</header>
       ${tape()}
+      ${derivCard()}
       <section class="card"><h2>종목 고르기</h2>
         ${lrow('#rank', IC.rank, '오늘의 종목 순위', '나스닥·S&P500·코스피·코스닥 TOP 10')}
         ${lrow('#score', IC.score, '종목 분석', '이름만 넣으면 1~100점 오각형 분석')}
@@ -2220,9 +2244,10 @@
     let done = false; try { done = !!localStorage.getItem('snw.guide'); } catch (err) { /* 무시 */ }
     if (done) return '';
     return `<section class="card guide"><p class="b">처음 오셨나요? 이렇게 보면 돼요</p>
-      <ol class="guide-list"><li><b>오늘의 시장날씨</b> — 지금 시장 분위기를 날씨로 알려줘요. 맑으면 유리, 비·폭풍이면 조심.</li>
-      <li><b>내 자산</b> — 가진 종목마다 "유지·매수 검토·손절 점검" 같은 할 일을 알려줘요.</li>
-      <li><b>투자봇</b> — 가상 돈 1억으로 규칙대로 사고파는 실험이에요. 실제 돈은 움직이지 않아요.</li></ol>
+      <ol class="guide-list"><li><b>AI 자동매매</b> — 봇들이 코인 선물(롱·숏)을 24시간 가상 돈 1억으로 자동 매매해요. 실제 돈은 움직이지 않아요.</li>
+      <li><b>민경기 봇</b> — 검증된 추세 규칙에 학습 모델을 더한 대표 봇이에요. 시험에 합격해야만 크게 들어가요.</li>
+      <li><b>포지션</b> — 지금 들고 있는 롱·숏과 손익이에요. 손절선이 미리 정해져 있어요.</li>
+      <li><b>시장</b>·<b>내 자산</b> — 코인 선물 시장 분위기, 내 실제 자산과 할 일을 봐요.</li></ol>
       <p class="muted xs">모르는 말은 더보기 → <a href="#words">쉬운 용어 사전</a>에서 찾아보세요.</p>
       <button class="btn primary" data-act="guide-done">알겠어요</button></section>`;
   }
@@ -2247,6 +2272,13 @@
     ['봉 (15분봉·4시간봉·일봉)', '그 시간 동안의 시작·최고·최저·마지막 가격을 막대 하나로 그린 것.'],
     ['샤프 지수', '흔들림에 비해 수익이 얼마나 좋았나. 1이 넘으면 괜찮은 편이에요.'],
     ['CAGR (연평균 수익률)', '여러 해 동안 매년 평균 몇 %씩 불었는지.']
+  ,
+    ['미결제약정 (OI)', '아직 정리되지 않은 선물 계약의 총액. 늘면서 가격이 오르면 새 돈이 들어오는 상승, 늘면서 내리면 숏이 쌓이는 하락이에요.'],
+    ['롱숏 비율', '롱 계정 수 ÷ 숏 계정 수. 개인이 한쪽으로 크게 쏠리면 반대로 움직이는 경우가 많아요.'],
+    ['테이커 매수/매도', '시장가로 급하게 사는 쪽과 파는 쪽의 비율. 1보다 크면 급하게 사려는 힘이 더 커요.'],
+    ['추적 손절', '이익이 나면 손절선을 따라 올려서(숏은 내려서) 번 돈을 지키는 방법이에요.'],
+    ['학습 필터 (메타 라벨링)', '규칙이 뽑은 후보마다 AI 모델이 "이익으로 끝날 확률"을 매겨, 낮은 후보는 건너뛰고 높은 후보는 크게 들어가는 방법이에요. 민경기 봇이 이렇게 해요.'],
+    ['워크포워드 시험', '과거 데이터로만 배우고, 바로 다음 기간(처음 보는 데이터)으로 시험하는 걸 계속 밀면서 반복하는 방법. 커닝 없이 실력을 재는 방법이에요.']
   ];
   function viewWords() {
     return `<header class="top"><div><a href="#more" class="back">‹ 더보기</a><p class="kicker">모르는 말을 한 줄로</p><h1>쉬운 용어 사전</h1></div></header>
