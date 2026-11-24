@@ -158,8 +158,17 @@ export function trainPair(W, F, L, tA, tB, opts) {
   return m;
 }
 // 확률 → 진입 신호 (기대 손익이 margin R 이상일 때)
-export function signalOf(m, row, x, i, P, margin) {
-  const pl = predict(m.long, row), ps = predict(m.short, row), c = x.d.c[i], sd = Math.max(x.atr[i] * P.stopAtr, c * P.minStopPct / 100);
+// 보정: 시험 기간에 "모델이 p라고 했을 때 실제 성공률"로 바꿈 (모델이 자신을 과신하면 자동으로 덜 들어감)
+export function calibrate(cal, p) {
+  if (!cal || !cal.length) return p;
+  const pts = cal.filter((c) => c.n >= 300 && c.pred != null).map((c) => [c.pred / 100, c.real / 100]);
+  if (pts.length < 2) return p;
+  if (p <= pts[0][0]) return pts[0][1];
+  for (let k = 1; k < pts.length; k++) if (p <= pts[k][0]) { const [a, b] = pts[k - 1], [c, d] = pts[k]; return b + (d - b) * (p - a) / (c - a); }
+  return pts[pts.length - 1][1];
+}
+export function signalOf(m, row, x, i, P, margin, cal) {
+  const pl = calibrate(cal, predict(m.long, row)), ps = calibrate(cal, predict(m.short, row)), c = x.d.c[i], sd = Math.max(x.atr[i] * P.stopAtr, c * P.minStopPct / 100);
   const feeR = 2 * (P.taker + P.slipIn) * c / sd, ev = (p) => p * P.tpR - (1 - p) - feeR;
   const el = ev(pl), es = ev(ps), side = el >= es ? 'long' : 'short', e = Math.max(el, es), p = side === 'long' ? pl : ps;
   return { pl, ps, feeR, sig: e >= margin ? { side, p: r2(p, 3), ev: r2(e, 2), why: '학습 모델: ' + (side === 'long' ? '롱' : '숏') + ' 성공 확률 ' + Math.round(p * 100) + '% · 기대 ' + (e >= 0 ? '+' : '') + e.toFixed(2) + 'R (수수료 ' + feeR.toFixed(2) + 'R 뺌)' } : null };
@@ -254,13 +263,15 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
 
   // ── 2) 실시간 모의 계좌 (매시간 마감 봉에서 판단)
   const M = { long: st.model.long, short: st.model.short };
+  const CAL = st.wf && st.wf.calib; // 실시간은 '보정된 확률'로 판단
+  if (st.calV !== 1 && st.acc) { st.acc.pending = st.acc.pending.filter((o) => o.kind !== 'open'); st.calV = 1; log('보정 도입: 보정 전 신호로 걸린 대기 주문 취소'); }
   const liveSig = {}; W.syms.forEach((s) => { liveSig[s] = new Array(W.X[s].d.t.length).fill(null); });
   if (!st.acc) { st.acc = SC.newAccount(P); st.inception = W.T[last]; log('민경기 봇(학습형) 모의 계좌를 새로 엽니다'); }
   const from = st.acc.lastT == null ? last : W.T.findIndex((t) => t > st.acc.lastT);
   const reads = [];
   for (const s of W.syms) { const x = W.X[s], rows = F[s];
-    for (let i = from >= 0 ? Math.max(0, x.map[from] < 0 ? x.map[last] : x.map[from]) : x.d.t.length; i < x.d.t.length; i++) { if (!rows[i]) continue; liveSig[s][i] = signalOf(M, rows[i], x, i, P, 0.1).sig; }
-    const j = x.map[last]; if (j >= 0 && rows[j]) { const o = signalOf(M, rows[j], x, j, P, 0.1); reads.push({ sym: s, name: P.names[s], pl: r2(o.pl * 100, 1), ps: r2(o.ps * 100, 1), feeR: r2(o.feeR, 2), sig: o.sig, price: x.d.c[j] }); } }
+    for (let i = from >= 0 ? Math.max(0, x.map[from] < 0 ? x.map[last] : x.map[from]) : x.d.t.length; i < x.d.t.length; i++) { if (!rows[i]) continue; liveSig[s][i] = signalOf(M, rows[i], x, i, P, 0.1, CAL).sig; }
+    const j = x.map[last]; if (j >= 0 && rows[j]) { const o = signalOf(M, rows[j], x, j, P, 0.1, CAL); reads.push({ sym: s, name: P.names[s], pl: r2(o.pl * 100, 1), ps: r2(o.ps * 100, 1), feeR: r2(o.feeR, 2), sig: o.sig, price: x.d.c[j] }); } }
   if (from >= 0) { W.syms.forEach((s) => { W.X[s].mlSig = liveSig[s]; }); SC.simulate(W, P, st.acc, from, last, { collect: true }); }
   const fresh = st.acc.events.slice(); st.acc.events = []; st.updatedAt = now.toISOString();
   writeFileSync(stFile, JSON.stringify(st));

@@ -2048,7 +2048,7 @@
       ${L.pending.map((o) => `<div class="fpos pend"><div class="row between"><p class="b"><span class="side ${SIDE[o.side][1]}">${SIDE[o.side][0]}</span> ${esc(o.name)}</p><span class="act warn">체결 대기</span></div><p class="muted xs" style="margin:4px 0 0">${esc(o.why || '')} · ${scT(o.fillAt).split(' ')[1]} 시가로 체결</p></div>`).join('')}
       ${L.trades.length ? '<h3 class="sm" style="margin:12px 0 0">최근 거래</h3>' + scTrades(L.trades, 8) : ''}</section>`;
     const reads = (D.read || []).length ? `<section class="card"><h2>지금 모델의 판단</h2>
-      <p class="muted xs">다음 24시간 안에 목표(2R)가 손절(1R)보다 먼저 닿을 확률이에요. 수수료를 빼고 1R당 +0.1 이상 남을 때만 들어가요. 기준선은 약 ${Math.round((1 + 0.1) / 3 * 100 + 3)}%예요.</p>
+      <p class="muted xs">다음 24시간 안에 목표(2R)가 손절(1R)보다 먼저 닿을 확률이에요. 시험에서 모델이 자신을 과신한 만큼 <b>낮춰서 보정한</b> 숫자예요. 수수료를 빼고 1R당 +0.1 이상 남을 때만 들어가요. 기준선은 약 ${Math.round((1 + 0.1) / 3 * 100 + 3)}%예요.</p>
       <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>코인</th><th>롱 확률</th><th>숏 확률</th><th>판단</th></tr></thead><tbody>${D.read.map((r) => `<tr><td>${esc(r.name)}</td><td>${r.pl}%</td><td>${r.ps}%</td><td>${r.sig ? `<span class="side ${SIDE[r.sig.side][1]}">${SIDE[r.sig.side][0]}</span>` : '<span class="muted">쉼</span>'}</td></tr>`).join('')}</tbody></table></div></section>` : '';
     const learned = Mo ? `<section class="card"><h2>무엇을 배웠나</h2>
       <p class="muted xs">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 코인 ${Mo.coins}개 · ${esc(Mo.from.slice(0, 10))}부터 1시간봉 · 학습 예시 ${nf(Mo.n)}개 · 재료 ${Mo.feats}개 · 매주 다시 학습</p>
