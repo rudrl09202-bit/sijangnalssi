@@ -2309,6 +2309,7 @@
    * 공통: 말랑한 젤리 몸 + 큰 눈(깜빡임) + 볼터치. 직원마다 색·소품·움직임이 다름.
    * 상태: alert = 땀방울·빠른 흔들림, idle = 졸기(Zzz) */
   const MASCOT = {
+    MK:     { c: '#9FD3C7', d: '#78B5A6', look: 'glasses', move: 'type',  w: 24, h: 28 },   // 민경기 봇: 추세 + 학습, 안경 쓰고 계산
     PRICE:  { c: '#8CC4F5', d: '#6AA8E0', look: 'headset', move: 'type',  w: 22, h: 26 },   // 시세 담당: 헤드셋 끼고 자판 두드림
     CHIEF:  { c: '#B9A9F2', d: '#9B88E0', look: 'glasses', move: 'nod',   w: 24, h: 30 },   // 판단 담당: 동그란 안경, 끄덕끄덕
     VAULT:  { c: '#A7B3C2', d: '#8796A8', look: 'lock',    move: 'breath',w: 28, h: 26 },   // 금고: 네모 단단한 몸, 팔짱
@@ -2685,6 +2686,22 @@
         else if (L.status !== 'ok') { st = 'warn'; short = (SC_ST[L.status] || ['주의'])[0]; }
         add(R2, { code: 'SCALP', duty, st, short, href: '#scalp',
           ev: `마지막 판단 ${scT(D.lastBar, 15)} 봉 (${agoTxt(age)}) · Claude ${D.aiStats.asked}번 중 ${D.aiStats.enter}번 진입${errs ? ' · 최근 응답 실패 ' + errs : ''} · 포지션 ${L.positions.length}/${c.maxPos} · 레버리지 ${L.lev}배(한도 ${c.maxLevTotal}) · 손절이 청산가보다 먼저 ${L.positions.length - bad.length}/${L.positions.length}` });
+      }
+    }
+    {
+      loadMk();
+      const D = S.mk3, duty = '민경기 봇 — 4시간마다 추세 후보 판단, 매주 다시 학습, 금고 규칙 지키기';
+      if (!D) add(R2, { code: 'MK', duty, st: S.mkLoading ? 'wait' : 'fail', short: S.mkLoading ? '불러오는 중' : '결과 없음', href: '#mk', ev: S.mkLoading ? '민경기 봇 결과를 불러오는 중이에요' : '민경기 봇 결과 파일이 없어요 (봇 루프 확인)' });
+      else {
+        const L = D.live, age = Date.now() - Date.parse(D.generatedAt), mAge = Date.now() - Date.parse(D.model.at);
+        const bad = L.positions.filter((p) => p.stop == null || (p.side === 'long' ? p.stop <= p.liq : p.stop >= p.liq));
+        let st = 'ok', short = '정상';
+        if (age > 3 * 3600e3) { st = 'fail'; short = Math.round(age / 3600e3) + '시간째 멈춤'; }
+        else if (bad.length) { st = 'fail'; short = '손절선 문제'; }
+        else if (mAge > 9 * 864e5) { st = 'warn'; short = '재학습 밀림'; }
+        else if (L.status !== 'ok') { st = 'warn'; short = (MK3_ST[L.status] || ['주의'])[0]; }
+        add(R2, { code: 'MK', duty, st, short, href: '#mk',
+          ev: `마지막 판단 ${scT(D.lastBar, 240)} 봉 (${agoTxt(age)}) · 모델 ${D.model.ver}번째 (${agoTxt(mAge)} 학습) · 시험 ${D.wf && D.wf.pass && D.wf.pass.ok ? '합격' : '불합격'} · 포지션 ${L.positions.length}/${D.cfg.maxPos}` });
       }
     }
     // ROOM 3 — 시장 관제실
