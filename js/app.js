@@ -211,6 +211,38 @@
     return `<a class="lrow" href="${href}"${attrs || ''}>${ic != null ? `<span class="ic">${ic}</span>` : ''}<span class="grow"><p class="t">${title}</p>${sub ? `<p class="s">${sub}</p>` : ''}</span>${right != null ? `<span class="v">${right}</span>` : ''}${CHEV}</a>`;
   }
   function hcard(label, v, c, cls) { return `<div class="hcard"><p class="muted xs">${esc(label)}</p><p class="n">${esc(v)}</p><p class="c ${cls}">${esc(c)}</p></div>`; }
+  /* ---------- 홈 맨 위: 코인 선물 AI 자동매매 데스크 ---------- */
+  function homeDesk() {
+    loadMk(); loadScalp(); loadFutures();
+    const M3 = S.mk3, SCd = S.sc, FU = S.fut;
+    const accts = [];
+    if (M3) accts.push({ code: 'MK', name: '민경기 봇', sub: '추세 + 학습 · 4시간봉', href: '#mk', ret: M3.live.ret, pos: M3.live.positions, main: true });
+    if (FU) accts.push({ code: 'FLUX', name: 'FLUX 추세추종', sub: '규칙만 · 4시간봉', href: '#futures', ret: FU.live.ret, pos: FU.live.positions || [] });
+    if (FU && FU.council) accts.push({ code: 'AI3', name: 'AI 3명 만장일치', sub: 'FLUX 후보 + Claude·Gemini·GPT', href: '#futures', ret: FU.council.ret, pos: FU.council.positions || [] });
+    if (SCd) { accts.push({ code: 'SC', name: '단타 · 조심형 Claude', sub: '15분봉', href: '#scalp', ret: SCd.live.ret, pos: SCd.live.positions });
+      if (SCd.bold) accts.push({ code: 'SC', name: '단타 · 적극형 Claude', sub: '15분봉', href: '#scalp', ret: SCd.bold.ret, pos: SCd.bold.positions });
+      if (SCd.major) accts.push({ code: 'SC', name: '단타 · AI 다수결', sub: '15분봉', href: '#scalp', ret: SCd.major.ret, pos: SCd.major.positions }); }
+    const open = [].concat(...accts.map((a) => (a.pos || []).map((p) => ({ ...p, who: a.name, href: a.href }))));
+    const tot = accts.length ? accts.reduce((t, a) => t + (a.ret || 0), 0) / accts.length : null;
+    const btc = S.prices['KRW-BTC'], RG = SCd && SCd.regime, RISKW = /해킹|규제|소송|파산|상장폐지|폭락|hack|exploit|lawsuit|ban|bankrupt|delist|plunge|crash|FOMC|CPI/i;
+    const risky = SCd && (SCd.news || []).filter((n) => RISKW.test(n.title)).slice(0, 2);
+    const evs = SCd && (SCd.events || []).slice(0, 2);
+    const mk = accts.find((a) => a.main);
+    return `<section class="card panel desk">
+        <div class="row between"><p class="kicker">코인 선물 AI 자동매매 · 가상 계좌 ${accts.length}개</p><a class="xs" href="#paper">전체 ›</a></div>
+        ${mk ? `<a class="desk-main" href="#mk"><div><p class="b">민경기 봇</p><p class="muted xs">${esc(mk.sub)} · ${M3.wf && M3.wf.pass && M3.wf.pass.ok ? '시험 합격' : '시험 중'} · 포지션 ${mk.pos.length}</p></div><p class="num h-md ${dirClass(mk.ret)}">${pct(mk.ret, 2)}</p></a>` : '<p class="muted sm">민경기 봇 결과를 불러오는 중이에요</p>'}
+        ${accts.filter((a) => !a.main).map((a) => `<a class="desk-row" href="${a.href}"><span>${esc(a.name)} <span class="muted xs">${esc(a.sub)}</span></span><span class="num ${dirClass(a.ret)}">${pct(a.ret, 2)}</span></a>`).join('')}
+        ${tot != null ? `<p class="muted xs" style="margin-top:8px">계좌 평균 ${pct(tot, 2)} · 모두 가상 1억씩 · 실제 돈 아님</p>` : ''}</section>
+      <section class="card"><div class="card-head"><h2>지금 열린 포지션 ${open.length}개</h2></div>
+        ${open.length ? open.map((p) => `<a class="desk-row" href="${p.href}"><span><span class="side ${SIDE[p.side][1]}">${SIDE[p.side][0]}</span> ${esc(p.name)} <span class="muted xs">${esc(p.who)}</span></span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</span></a>`).join('') : '<p class="muted sm">지금은 열린 포지션이 없어요. 봇들이 조건을 기다리는 중이에요.</p>'}</section>
+      <section class="card"><h2>코인 시장 지금</h2>
+        ${btc ? `<div class="kv"><span>비트코인</span><b class="num">${won(btc.krw)} <span class="${dirClass(btc.chg24)} xs">${sign(btc.chg24, 2)}%</span></b></div>` : ''}
+        ${RG && RG.label ? `<div class="kv"><span>장세 (15분봉 기준)</span><b>${esc(RG.label)}</b></div>` : ''}
+        ${S.fng != null ? `<div class="kv"><span>코인 심리 (공포·탐욕)</span><b class="num">${S.fng} <span class="muted xs">${S.fng <= 25 ? '극단적 공포' : S.fng >= 75 ? '극단적 탐욕' : S.fng < 45 ? '공포' : S.fng > 55 ? '탐욕' : '보통'}</span></b></div>` : ''}
+        ${(evs || []).map((e) => `<div class="kv"><span><span class="act warn">발표 임박</span></span><b class="sm">${esc(e.date.slice(5).replace('-', '/'))} ${esc(e.title)}</b></div>`).join('')}
+        ${(risky || []).map((n) => `<p class="sm news-line"><span class="act warn">주의</span> ${esc(n.title)} <span class="muted xs">${n.ago}시간 전</span></p>`).join('')}
+        ${tvButton('perp', 'BTC', '비트코인 무기한 선물', '240')}</section>`;
+  }
   function viewHome() {
     const w = weather(), P = portfolio();
     const fed = SNAP.rates.find((r) => r.key === 'fed');
@@ -231,10 +263,11 @@
     const b = S.prices['KRW-BTC'];
     if (b) ind.splice(3, 0, hcard('비트코인', won(b.krw), sign(b.chg24, 2) + '%', dirClass(b.chg24)));
     return `
-      <header class="top"><div><p class="kicker">${esc(todayLabel())}</p><h1>시장날씨</h1></div>${tools()}</header>${demoBanner()}
+      <header class="top"><div><p class="kicker">${esc(todayLabel())} · 시장날씨</p><h1>AI 자동매매</h1></div>${tools()}</header>${demoBanner()}
       ${guideCard()}
+      ${homeDesk()}
+      <h2 class="sec">내 자산 · 시장 전체</h2>
       ${hero}
-      <a class="card link-card hq-entry" href="#hq"><div class="card-head"><div><p class="kicker">본부</p><p class="b">내 자산 · 모의투자 · 시장 · 실전 대기실을 한눈에</p></div>${CHEV}</div></a>
       <section class="card">
         <div class="row gap center"><span class="wx">${ICON[w.icon]}</span>
           <div class="grow"><p class="kicker">오늘의 시장날씨</p><p class="big-title">${esc(w.title)}</p></div></div>
@@ -252,6 +285,7 @@
       ${todo}
       ${alerts}
       ${homePaper()}
+      <a class="card link-card hq-entry" href="#hq"><div class="card-head"><div><p class="kicker">본부</p><p class="b">봇 직원들이 일을 제대로 하는지 BOSS가 점검해요</p></div>${CHEV}</div></a>
       <h2 class="sec">주요 지표</h2>
       <div class="hscroll">${ind.join('')}</div>
       ${homeRank()}
@@ -265,7 +299,7 @@
     const bots = P.bots.filter((b) => !b.empty && !b.retired), start = P.startCash * bots.length, nowV = bots.reduce((t, b) => t + (b.live ? b.live.equity : P.startCash), 0);
     const fills = (P.today || []).filter((e) => e.side === 'buy' || e.side === 'sell').length;
     const r = (nowV / start - 1) * 100;
-    return `<a class="card link-card" href="#paper"><div class="card-head"><p class="kicker">투자봇 ${bots.length}개 · 가상 ${bots.length}억 원</p>${CHEV}</div>
+    return `<a class="card link-card" href="#paper"><div class="card-head"><p class="kicker">주식 봇 ${bots.length}개 · 가상 ${bots.length}억 원</p>${CHEV}</div>
       <p class="hero-num" style="font-size:28px">${(r >= 0 ? '+' : '') + r.toFixed(2)}%</p>
       <p class="muted sm">${fills ? '최근 체결 ' + fills + '건' : '다음 거래일 주문 대기 중'} · 10년 검증 연 ${P.team.bt.full ? P.team.bt.full.cagr + '%' : '—'}</p></a>`;
   }
@@ -315,7 +349,7 @@
   function viewRank() {
     const tab = S.ui.rankTab || 'kospi';
     const seg = `<div class="seg seg-wrap" role="tablist" aria-label="시장 선택">${RANK_TABS.map(([k, l]) => `<button role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-act="rank-tab" data-v="${k}">${l}</button>`).join('')}</div>`;
-    const head = `<header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">${esc(todayLabel())} · ${ML ? '주가 ' + esc(ML.asOf) + ' 종가 기준' : '시장 데이터 받기 전'}</p><h1>오늘의 종목 순위</h1></div>${tools()}</header>`;
+    const head = `<header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">${esc(todayLabel())} · ${ML ? '주가 ' + esc(ML.asOf) + ' 종가 기준' : '시장 데이터 받기 전'}</p><h1>오늘의 종목 순위</h1></div>${tools()}</header>`;
     const foot = `<section class="card note"><p class="b sm">순위는 이렇게 매깁니다</p>
         <p class="muted xs">각 시장의 시가총액 상위 대표 종목(나스닥 ${U ? U.LIST.nasdaq.length : 0} · S&P500 ${U ? U.LIST.spx.length : 0} · 코스피 ${U ? U.LIST.kospi.length : 0} · 코스닥 ${U ? U.LIST.kosdaq.length : 0}개)을 1년치 일봉으로 분석합니다. 월가 스크리너 방식으로 가치(PER·PSR·PBR·EV/EBITDA·PEG·배당) · 성장(매출·이익·분기 이익·성장 가속) · 수익성·재무(ROE·이익률·부채·현금흐름) · 모멘텀(미너비니 트렌드 템플릿·상대강도 RS·RSI·MACD) · 환경·위험(베타·변동성·낙폭·매크로·업종) — 재무는 SEC EDGAR·OpenDART 공식 공시 기준 5축을 1~100점으로 매겨 가중 평균합니다. 재무 지표가 없는 종목은 그 축을 빼고 계산합니다.</p>
         <p class="muted xs">점수가 높다는 것은 지금 가격 흐름과 환경이 그 종목에 상대적으로 유리하다는 뜻이며, 오른다는 보장이 아닙니다. 투자 권유가 아니고 결정과 책임은 본인에게 있습니다.</p></section>`;
@@ -608,7 +642,7 @@
   function viewScore() {
     const r = S.ui.scoreResult;
     return `
-      <header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">종목 이름만 적으면 돼요</p><h1>종목 분석</h1></div>${tools()}</header>
+      <header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">종목 이름만 적으면 돼요</p><h1>종목 분석</h1></div>${tools()}</header>
       <form id="score-form" class="form card">
         <label>종목 이름 또는 코드<input name="q" list="score-dl" value="${esc(S.ui.scoreQuery)}" placeholder="예: 비트코인, ETH, 엔비디아" autocomplete="off"></label>
         <datalist id="score-dl">${T.STOCK_LIST.map((c) => `<option value="${esc(c.name)} (${esc(c.symbol)})"></option>`).join('')}${S.coinList.map((c) => `<option value="${esc(c.name)} (${esc(c.symbol)})"></option>`).join('')}</datalist>
@@ -759,7 +793,7 @@
       stocks.v && re.v ? `주식과 채권을 합쳐도(${nf(stocks.v + get('bonds').v, 0)}조 달러) 부동산(${nf(re.v, 0)}조 달러)보다 작습니다. 다만 주식·채권은 매일 사고팔 수 있어 돈의 흐름이 먼저 나타나는 곳입니다.` : ''
     ].filter(Boolean);
     return `
-      <header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">원/달러 ${nf(S.markets.usdkrw.value, 1)}원 · 엔·위안·유로 실시간 환율로 환산</p><h1>세계 돈의 지도</h1></div>${tools()}</header>
+      <header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">원/달러 ${nf(S.markets.usdkrw.value, 1)}원 · 엔·위안·유로 실시간 환율로 환산</p><h1>세계 돈의 지도</h1></div>${tools()}</header>
       <section class="card panel"><p class="kicker">한눈에 보는 세계 경제</p><ul class="list sm">${insights.map((t) => `<li>${t}</li>`).join('')}</ul></section>
       ${fxCard()}
       <section class="card panel"><div><p class="kicker">자산 시장 크기</p><p class="muted xs">세상의 돈이 어디에 얼마나 담겨 있나 · 막대는 부동산 대비 크기</p></div>${assetBars}</section>
@@ -919,7 +953,7 @@
   }
   function viewChart() {
     const ref = S.ui.chart;
-    if (!ref) return `<header class="top"><div><a href="#explore" class="back">‹ 탐색</a><h1>차트</h1></div></header><p class="muted pad">자산을 골라 주세요.</p>`;
+    if (!ref) return `<header class="top"><div><a href="#explore" class="back">‹ 시장</a><h1>차트</h1></div></header><p class="muted pad">자산을 골라 주세요.</p>`;
     const k = seriesFor(ref);
     let score = null, action = null, kindLabel = '';
     if (ref.kind === 'coin') { score = R.scoreCoin2(coinCtx(ref.id)); action = R.actionFor({ score, candles: S.candles[ref.id], held: false, fng: S.fng }); kindLabel = '코인 · ' + ref.id.slice(4); }
@@ -1342,7 +1376,7 @@
     ];
     const bad = winds.filter((w) => w.bad).length;
     return `
-      <header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">${esc(S.priceSource || '시세')} 기준 원화 가격</p><h1>코인 분석</h1></div></header>
+      <header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">${esc(S.priceSource || '시세')} 기준 원화 가격</p><h1>코인 분석</h1></div></header>
       <div class="seg" role="group" aria-label="코인 선택">
         ${['KRW-BTC', 'KRW-ETH'].map((x) => `<button type="button" class="${mk === x ? 'on' : ''}" aria-pressed="${mk === x}" data-act="coin" data-v="${x}">${x === 'KRW-BTC' ? '비트코인' : '이더리움'}</button>`).join('')}
       </div>
@@ -1420,7 +1454,7 @@
     const rows = R.perfTable(SNAP.perf).sort((a, b) => b[key] - a[key]);
     const max = Math.max(...rows.map((r) => Math.abs(r[key])));
     return `
-      <header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">${esc(SNAP.perf.period)}</p><h1>1년 전 1,000만 원을 넣었다면?</h1></div></header>
+      <header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">${esc(SNAP.perf.period)}</p><h1>1년 전 1,000만 원을 넣었다면?</h1></div></header>
       <div class="seg" role="group" aria-label="수익률 기준">
         <button type="button" class="${basis === 'krw' ? 'on' : ''}" aria-pressed="${basis === 'krw'}" data-act="basis" data-v="krw">원화 기준 (내 계좌)</button>
         <button type="button" class="${basis === 'local' ? 'on' : ''}" aria-pressed="${basis === 'local'}" data-act="basis" data-v="local">현지 통화 기준</button>
@@ -1448,7 +1482,7 @@
     const { quads } = R.sectorQuads(SNAP.sectors);
     const qbox = (k, name, arrow, hi) => `<div class="quad ${hi ? 'hi' : ''}"><div class="row between"><b class="sm">${name}</b><span class="muted" aria-hidden="true">${arrow}</span></div><div class="tags">${quads[k].map((s) => `<span class="tag">${esc(s.name)}</span>`).join('') || '<span class="muted xs">없음</span>'}</div></div>`;
     return `
-      <header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">돈은 테마를 돌아다닙니다</p><h1>테마 사이클</h1></div></header>
+      <header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">돈은 테마를 돌아다닙니다</p><h1>테마 사이클</h1></div></header>
       <section class="card"><h2>사이클 시계</h2>
         <div class="grid2">${phases.map((p) => `<button type="button" class="phase ${p.id === sel ? 'on' : ''}" aria-pressed="${p.id === sel}" data-act="phase" data-v="${p.id}">
           <span class="row between"><span class="muted xs">${p.num}</span>${p.id === cur ? '<span class="now">지금 여기</span>' : ''}</span>
@@ -1605,7 +1639,7 @@
       <p class="muted xs">비용: 국내 수수료 0.015%+매도세 0.20%, 미국 수수료·환전 각 0.1%, 코인 0.1%, 슬리피지 0.05~0.1%. 신호는 종가, 체결은 다음 거래일 시가.</p></section>`;
     const cav = `<section class="card note"><p class="b">솔직한 한계</p>${(P.caveats || []).map((c) => `<p class="muted xs">· ${esc(c)}</p>`).join('')}
       <p class="muted xs">· 실제 돈으로 넘어가는 건 아래 "실전 전환 조건"을 모두 통과한 봇만, 아주 작은 금액부터.</p></section>`;
-    return head + summary + mkEntry() + scalpEntry() + futuresEntry() + filingsCard() + feed + office + detail + vault + cav;
+    return head.replace('<h1>투자봇</h1>', '<h1>자동매매</h1>') + '<h2 class="sec">코인 선물 AI 자동매매</h2>' + mkEntry() + futuresEntry() + scalpEntry() + '<h2 class="sec">주식 봇 (모의)</h2>' + summary + filingsCard() + feed + office + detail + vault + cav;
   }
   function paperTeam(P, bots) {
     const T = P.team;
@@ -1748,7 +1782,7 @@
   function loadFutures(force) {
     if (S.futLoading || (S.fut && !force && Date.now() - S.futAt < 5 * 60e3)) return;
     S.futLoading = true;
-    const done = (j) => { S.futLoading = false; if (j && j.live) { S.fut = j; S.futAt = Date.now(); if (['futures', 'paper', 'hq'].indexOf(route()) >= 0) render(); } };
+    const done = (j) => { S.futLoading = false; if (j && j.live) { S.fut = j; S.futAt = Date.now(); if (['futures', 'paper', 'hq', 'home'].indexOf(route()) >= 0) render(); } };
     const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/futures-live.json?t=' + Math.floor(Date.now() / 60e3);
     fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/futures-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).then(done).catch(() => done(null));
   }
@@ -1765,7 +1799,7 @@
   function viewFutures() {
     loadFutures();
     const D = S.fut;
-    const head = `<header class="top"><div><a href="#paper" class="back">‹ 투자봇</a><p class="kicker">FLUX · 코인 무기한 선물 · 가상 1억 · 실제 돈 아님</p><h1>선물 데스크</h1></div>${tools()}</header><a class="lrow-mini" href="#scalp">15분봉 단타 데스크(Claude) 보기 ›</a>`;
+    const head = `<header class="top"><div><a href="#paper" class="back">‹ 자동매매</a><p class="kicker">FLUX · 코인 무기한 선물 · 가상 1억 · 실제 돈 아님</p><h1>선물 데스크</h1></div>${tools()}</header><a class="lrow-mini" href="#scalp">15분봉 단타 데스크(Claude) 보기 ›</a>`;
     if (!D) return head + `<section class="card empty"><p class="h-md">선물 봇 결과를 불러오는 중이에요</p><p class="muted sm">4시간마다 자동으로 돌아요. 처음이라면 GitHub → Actions → "코인 선물 모의투자" → Run workflow 를 한 번 눌러 주세요.</p></section>`;
     const L = D.live, B = D.bt, m = B.metrics || {}, st = FUT_ST[L.status] || FUT_ST.ok;
     const thisM = new Date().toISOString().slice(0, 7), mNow = L.months && L.months.monthly ? L.months.monthly[thisM] : null;
@@ -1858,7 +1892,7 @@
   function futuresEntry() {
     loadFutures();
     const D = S.fut, L = D && D.live;
-    return `<a class="card fut-entry" href="#futures"><div class="row between"><div><p class="kicker">새로 · 코인 선물 데스크</p><p class="b">FLUX 롱·숏 추세추종</p></div>
+    return `<a class="card fut-entry" href="#futures"><div class="row between"><div><p class="kicker">코인 선물 추세추종 · 4시간봉 · 규칙 + AI 3명</p><p class="b">FLUX 롱·숏</p></div>
       <div class="right"><p class="num b ${dirClass(L && L.ret)}">${L ? pct(L.ret, 2) : '—'}</p><p class="muted xs">${L ? '포지션 ' + L.positions.length + ' · ' + L.lev + '배' : '불러오는 중'}</p></div></div></a>`;
   }
 
@@ -1928,7 +1962,7 @@
     if (S.scLoading || (S.sc && !force && Date.now() - S.scAt < 2 * 60e3)) return;
     S.scLoading = true;
     fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/scalp-live.json?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures', 'mk'].indexOf(route()) >= 0) render(); } });
+      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures', 'mk', 'home'].indexOf(route()) >= 0) render(); } });
   }
   const scT = (u, addMin) => { const t = Date.parse(String(u).replace(' ', 'T') + ':00Z') + (addMin || 0) * 60e3; if (!isFinite(t)) return String(u); const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   const SC_ST = { ok: ['정상 운용', 'neu'], dayblock: ['오늘 진입 금지', 'warn'], pause: ['연패 휴식', 'warn'], killed: ['킬 스위치 휴식', 'neg'] };
@@ -1942,7 +1976,7 @@
   function viewScalp() {
     loadScalp();
     const D = S.sc;
-    const head = `<header class="top"><div><a href="#paper" class="back">‹ 투자봇</a><p class="kicker">SCALP · 15분봉 롱·숏 · Claude가 결정 · 가상 1억 · 실제 돈 아님</p><h1>단타 데스크</h1></div>${tools()}</header>`;
+    const head = `<header class="top"><div><a href="#paper" class="back">‹ 자동매매</a><p class="kicker">SCALP · 15분봉 롱·숏 · Claude가 결정 · 가상 1억 · 실제 돈 아님</p><h1>단타 데스크</h1></div>${tools()}</header>`;
     if (!D) return head + `<section class="card empty"><p class="h-md">단타 봇 결과를 불러오는 중이에요</p><p class="muted sm">10분마다 자동으로 돌아요. 처음 몇 분은 결과가 없을 수 있어요.</p></section>`;
     const L = D.live, st = SC_ST[L.status] || SC_ST.ok, ageMin = Math.round((Date.now() - Date.parse(D.generatedAt)) / 60e3), SH = D.shadow;
     const BD = D.bold, MJ = D.major, tabSc = S.ui.scTab === 'bold' && BD ? 'bold' : S.ui.scTab === 'major' && MJ ? 'major' : 'careful';
@@ -2012,23 +2046,67 @@
 
   /* ---------- 민경기 봇: 2세대 학습형 (1시간봉) + 1세대 규칙형 (15분봉) ---------- */
   function loadMk(force) {
-    if (S.mkLoading || (S.mk && !force && Date.now() - S.mkAt < 2 * 60e3)) return;
+    if (S.mkLoading || (!force && S.mkAt && Date.now() - S.mkAt < 2 * 60e3)) return;
     S.mkLoading = true;
-    fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/mk-live.json?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/mk-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null)
-      .then((j) => { S.mkLoading = false; S.mkAt = Date.now(); if (j && j.live) { S.mk = j; if (['mk', 'paper'].indexOf(route()) >= 0) render(); } });
+    const get = (f) => fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/' + f + '?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/' + f, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null);
+    Promise.all([get('mk3-live.json'), get('mk-live.json')]).then(([a, b]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (['mk', 'paper', 'home'].indexOf(route()) >= 0) render(); });
   }
   function mkEntry() {
     loadMk();
-    const M = S.mk && S.mk.live;
-    return `<a class="card fut-entry" href="#mk"><div class="row between"><div><p class="kicker">내 봇 · 스스로 배우는 코인 선물 봇</p><p class="b">민경기 봇</p><p class="muted xs">${S.mk ? '모델 ' + S.mk.model.ver + '번째 학습 · ' + (S.mk.wf && S.mk.wf.pass && S.mk.wf.pass.ok ? '시험 합격' : '시험 중') : '리만 · 나비에-스토크스 + 학습'}</p></div>
-      <div class="right"><p class="num b ${dirClass(M && M.ret)}">${M ? pct(M.ret, 2) : '—'}</p><p class="muted xs">${M ? '거래 ' + M.stats.trades + ' · 포지션 ' + M.positions.length : '불러오는 중'}</p></div></div></a>`;
+    const M = S.mk3 && S.mk3.live, ok = S.mk3 && S.mk3.wf && S.mk3.wf.pass && S.mk3.wf.pass.ok;
+    return `<a class="card fut-entry mk-entry" href="#mk"><div class="row between"><div><p class="kicker">내 봇 · 추세 + 학습 · 코인 선물 4시간봉</p><p class="b">민경기 봇</p><p class="muted xs">${S.mk3 ? '모델 ' + S.mk3.model.ver + '번째 · ' + (ok ? '시험 합격' : '시험 중') + ' · 포지션 ' + M.positions.length : '불러오는 중'}</p></div>
+      <div class="right"><p class="num b ${dirClass(M && M.ret)}">${M ? pct(M.ret, 2) : '—'}</p><p class="muted xs">${M ? '거래 ' + M.n : ''}</p></div></div></a>`;
   }
+  const MK3_ST = { ok: ['정상 운용', 'neu'], half: ['위험 절반', 'warn'], dayblock: ['오늘 진입 금지', 'warn'], killed: ['킬 스위치 휴식', 'neg'] };
   function viewMk() {
     loadMk(); loadScalp();
-    const D = S.mk, G1 = S.sc && S.sc.mk;
-    const head = `<header class="top"><div><a href="#paper" class="back">‹ 투자봇</a><p class="kicker">MK · 스스로 배우는 코인 선물 봇 · 가상 1억 · 실제 돈 아님</p><h1>민경기 봇</h1></div>${tools()}</header>`;
-    if (!D) return head + `<section class="card empty"><p class="h-md">민경기 봇이 공부하는 중이에요</p><p class="muted sm">처음 학습은 2년치 데이터를 보느라 몇 분 걸려요. 매시간 정각 조금 뒤에 결과가 올라와요.</p></section>` + (G1 ? mkGen1(G1) : '');
+    const D = S.mk3, G2 = S.mk, G1 = S.sc && S.sc.mk;
+    const head = `<header class="top"><div><a href="#paper" class="back">‹ 자동매매</a><p class="kicker">MK · 코인 선물 4시간봉 롱·숏 · 가상 1억 · 실제 돈 아님</p><h1>민경기 봇</h1></div>${tools()}</header>`;
+    const older = (G2 ? mkGen2(G2) : '') + (G1 ? mkGen1(G1) : '');
+    if (!D) return head + `<section class="card empty"><p class="h-md">민경기 봇 3세대가 준비 중이에요</p><p class="muted sm">바이낸스 4시간봉 역사를 받아 처음 학습하는 데 시간이 걸려요. 매시간 15분 무렵 결과가 올라와요.</p></section>` + older;
+    const L = D.live, st = MK3_ST[L.status] || MK3_ST.ok, WF = D.wf || {}, ST = WF.study || [], B0 = ST[0], M0 = ST[1], PS = WF.pass || {};
+    const hero = `<section class="card panel"><div class="row between"><p class="kicker">${scT(D.lastBar, 240)} 마감 봉까지 · 4시간마다 판단</p><span class="act ${st[1]}">${st[0]}</span></div>
+      <p class="nav num">${won(L.equity)}</p><p class="hero-sub ${dirClass(L.ret)}">${pct(L.ret, 2)} · 거래 ${L.n}번${L.win != null ? ' · 승률 ' + L.win + '%' : ''}</p>
+      <p class="muted xs">${scT(D.inception)}부터 가상 1억 · ${esc(D.src)}</p></section>`;
+    const pos = `<section class="card"><h2>포지션 ${L.positions.length}개${L.pending.length ? ' + 대기 ' + L.pending.length : ''} <span class="muted xs">· 최대 ${D.cfg.maxPos}개</span></h2>
+      ${L.positions.map((p) => `<div class="fpos"><div class="row between"><p class="b"><span class="side ${SIDE[p.side][1]}">${SIDE[p.side][0]}</span> ${esc(p.name)} <span class="muted xs">${p.lev}배</span></p><p class="num b ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</p></div>
+        <div class="kv"><span>진입→현재</span><b class="num">${usd(p.entry)} → ${usd(p.mark)}</b></div>
+        <div class="kv"><span>${p.trail ? '추적 손절 (이익 지키는 중)' : '손절'}</span><b class="num">${usd(p.stop)}</b></div>
+        <div class="kv"><span>청산가</span><b class="num">${usd(p.liq)}</b></div>
+        <p class="muted xs" style="margin:4px 0 0">${esc(p.why || '')}</p>${tvButton('perp', p.sym, p.name + ' 무기한 선물', '240')}</div>`).join('')}
+      ${L.pending.map((o) => `<div class="fpos pend"><div class="row between"><p class="b"><span class="side ${SIDE[o.side][1]}">${SIDE[o.side][0]}</span> ${esc(o.name)}</p><span class="act warn">체결 대기</span></div><p class="muted xs" style="margin:4px 0 0">${esc(o.why || '')} · ${scT(o.fillAt)} 시가로 체결</p></div>`).join('')}
+      ${!L.positions.length && !L.pending.length ? '<p class="muted sm">지금은 포지션이 없어요. 추세 돌파가 나오고 학습 점수가 통과하면 들어가요.</p>' : ''}
+      <p class="muted xs" style="margin-top:6px">나오는 방법: 손절(2.5ATR) · 1ATR 이익 뒤 추적 손절(최고점−3ATR) · 추세가 꺾이면(50/200EMA 교차) 정리</p></section>`;
+    const verdict = B0 && M0 ? `<section class="card"><div class="row between"><h2>처음 보는 데이터로 본 시험</h2><span class="act ${PS.ok ? 'live' : 'warn'}">${PS.ok ? '합격' : '불합격'}</span></div>
+      <p class="muted xs">${esc(WF.from.slice(0, 10))} ~ ${esc(WF.to.slice(0, 10))} · 과거로만 배우고 다음 90일을 매매하는 시험을 ${WF.folds.length}번 반복 · 수수료·미끄러짐·펀딩 포함</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th></th><th>연 수익</th><th>최대 낙폭</th><th>샤프</th><th>손익비</th><th>거래</th></tr></thead><tbody>
+        ${[[B0, 'FLUX 혼자'], [M0, '민경기 봇']].map(([r, n]) => `<tr${r === M0 ? ' class="hl"' : ''}><td>${n}</td><td class="${dirClass(r.all.cagr)}">${pct(r.all.cagr, 1)}</td><td>${pct(r.all.mdd, 0)}</td><td>${r.all.sharpe ?? '—'}</td><td>${r.all.pf ?? '—'}</td><td>${r.all.n}</td></tr>`).join('')}</tbody></table></div>
+      <div class="kv"><span>FLUX 혼자보다 나음 (샤프↑, 수익 비슷 이상)</span><b>${PS.beats ? '✓' : '✗'}</b></div>
+      <div class="kv"><span>앞·뒤 절반 모두 플러스</span><b>${PS.halves ? '✓' : '✗'}</b></div>
+      <div class="kv"><span>손익비 1.3 이상</span><b>${PS.pf ? '✓' : '✗'}</b></div>
+      <div class="kv"><span>최대 낙폭 -25% 이내</span><b>${PS.mdd ? '✓' : '✗'}</b></div>
+      <p class="sm" style="margin-top:8px">${PS.ok ? '학습 필터가 추세 규칙을 실제로 더 낫게 만들었어요. 그래도 실시간 모의 계좌로 4주 이상 확인한 뒤 실제 돈을 상의해요.' : PS.halves && PS.pf ? '추세 규칙 자체는 수익이지만, 학습 필터가 아직 FLUX 혼자보다 확실히 낫지는 않아요. 매주 다시 배우면서 비교해요.' : '아직 기준을 다 넘지 못했어요. 숫자를 억지로 맞추지 않아요.'}</p>
+      <details class="pro-inline"><summary>거르는 정도를 바꿔 본 결과</summary><div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>설정</th><th>연 수익</th><th>낙폭</th><th>샤프</th><th>앞</th><th>뒤</th></tr></thead><tbody>${ST.map((r) => `<tr><td>${esc(r.name)}</td><td class="${dirClass(r.all.cagr)}">${pct(r.all.cagr, 1)}</td><td>${pct(r.all.mdd, 0)}</td><td>${r.all.sharpe ?? '—'}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 0)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 0)}</td></tr>`).join('')}</tbody></table></div></details></section>` : '';
+    const BK = (WF.buckets || []).filter((b) => b.n);
+    const judge = BK.length ? `<section class="card"><h2>학습 점수가 실제로 맞았나</h2>
+      <p class="muted xs">시험 기간의 추세 돌파 후보를 학습 점수 순서로 5묶음으로 나눠, 실제 결과(평균 R)를 봤어요. 위로 갈수록 숫자가 커지면 모델이 좋은 후보를 골라낸다는 뜻이에요.</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>학습 점수</th><th>후보 수</th><th>이익 비율</th><th>평균 결과</th></tr></thead><tbody>${BK.slice().reverse().map((b, k) => `<tr><td>${['상위 20%', '60~80%', '40~60%', '20~40%', '하위 20%'][k]}</td><td>${b.n}</td><td>${b.win}%</td><td class="${dirClass(b.avgR)}">${rr(b.avgR)}</td></tr>`).join('')}</tbody></table></div></section>` : '';
+    const dec = (D.decisions || []).length ? `<section class="card"><h2>최근 판단</h2>${D.decisions.slice(0, 10).map((d) => `<div class="kv"><span><span class="side ${SIDE[d.side][1]}">${SIDE[d.side][0]}</span> ${esc(d.name)} <span class="muted xs">${scT(d.t, 240)}</span></span><b class="sm">${d.ok ? (d.big ? '진입 (크게)' : '진입') : '건너뜀'} <span class="muted xs">점수 ${d.p ?? '—'}</span></b></div>`).join('')}</section>` : '';
+    const watch = (D.watch || []).length ? `<section class="card"><h2>지금 코인별 상황</h2><p class="muted xs">40봉(약 7일) 고점·저점을 뚫으면 후보가 돼요.</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>코인</th><th>추세</th><th>고점까지</th><th>저점까지</th><th>난류</th></tr></thead><tbody>${D.watch.map((w) => `<tr><td>${esc(w.name)}</td><td>${w.trend === '상승 추세' ? '<span class="up">상승</span>' : '<span class="down">하락</span>'}</td><td>${w.toHi == null ? '—' : w.toHi <= 0 ? '<b>돌파</b>' : '+' + w.toHi + '%'}</td><td>${w.toLo == null ? '—' : w.toLo <= 0 ? '<b>이탈</b>' : '-' + w.toLo + '%'}</td><td>${w.ti == null ? '—' : Math.round(w.ti * 100) + '%'}</td></tr>`).join('')}</tbody></table></div></section>` : '';
+    const trades = L.trades.length ? `<section class="card"><h2>최근 거래</h2>${futTrades(L.trades, 8)}</section>` : '';
+    const Mo = D.model;
+    const learned = `<section class="card"><h2>어떻게 판단하나</h2>
+      <p class="sm">① <b>추세 돌파 규칙</b>이 후보를 뽑아요 (40봉 고점 돌파 + 50/200EMA 정배열, 숏은 BTC 하락장일 때만). 지난 수년간 수익이 확인된 규칙이에요.</p>
+      <p class="sm">② <b>학습 모델</b>이 후보마다 "이익으로 끝날 확률"을 매겨요. 과거 후보 ${nf(Mo.n)}개(이익 ${Mo.rate}%)로 배웠어요. 하위 30%는 건너뛰고, 상위 30%는 1.5배 크게 들어가요.</p>
+      <p class="sm">③ 리만(파동 정렬·균형선)·나비에-스토크스(난류) 지표, 펀딩비, 테이커 매수 쏠림, 비트코인 분위기 등 ${FEATS3_N}개 재료를 봐요.</p>
+      <p class="sm" style="margin:8px 0 4px">많이 본 재료</p>${Mo.imp.slice(0, 6).map((x) => `<div class="kv"><span>${esc(x.label)}</span><b class="num">${x.v}%</b></div>`).join('')}
+      <p class="muted xs" style="margin-top:6px">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 매주 다시 학습 · 안전 규칙: 한 번에 ${D.cfg.riskPct}%(크게 ${D.cfg.riskPct * 1.5}%) · 동시 ${D.cfg.maxPos}개 · 전체 ${D.cfg.maxLevTotal}배 이하 · 하루 ${D.cfg.dayLoss}% 정지 · ${D.cfg.ddHalve}% 위험 절반 · ${D.cfg.ddKill}% 킬</p></section>`;
+    return head + hero + pos + verdict + judge + dec + watch + trades + learned + older;
+  }
+  const FEATS3_N = 24;
+  function mkGen2(D) {
     const L = D.live, st = SC_ST[L.status] || SC_ST.ok, WF = D.wf || {}, S0 = (WF.study || [])[0], PS = WF.pass || {}, Mo = D.model;
     const verdict = S0 ? `<section class="card panel"><div class="row between"><h2>처음 보는 데이터로 본 시험</h2><span class="act ${PS.ok ? 'live' : 'warn'}">${PS.ok ? '합격' : '불합격'}</span></div>
       <p class="muted xs">${esc(WF.from.slice(0, 10))} ~ ${esc(WF.to.slice(0, 10))} · 과거로만 배우고 다음 30일을 맞히는 시험을 ${WF.folds}번 반복했어요. 수수료·미끄러짐·펀딩 포함.</p>
@@ -2072,7 +2150,7 @@
       <p class="sm">· <b>학습</b>: 그래디언트 부스팅 — 얕은 판단 나무 120개가 앞 나무의 실수를 고쳐 가며 쌓여요</p>
       <p class="sm">· <b>커닝 금지</b>: 시험 구간 바로 앞 25시간은 학습에서 빼서, 미래 정보가 새지 않게 했어요</p>
       <p class="muted xs" style="margin-top:6px">안전 규칙: 한 번에 계좌 ${D.cfg.riskPct}% · 동시 ${D.cfg.maxPos}개 · 전체 ${D.cfg.maxLevTotal}배 이하 · 손절 ${D.cfg.stopAtr}ATR(최소 ${D.cfg.minStopPct}%) · 목표 ${D.cfg.tpR}R · 최대 ${D.cfg.maxBars}시간 · 하루 ${D.cfg.dayLoss}% 정지 · ${D.cfg.ddKill}% 킬</p></section>`;
-    return head + verdict + live + reads + learned + calib + how + (G1 ? mkGen1(G1) : '');
+    return `<details class="card"><summary><span class="b">2세대 (1시간봉 가격만 학습) 기록</span><span class="pro-tag">${S0 ? '시험 ' + pct(S0.all.ret, 1) : ''}</span></summary><p class="muted xs" style="margin-top:8px">1시간봉 가격 모양만 보고 배운 버전이에요. 시험에서 손실이라 3세대로 바꿨고, 비교용으로 계속 돌려요.</p></details>` + verdict + live + reads + learned + calib + how;
   }
   // 1세대: 규칙만 쓴 15분봉 버전 (비교용)
   function mkGen1(M) {
@@ -2086,7 +2164,7 @@
   function scalpEntry() {
     loadScalp();
     const D = S.sc, L = D && D.live, lg = D && D.log && D.log[0];
-    return `<a class="card fut-entry" href="#scalp"><div class="row between"><div><p class="kicker">새로 · 코인 선물 단타 · Claude</p><p class="b">SCALP 15분봉 롱·숏</p>${lg ? `<p class="muted xs">${scT(lg.t, 15)} 판단 · ${lg.cands.length ? '후보 ' + lg.cands.length + '개' : '후보 없음'}</p>` : ''}</div>
+    return `<a class="card fut-entry" href="#scalp"><div class="row between"><div><p class="kicker">코인 선물 단타 · 15분봉 · Claude</p><p class="b">SCALP 15분봉 롱·숏</p>${lg ? `<p class="muted xs">${scT(lg.t, 15)} 판단 · ${lg.cands.length ? '후보 ' + lg.cands.length + '개' : '후보 없음'}</p>` : ''}</div>
       <div class="right"><p class="num b ${dirClass(L && L.ret)}">${L ? pct(L.ret, 2) : '—'}</p><p class="muted xs">${L ? '거래 ' + L.stats.trades + ' · 포지션 ' + L.positions.length : '불러오는 중'}</p></div></div></a>`;
   }
 
@@ -2102,7 +2180,7 @@
     info: SV('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>')
   };
   function viewExplore() {
-    return `<header class="top"><div><p class="kicker">종목과 시장 찾아보기</p><h1>탐색</h1></div>${tools()}</header>
+    return `<header class="top"><div><p class="kicker">종목과 시장 찾아보기</p><h1>시장</h1></div>${tools()}</header>
       ${tape()}
       <section class="card"><h2>종목 고르기</h2>
         ${lrow('#rank', IC.rank, '오늘의 종목 순위', '나스닥·S&P500·코스피·코스닥 TOP 10')}
@@ -2127,7 +2205,7 @@
     { name: '제인 스트리트 · 초단타(HFT)', what: '100만 분의 1초 단위로 사고팔며 호가 차이에서 조금씩 벌어요. 거래소 바로 옆에 서버를 둬요.', open: '비공개 · 개인은 따라 할 수 없음', ours: '따라 하지 않아요. 개인은 속도로 이길 수 없어서, 대신 15분봉 단타에서 "수수료를 이기는가"를 솔직하게 시험해요.', href: '#scalp' }
   ];
   function viewQuants() {
-    return `<header class="top"><div><a href="#explore" class="back">‹ 탐색</a><p class="kicker">공개된 원칙만 따라 했어요</p><h1>월가 퀀트는 어떻게 하나</h1></div>${tools()}</header>
+    return `<header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">공개된 원칙만 따라 했어요</p><h1>월가 퀀트는 어떻게 하나</h1></div>${tools()}</header>
       <section class="card note"><p class="sm">이 회사들의 매매 프로그램과 학습된 AI는 <b>모두 비공개</b>라 돈을 내도 쓸 수 없어요. 대신 논문·인터뷰로 알려진 원칙을 이 앱에 넣었어요.</p></section>
       ${QUANTS.map((q) => `<section class="card"><h2>${esc(q.name)}</h2>
         <p class="sm">${esc(q.what)}</p>
