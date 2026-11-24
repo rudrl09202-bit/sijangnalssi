@@ -1821,11 +1821,9 @@
   function applyPolicy(P) {
     const f = P.fred || {}, e = P.ecos || {}, today = new Date().toISOString().slice(0, 10);
     const fed = SNAP.rates.find((r) => r.key === 'fed'), bok = SNAP.rates.find((r) => r.key === 'bok');
-    const fomc = (f.events || []).filter((x) => /FOMC/.test(x.title) && x.date >= today).map((x) => x.date).sort()[0];
     if (fed && f.fedUpper) {
       if (fed.upper != null && Math.abs(f.fedUpper.value - fed.upper) > 0.001) { fed.expect = 'hold'; fed.expectText = (f.fedUpper.value > fed.upper ? '인상' : '인하') + ' 결정 반영 (' + f.fedUpper.date.slice(5).replace('-', '/') + ') · 다음 전망은 발표 후 갱신'; }
       fed.upper = f.fedUpper.value; fed.rate = (f.fedLower ? f.fedLower.value.toFixed(2) + '~' : '') + f.fedUpper.value.toFixed(2) + '%'; fed.live = 'FRED ' + f.fedUpper.date;
-      if (fomc) fed.next = fomc;
     }
     if (bok && e.bokRate) {
       if (bok.upper != null && Math.abs(e.bokRate.value - bok.upper) > 0.001) { bok.expect = 'hold'; bok.expectText = (e.bokRate.value > bok.upper ? '인상' : '인하') + ' 결정 반영 (' + e.bokRate.date.slice(5).replace('-', '/') + ')'; }
@@ -1835,9 +1833,9 @@
     // 발표 일정: FRED 실제 일정으로 같은 종류(CPI·고용·FOMC) 교체
     if ((f.events || []).length) {
       const kind = (t) => (/CPI|소비자물가/.test(t) ? 'cpi' : /FOMC/.test(t) ? 'fomc' : /고용/.test(t) ? 'jobs' : null);
-      const have = new Set(f.events.map((x) => kind(x.title)));
+      const have = new Set(f.events.filter((x) => kind(x.title) !== 'fomc').map((x) => kind(x.title)));
       const keep = SNAP.events.filter((x) => !have.has(kind(x.title)));
-      const add = f.events.filter((x) => x.date >= today).map((x) => ({ date: x.date, title: x.title, when: x.date.slice(5).replace('-', '/') + ' ' + x.when, why: x.why, live: true }));
+      const add = f.events.filter((x) => x.date >= today && kind(x.title) !== 'fomc').map((x) => ({ date: x.date, title: x.title, when: x.date.slice(5).replace('-', '/') + ' ' + x.when, why: x.why, live: true }));
       SNAP.events.splice(0, SNAP.events.length, ...keep.concat(add).sort((a, b) => (a.date < b.date ? -1 : 1)));
     }
   }
@@ -1852,7 +1850,7 @@
     const up = SNAP.events.filter((x) => x.live && R.daysUntil(x.date, now()) >= 0).slice(0, 3);
     return `<section class="card"><div class="row between"><h2>금리·물가</h2><p class="muted xs">FRED·ECOS 자동 · ${new Date(P.fetchedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</p></div>
       ${f.fedUpper ? `<div class="kv"><span>미국 기준금리</span><b class="num">${f.fedLower ? f.fedLower.value.toFixed(2) + '~' : ''}${p2(f.fedUpper.value)} <span class="muted xs">${esc(f.fedUpper.date)}</span></b></div>` : ''}
-      ${row('한국 기준금리', e.bokRate, p2)}
+      ${row('한국 기준금리', e.bokRate, p2, e.bokRate && e.bokRate.date + ' 변경')}
       ${row('미국 물가 (전년비)', f.cpiYoY, p1, f.cpiYoY && f.cpiYoY.date.slice(0, 7))}
       ${row('미국 근원물가', f.coreCpiYoY, p1, f.coreCpiYoY && f.coreCpiYoY.date.slice(0, 7))}
       ${row('미국 실업률', f.unrate, p1, f.unrate && f.unrate.date.slice(0, 7))}

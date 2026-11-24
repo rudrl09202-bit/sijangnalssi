@@ -25,11 +25,11 @@ async function fredObs(key, id, fetchImpl, extra = '') {
   if (!o.length) throw new Error(id + ' 값 없음');
   return { value: num(o[0].value), date: o[0].date, prev: o[1] ? num(o[1].value) : null };
 }
-// 발표 일정: CPI(10), 고용보고서(50), FOMC 성명(101)
+// 발표 일정: CPI(10), 고용보고서(50)
 export const FRED_RELEASES = [
   { id: 10, title: '미국 소비자물가(CPI) 발표', when: '밤 10시 30분(한국)', why: '예상보다 높으면 금리 인상 걱정 → 주식·코인에 부담' },
-  { id: 50, title: '미국 고용보고서 발표', when: '밤 10시 30분(한국)', why: '일자리가 너무 많으면 금리 인상 걱정, 너무 적으면 경기 걱정' },
-  { id: 101, title: '미국 FOMC 금리 결정', when: '새벽 4시(한국)', why: '금리 결정과 앞으로의 신호가 시장 방향을 바꿈' }
+  { id: 50, title: '미국 고용보고서 발표', when: '밤 10시 30분(한국)', why: '일자리가 너무 많으면 금리 인상 걱정, 너무 적으면 경기 걱정' }
+  // FOMC(101)는 FRED 일정에 금리 결정이 아닌 발표도 섞여 있어 쓰지 않음 → 앱의 기존 FOMC 일정 사용
 ];
 async function fredDates(key, rel, fetchImpl, today) {
   const j = await getJson(FRED + 'release/dates?release_id=' + rel.id + '&api_key=' + key + '&file_type=json&realtime_start=' + today + '&include_release_dates_with_no_data=true&sort_order=asc&limit=3', fetchImpl);
@@ -72,10 +72,10 @@ const yyyymm = (d) => ymd(d).slice(0, 7).replace('-', '');
 export async function fetchEcos(key, { fetchImpl = fetch, now = new Date() } = {}) {
   const out = { src: 'ECOS', fetchedAt: now.toISOString() }, errors = [];
   try {
-    const rows = await ecosRows(key, '722Y001', 'D', yyyymmdd(new Date(now - 120 * 864e5)), yyyymmdd(now), '0101000', fetchImpl);
+    const rows = await ecosRows(key, '722Y001', 'D', yyyymmdd(new Date(now - 1100 * 864e5)), yyyymmdd(now), '0101000', fetchImpl); // 바뀐 날만 기록됨 → 3년치
     if (!rows.length) throw new Error('값 없음');
     const last = rows[rows.length - 1], prevDiff = rows.slice().reverse().find((r) => r.v !== last.v);
-    out.bokRate = { value: last.v, date: last.t.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'), prev: prevDiff ? prevDiff.v : last.v };
+    out.bokRate = { changed: true, value: last.v, date: last.t.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'), prev: prevDiff ? prevDiff.v : last.v };
   } catch (e) { errors.push('기준금리: ' + e.message); }
   try {
     const rows = await ecosRows(key, '901Y009', 'M', yyyymm(new Date(now - 430 * 864e5)), yyyymm(now), '0', fetchImpl);
