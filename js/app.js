@@ -2039,7 +2039,7 @@
       <section class="card note"><p class="sm">이 회사들의 매매 프로그램과 학습된 AI는 <b>모두 비공개</b>라 돈을 내도 쓸 수 없어요. 대신 논문·인터뷰로 알려진 원칙을 이 앱에 넣었어요.</p></section>
       ${QUANTS.map((q) => `<section class="card"><h2>${esc(q.name)}</h2>
         <p class="sm">${esc(q.what)}</p>
-        <div class="kv"><span>공개 여부</span><b class="sm">${esc(q.open)}</b></div>
+        <div class="kv sc-coin"><span>공개</span><b class="sm">${esc(q.open)}</b></div>
         <p class="sm" style="margin-top:8px"><b>이 앱에서는</b> ${esc(q.ours)}</p>
         <a class="lrow-mini" href="${q.href}" style="margin:8px 0 0">관련 화면 보기 ›</a></section>`).join('')}
       <section class="card note"><p class="b">결론</p><p class="muted sm">이 회사들의 진짜 강점은 비밀 공식보다 <b>철저한 검증과 손실 관리</b>예요. 그래서 이 앱도 "얼마 벌까"보다 "규칙이 진짜인지, 얼마나 잃을 수 있는지"를 먼저 보여줘요.</p></section>`;
