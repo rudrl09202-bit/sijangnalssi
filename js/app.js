@@ -932,7 +932,7 @@
       <header class="top"><div><a href="#${esc(back)}" class="back">‹ 뒤로</a><p class="kicker">${esc(kindLabel)}</p><h1>${esc(ref.name || MACRO_NAME[ref.id] || ref.id)}</h1></div>${tools()}</header>
       <section class="card panel chart-card">
         <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:8px"><div><p class="nav num">${last ? esc(fmt(last)) : '—'}</p>
-          <p class="num sm ${dirClass(chg)}">${chg == null ? '' : (chg > 0 ? '▲ ' : chg < 0 ? '▼ ' : '') + esc(fmt(Math.abs(last - prev))) + ' · ' + sign(chg, 2) + '%'} <span class="muted xs">${k && k.t ? esc(k.t[k.t.length - 1]) + ' 종가' : ''}</span></p>${liveNow(ref)}</div>
+          <p class="num sm ${dirClass(chg)}">${chg == null ? '' : (chg > 0 ? '▲ ' : chg < 0 ? '▼ ' : '') + esc(fmt(Math.abs(last - prev))) + ' · ' + sign(chg, 2) + '%'} <span class="muted xs">${k && k.t ? esc(k.t[k.t.length - 1]) + ' 종가' : ''}</span></p>${liveNow(ref)}${tvButton(ref.kind, ref.id, ref.name || MACRO_NAME[ref.id] || ref.id, 'D')}</div>
           ${score && score.score100 != null ? `<div class="right"><p class="num rk-s">${score.score100}<span class="muted xs"> /100</span></p>${actBadge(action)}</div>` : ''}</div>
         ${chartBlock(ref, action && action.plan)}
       </section>
@@ -1684,6 +1684,48 @@
     return head + seg + body;
   }
 
+
+  /* ---------- TradingView 차트 (무료 위젯, 키 필요 없음) ----------
+   * 화면 다시 그리기(render)에 지워지지 않도록 앱 바깥에 전체 화면으로 띄움 */
+  const TV_MACRO = { us10y: 'TVC:US10Y', dxy: 'TVC:DXY', brent: 'TVC:UKOIL', gold: 'TVC:GOLD', silver: 'TVC:SILVER', vix: 'TVC:VIX', usdkrw: 'FX_IDC:USDKRW',
+    spx: 'SP:SPX', nasdaq: 'NASDAQ:IXIC', kospi: 'KRX:KOSPI', kosdaq: 'KRX:KOSDAQ', usdjpy: 'FX_IDC:USDJPY', usdcny: 'FX_IDC:USDCNY', eurusd: 'FX:EURUSD', krwjpy: 'FX_IDC:JPYKRW', krwcny: 'FX_IDC:CNYKRW', krweur: 'FX_IDC:EURKRW' };
+  function tvSymbol(kind, id) {
+    const x = String(id || '');
+    if (kind === 'coin') return 'UPBIT:' + x.replace(/^KRW-/, '') + 'KRW';
+    if (kind === 'perp') return 'BINANCE:' + x + 'USDT.P';
+    if (kind === 'macro') return TV_MACRO[x] || null;
+    const k = x.toUpperCase().replace(/^A(?=\d{6})/, '');
+    const kr = k.match(/^(\d{6})/); if (kr) return 'KRX:' + kr[1];
+    return k.replace(/[-.](KS|KQ)$/, '').replace(/-/g, '.');
+  }
+  function tvButton(kind, id, name, iv) {
+    const sym = tvSymbol(kind, id); if (!sym) return '';
+    return `<button type="button" class="tv-btn" data-act="tv" data-v="${esc(sym)}" data-name="${esc(name || id)}" data-iv="${esc(iv || 'D')}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>TradingView 차트</button>`;
+  }
+  function openTV(sym, name, iv) {
+    closeTV();
+    const dark = document.documentElement.dataset.theme === 'dark';
+    const wrap = document.createElement('div');
+    wrap.className = 'tv-overlay'; wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-label', (name || sym) + ' 차트');
+    wrap.innerHTML = `<div class="tv-head"><div><p class="b">${esc(name || sym)}</p><p class="muted xs">${esc(sym)} · TradingView</p></div><button type="button" class="tv-close" aria-label="닫기">✕</button></div><div class="tv-body"><div class="tradingview-widget-container" style="height:100%;width:100%"><div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div></div></div>`;
+    document.body.appendChild(wrap); document.body.classList.add('tv-open');
+    wrap.querySelector('.tv-close').addEventListener('click', closeTV);
+    const sc = document.createElement('script');
+    sc.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'; sc.async = true;
+    sc.textContent = JSON.stringify({ autosize: true, symbol: sym, interval: iv || 'D', timezone: 'Asia/Seoul', theme: dark ? 'dark' : 'light', style: '1', locale: 'kr',
+      backgroundColor: dark ? '#101013' : '#FFFFFF', hide_side_toolbar: window.innerWidth < 700, allow_symbol_change: true, withdateranges: true, details: false, calendar: false,
+      studies: ['MAExp@tv-basicstudies', 'RSI@tv-basicstudies'], support_host: 'https://www.tradingview.com' });
+    sc.onerror = () => { const b = wrap.querySelector('.tv-body'); if (b) b.innerHTML = '<p class="muted sm pad">TradingView 차트를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; };
+    wrap.querySelector('.tradingview-widget-container').appendChild(sc);
+    history.pushState({ tv: 1 }, '');
+  }
+  function closeTV() {
+    const w = document.querySelector('.tv-overlay'); if (!w) return;
+    w.remove(); document.body.classList.remove('tv-open');
+    if (history.state && history.state.tv) history.back();
+  }
+  window.addEventListener('popstate', () => { const w = document.querySelector('.tv-overlay'); if (w) { w.remove(); document.body.classList.remove('tv-open'); } });
+
   /* ---------- 화면: 선물 데스크 (FLUX · 코인 무기한 선물 모의투자) ---------- */
   function futRepo() {
     const h = location.hostname || '';
@@ -1738,7 +1780,7 @@
         <div class="kv"><span>손절가</span><b class="num">${usd(p.stop)} <span class="muted xs">${p.toStop}% 남음 · 손실 한도 ${man(p.risk)}</span></b></div>
         <div class="kv"><span>청산가</span><b class="num">${usd(p.liq)} <span class="muted xs">${p.toLiq}% 남음 (손절이 먼저)</span></b></div>
         <div class="kv"><span>펀딩비 누적</span><b class="num ${dirClass(p.funding)}">${p.funding >= 0 ? '+' : ''}${man(p.funding)}</b></div>
-        <p class="muted xs">${esc(p.since)} 진입 · ${esc(p.why)}</p></div>`).join('') : '<p class="muted sm">지금은 들고 있는 포지션이 없어요. 조건이 맞는 돌파가 나오면 다음 4시간봉 시가에 들어가요.</p>'}
+        <p class="muted xs">${esc(p.since)} 진입 · ${esc(p.why)}</p>${tvButton('perp', p.sym, p.name + ' 무기한 선물', '240')}</div>`).join('') : '<p class="muted sm">지금은 들고 있는 포지션이 없어요. 조건이 맞는 돌파가 나오면 다음 4시간봉 시가에 들어가요.</p>'}
       ${L.pending.length ? `<p class="sm" style="margin-top:8px">다음 봉 시가 진입 예정: ${L.pending.map((o) => `<b>${SIDE[o.side][0]} ${esc(o.name)}</b>`).join(', ')}</p>` : ''}</section>`;
     const posCard = posCardOf(L);
     const CN = D.council;
@@ -1754,7 +1796,7 @@
         <p class="sm" style="margin-top:6px">${a.key ? `찬성 ${a.yes}/${a.votes}${a.errors ? ' · 실패 ' + a.errors : ''}` : '<span class="act warn">키 등록 전</span>'}</p></div>`).join('')}</div>
         ${CN.ai.some((a) => !a.key) ? `<p class="muted xs" style="margin-top:8px">키가 없는 AI가 있으면 만장일치가 될 수 없어서 진입하지 않아요${CN.waiting ? ' (지금까지 ' + CN.waiting + '건이 투표를 기다렸어요)' : ''}. GitHub → Settings → Secrets → Actions 에 ANTHROPIC_API_KEY · GEMINI_API_KEY · OPENAI_API_KEY 를 넣으면 다음 4시간 실행부터 투표해요.</p>` : ''}</section>
       <section class="card"><h2>최근 투표</h2>${CN.votes.length ? CN.votes.slice(0, 12).map((v) => `<div class="vote">
-        <div class="row between"><p class="b sm"><span class="side ${SIDE[v.side][1]}">${SIDE[v.side][0]}</span> ${esc(v.name)} <span class="muted xs">${futT(v.t)} 봉 · ${usd(v.price)}</span></p><span class="act ${(RES[v.result] || RES.rejected)[1]}">${(RES[v.result] || RES.rejected)[0]}</span></div>
+        <div class="row between"><p class="b sm"><span class="side ${SIDE[v.side][1]}">${SIDE[v.side][0]}</span> ${esc(v.name)} <span class="muted xs">${futT(v.t)} 봉 · ${usd(v.price)}</span> <button type="button" class="link-btn xs" data-act="tv" data-v="${esc(tvSymbol('perp', v.sym))}" data-name="${esc(v.name)} 무기한 선물" data-iv="240">차트</button></p><span class="act ${(RES[v.result] || RES.rejected)[1]}">${(RES[v.result] || RES.rejected)[0]}</span></div>
         ${v.result === 'nokey' ? '' : v.votes.map((x) => `<p class="xs vote-line"><b>${esc(x.name)}</b> <span class="act ${(VT[x.vote] || VT.error)[1]}">${(VT[x.vote] || VT.error)[0]}${x.confidence ? ' ' + x.confidence : ''}</span> ${esc(x.reason)}</p>`).join('')}</div>`).join('') : '<p class="muted sm">아직 후보가 없었어요. FLUX가 돌파를 찾으면 여기서 투표가 열려요.</p>'}</section>
       ${posCardOf(CN)}
       <section class="card"><h2>AI 회의 거래</h2>${futTrades(CN.trades, 10)}</section>`;
@@ -2328,6 +2370,7 @@
     else if (act === 'theme') { const d = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = d; try { localStorage.setItem('snw.theme', d); } catch (err) { /* 무시 */ } const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = d === 'dark' ? '#101013' : '#F2F4F6'; render(); }
     else if (act === 'paper-bot') { S.ui.paperBot = v; if (v !== 'team' && !S.ui.paperTab) S.ui.paperTab = 'live'; render(); }
     else if (act === 'paper-tab') { S.ui.paperTab = v; render(); }
+    else if (act === 'tv') openTV(v, b.dataset.name, b.dataset.iv);
     else if (act === 'fut-tab') { S.ui.futTab = v; render(); window.scrollTo(0, 0); }
     else if (act === 'vault-forget') { store.set('snw.vaultKey', null); location.reload(); }
     else if (act === 'demo') { S.demo = !S.demo; store.set('snw.demo', S.demo); LIVE = S.demo ? DEMO : REAL; S.ui.scoreResult = null; render(); loadPrices([]).then(render); allHoldings().filter((h) => h.type === 'coin').forEach((h) => ensureCloses(h.market)); }
