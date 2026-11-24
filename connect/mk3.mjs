@@ -19,6 +19,7 @@ const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
 const require = createRequire(import.meta.url);
 const H4 = 4 * 3600e3, DAY = 864e5;
 const isoT = (t) => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
+const thin = (eq, n = 500) => { const k = Math.max(1, Math.ceil(eq.length / n)); return eq.filter((e, i) => i % k === 0 || i === eq.length - 1).map(([t, v]) => [isoT(t), v]); }; // 자산 곡선: 처음부터 끝까지 최대 500점
 const r2 = (x, n = 2) => (x == null || !isFinite(x) ? null : Math.round(x * 10 ** n) / 10 ** n);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const MK3_V = 1;
@@ -224,8 +225,8 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
   const out = {
     v: 1, generatedAt: now.toISOString(), lastBar: isoT(W.T[last]), src, inception: isoT(st.inception), cfg: { riskPct: cfg.riskPct, maxPos: cfg.maxPos, maxLevTotal: cfg.maxLevTotal, stopAtr: P.stopAtr, trailAtr: P.trailAtr, brk: P.brk, dayLoss: cfg.dayLoss, ddHalve: cfg.ddHalve, ddKill: cfg.ddKill },
     model: { ver: M.ver, at: M.at, n: M.n, rate: M.rate, imp: M.imp.slice(0, 10), src: M.src }, wf: st.wf,
-    live: { equity: eq, start: A.start, ret: r2((eq / A.start - 1) * 100, 2), trades: A.trades.slice(-20).reverse(), n: A.trades.length, win: A.trades.length ? r2(A.trades.filter((t) => t.pnl > 0).length / A.trades.length * 100, 0) : null,
-      curve: A.equity.slice(-400).map(([t, v]) => [isoT(t), v]), status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.half ? 'half' : 'ok',
+    live: { equity: eq, start: A.start, ret: r2((eq / A.start - 1) * 100, 2), trades: A.trades.slice(-300).reverse(), n: A.trades.length, win: A.trades.length ? r2(A.trades.filter((t) => t.pnl > 0).length / A.trades.length * 100, 0) : null,
+      curve: thin(A.equity), status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.half ? 'half' : 'ok',
       positions: Object.values(A.pos).map((p) => { const m = mark(p.sym), u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty; return { sym: p.sym, name: p.name, side: p.side, entry: p.entry, mark: m, stop: p.stop, liq: p.liq, lev: r2(m * p.qty / eq, 2), upnl: Math.round(u), since: isoT(p.t), why: p.why, trail: Math.abs(p.stop - p.stop0) > 1e-12 }; }),
       pending: A.pending.filter((o) => o.kind === 'open' && o.approved).map((o) => ({ sym: o.sym, name: o.name, side: o.side, why: o.why, fillAt: isoT(W.T[last] + H4) })) },
     decisions: st.decisions.slice(-20).reverse(), watch

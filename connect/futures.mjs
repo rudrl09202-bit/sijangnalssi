@@ -23,6 +23,7 @@ const HOSTS = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo
 const GOAL = 10; // 사용자가 잡은 월 목표(%)
 const COUNCIL_RISK = 2.5; // AI 3명 만장일치일 때 한 번에 거는 위험(%)
 
+const thin = (eq, n = 500) => { const k = Math.max(1, Math.ceil(eq.length / n)); return eq.filter((e, i) => i % k === 0 || i === eq.length - 1).map(([t, v]) => [isoT(t), v]); }; // 자산 곡선: 처음부터 끝까지 최대 500점
 export async function yahoo(sym, range, interval, fetchImpl = fetch) {
   let lastErr;
   for (let k = 0; k < 4; k++) {
@@ -99,9 +100,9 @@ function liveView(F, Q, W, L, h4, lastIdx) {
       toStop: Math.round(Math.abs(m / p.stop - 1) * 1000) / 10, toLiq: Math.round(Math.abs(m / p.liq - 1) * 1000) / 10, funding: Math.round(p.funding), since: isoT(p.t), why: p.why, risk: Math.round(p.riskAmt) };
   });
   const lev = positions.reduce((a, p) => a + p.notional, 0) / (eqNow || 1);
-  return { equity: eqNow, start: L.start, ret: Math.round((eqNow / L.start - 1) * 10000) / 100, days: ldc.length, metrics: lm, curve: L.equity.slice(-540).map(([t, v]) => [isoT(t), v]),
+  return { equity: eqNow, start: L.start, ret: Math.round((eqNow / L.start - 1) * 10000) / 100, days: ldc.length, metrics: lm, curve: thin(L.equity),
     positions, lev: Math.round(lev * 100) / 100, pending: L.pending.filter((o) => o.kind === 'open' && (!o.needVote || o.approved)).map((o) => ({ sym: o.sym, name: o.name, side: o.side, why: o.why })),
-    trades: L.trades.slice(-40).reverse(), status: (L.killUntilT || 0) > W.T[lastIdx] ? 'killed' : L.dayBlock ? 'dayblock' : L.half ? 'half' : 'ok', liq: L.liquidations, peak: Math.round(L.peak),
+    trades: L.trades.slice(-300).reverse(), status: (L.killUntilT || 0) > W.T[lastIdx] ? 'killed' : L.dayBlock ? 'dayblock' : L.half ? 'half' : 'ok', liq: L.liquidations, peak: Math.round(L.peak),
     funding: Math.round(L.fundingPaid), fees: Math.round(L.feesPaid), months: F.monthStats(ldc, GOAL) };
 }
 

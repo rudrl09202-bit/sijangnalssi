@@ -20,6 +20,7 @@ const require = createRequire(import.meta.url);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const HOUR = 3600e3, DAY = 864e5;
 const isoT = (t) => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
+const thin = (eq, n = 500) => { const k = Math.max(1, Math.ceil(eq.length / n)); return eq.filter((e, i) => i % k === 0 || i === eq.length - 1).map(([t, v]) => [isoT(t), v]); }; // 자산 곡선: 처음부터 끝까지 최대 500점
 const r2 = (x, n = 2) => (x == null || !isFinite(x) ? null : Math.round(x * 10 ** n) / 10 ** n);
 
 export const MK_COINS = [
@@ -314,7 +315,7 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
     v: 1, generatedAt: now.toISOString(), lastBar: isoT(W.T[last]), inception: isoT(st.inception), cfg: { riskPct: P.riskPct, maxPos: P.maxPos, stopAtr: P.stopAtr, minStopPct: P.minStopPct, tpR: P.tpR, maxBars: P.maxBars, dayLoss: P.dayLoss, ddKill: P.ddKill, maxLevTotal: P.maxLevTotal },
     model: { at: st.model.at, ver: st.model.ver, n: st.model.n, rate: st.model.rate, imp: st.model.imp, feats: FL.list.length, coins: W.syms.length, from: isoT(W.T[0]) },
     wf: st.wf,
-    live: { equity: eq, start: A.start, ret: r2((eq / A.start - 1) * 100, 2), stats: SC.stats(A), trades: A.trades.slice(-20).reverse(), curve: A.equity.slice(-500).filter((e, k, a) => k % 2 === 0 || k === a.length - 1).map(([t, v]) => [isoT(t), v]),
+    live: { equity: eq, start: A.start, ret: r2((eq / A.start - 1) * 100, 2), stats: SC.stats(A), trades: A.trades.slice(-300).reverse(), curve: thin(A.equity),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok',
       positions: Object.values(A.pos).map((p) => { const m = mark(p.sym), u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty; return { sym: p.sym, name: p.name, side: p.side, entry: p.entry, mark: m, lev: r2(m * p.qty / eq, 2), upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be, why: p.why, since: isoT(p.t), barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / HOUR)) }; }),
       pending: A.pending.filter((o) => o.kind === 'open').map((o) => ({ sym: o.sym, name: o.name, side: o.side, why: o.why, fillAt: isoT(W.T[last] + HOUR) })) },

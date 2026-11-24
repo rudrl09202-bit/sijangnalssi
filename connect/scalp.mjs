@@ -18,6 +18,7 @@ const require = createRequire(import.meta.url);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isoT = (t) => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
 const BAR = 15 * 60e3;
+const thin = (eq, n = 500) => { const k = Math.max(1, Math.ceil(eq.length / n)); return eq.filter((e, i) => i % k === 0 || i === eq.length - 1).map(([t, v]) => [isoT(t), v]); }; // 자산 곡선: 처음부터 끝까지 최대 500점
 
 const SYSTEM = `당신은 코인 무기한 선물 단타 트레이더입니다. 15분봉 규칙 엔진이 진입 후보를 올리면, 실제로 들어갈지(enter) 건너뛸지(skip) 결정합니다.
 - 손절·익절·크기·레버리지는 규칙으로 고정입니다(손절 1.5 ATR, 익절 2R, 계좌 1% 위험). 당신은 진입 여부만 정합니다.
@@ -236,7 +237,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
     const pos = Object.values(BA.pos).map((p) => { const m = series[p.sym].c[series[p.sym].c.length - 1], u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
       return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, lev: Math.round(m * p.qty / e2 * 100) / 100, upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be,
         toStop: Math.round(Math.abs(m / p.stop - 1) * 1000) / 10, toLiq: Math.round(Math.abs(m / p.liq - 1) * 1000) / 10, ai: p.ai, barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / BAR)) }; });
-    return { inception: isoT(X.inception), equity: e2, start: BA.start, ret: Math.round((e2 / BA.start - 1) * 10000) / 100, stats: SC.stats(BA), positions: pos, pending: pendOf(BA), trades: BA.trades.slice(-20).reverse(),
+    return { inception: isoT(X.inception), equity: e2, start: BA.start, ret: Math.round((e2 / BA.start - 1) * 10000) / 100, stats: SC.stats(BA), positions: pos, pending: pendOf(BA), trades: BA.trades.slice(-300).reverse(), curve: thin(BA.equity),
       decisions: X.decisions.slice(-20).reverse(), aiStats: { asked: dd.length, enter: dd.filter((d) => d.decision === 'enter').length } };
   }
   // AI별 성적표: 다수결 계좌의 끝난 거래에서 각 AI가 찬성했을 때/반대했을 때 결과
@@ -260,10 +261,10 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   const dec = st.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
   const out = {
     v: 1, generatedAt: now.toISOString(), lastBar: isoT(W.T[last]), inception: isoT(st.inception), cfg: P, model, hasKey: !!key,
-    live: { equity: eq, start: A.start, ret: Math.round((eq / A.start - 1) * 10000) / 100, days: ldc.length, stats: ls, curve: A.equity.slice(-400).map(([t, v]) => [isoT(t), v]),
-      positions, pending: pendOf(A), lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-40).reverse(),
+    live: { equity: eq, start: A.start, ret: Math.round((eq / A.start - 1) * 10000) / 100, days: ldc.length, stats: ls, curve: thin(A.equity),
+      positions, pending: pendOf(A), lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-300).reverse(),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
-    shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), trades: S2.trades.slice(-10).reverse(), open: Object.keys(S2.pos).length }; })(),
+    shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), curve: thin(S2.equity), start: S2.start, trades: S2.trades.slice(-300).reverse(), open: Object.keys(S2.pos).length }; })(),
     major: summarize(M3),
     mk: (() => { const X = summarize({ inception: st.mk.inception, acc: st.mk.acc, decisions: [] }); delete X.decisions; delete X.aiStats;
       X.curve = st.mk.acc.equity.slice(-400).filter((e, k, a) => k % 4 === 0 || k === a.length - 1).map(([t, v]) => [isoT(t), v]);
