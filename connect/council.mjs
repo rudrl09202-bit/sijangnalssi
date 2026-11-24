@@ -76,3 +76,16 @@ export async function vote(env, brief, fetchImpl = fetch) {
   const result = res.some((x) => x.vote === 'none') ? 'nokey' : yes === VOTERS.length ? 'approved' : 'rejected';
   return { votes: res, yes, result };
 }
+
+// 연결 시험: node connect/council.mjs --ping  (키 값은 절대 출력하지 않음)
+import { fileURLToPath as _f } from 'node:url';
+if (process.argv[1] && _f(import.meta.url) === process.argv[1] && process.argv.includes('--ping')) {
+  const sample = { 시험: '연결 확인용 가상 후보입니다. 실제 매매와 무관합니다.', 코인: '비트코인(BTC)', 방향: '롱', 신호: '40봉 고점 돌파 + 50/200 EMA 정배열',
+    현재가: 100000, 손절가: 95000, 손절거리_퍼센트: 5, EMA50: 97000, EMA200: 90000, ATR_퍼센트: 2, BTC: { 장세: '상승장(200일선 위)' } };
+  const t0 = Date.now();
+  vote(process.env, sample).then((r) => {
+    r.votes.forEach((v) => console.log((v.vote === 'yes' || v.vote === 'no' ? '✓ ' : '✗ ') + v.name + ' (' + v.model + '): ' + v.vote + ' · ' + v.reason));
+    console.log('결과: ' + r.result + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
+    if (r.votes.some((v) => v.vote === 'none' || v.vote === 'error')) process.exitCode = 1;
+  });
+}

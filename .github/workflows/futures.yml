@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '7 0,4,8,12,16,20 * * *'   # 4시간봉 마감 7분 뒤 (UTC) — 주말에도 돌아감
   workflow_dispatch:
+    inputs:
+      ping:
+        description: 'AI 3개 연결만 시험 (매매 안 함)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,7 +28,18 @@ jobs:
           node-version: 20
       - name: 알림 발송 도구 설치
         run: npm install --no-audit --no-fund
+      - name: AI 회의 연결 시험
+        if: ${{ inputs.ping }}
+        run: node connect/council.mjs --ping
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
       - name: FLUX 선물 모의투자
+        if: ${{ !inputs.ping }}
         run: node connect/futures.mjs
         env:
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
@@ -37,6 +53,7 @@ jobs:
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
       - name: 결과 저장
+        if: ${{ !inputs.ping }}
         run: |
           git config user.name "sijangnalssi-bot"
           git config user.email "actions@users.noreply.github.com"
