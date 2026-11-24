@@ -34,7 +34,9 @@ export async function askClaude(key, model, user, fetchImpl, system = SYSTEM, ma
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }) });
     const j = await r.json(); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + ((j.error && j.error.message) || ''));
-    return (j.content || []).map((c) => c.text || '').join('');
+    const text = (j.content || []).map((c) => c.text || '').join('');
+    if (!text.trim()) throw new Error('빈 응답(stop_reason=' + j.stop_reason + ', 블록=' + (j.content || []).map((c) => c.type).join('/') + ')');
+    return text;
   } finally { to.done(); }
 }
 export async function askGemini(key, model, user, fetchImpl, system = SYSTEM, maxTokens = 300) {

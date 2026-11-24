@@ -117,10 +117,14 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       if (!key) { o.approved = false; st.decisions.push({ ...rec, decision: 'nokey', reason: 'Claude 키 없음' }); continue; }
       let d;
       const msg = '후보 자료(JSON):\n' + JSON.stringify(brief(W, P, i, o, A));
-      for (let k = 0; k < 2 && !d; k++) {
-        try { d = parseDecision(await askClaude(key, model, msg, fetchImpl, SYSTEM, 300)); }
-        catch (e) { if (k === 1) d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + String(e.message || e).slice(0, 80) }; else await sleep(1500); }
+      // 같은 모델 2번 → 그래도 비면 다른 Claude 모델로 (빈 응답 대비)
+      const models = [model, model, env.SCALP_BACKUP_MODEL || 'claude-opus-5-5'];
+      let lastErr = '';
+      for (let k = 0; k < models.length && !d; k++) {
+        try { d = parseDecision(await askClaude(key, models[k], msg, fetchImpl, SYSTEM, 400)); if (models[k] !== model) d.reason = d.reason + ' (' + models[k] + ')'; }
+        catch (e) { lastErr = String(e.message || e); log('Claude 시도 ' + (k + 1) + ' 실패: ' + lastErr.slice(0, 120)); await sleep(1500); }
       }
+      if (!d) d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + lastErr.slice(0, 100) };
       asked++;
       o.approved = d.decision === 'enter'; o.ai = { decision: d.decision, confidence: d.confidence, reason: d.reason };
       st.decisions.push({ ...rec, ...d, model });
