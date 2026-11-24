@@ -734,3 +734,10 @@ html[data-theme="dark"] .hq-desk-top { fill: #3A3E45; } html[data-theme="dark"] 
 .mv-dash .mc-bod { animation: mcdash 1.6s ease-in-out infinite; }
 .mc-bolt { animation: mctwinkle 1.2s ease-in-out infinite; transform-origin: center; }
 @keyframes mcdash { 0%, 100% { transform: translateX(0) rotate(0); } 20% { transform: translateX(-3px) rotate(-6deg); } 40% { transform: translateX(0) rotate(0); } 60% { transform: translateX(3px) rotate(6deg); } 80% { transform: translateX(0); } }
+.ai-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ai-card { background: var(--sunk); border-radius: 14px; padding: 12px; min-width: 0; }
+.ai-card p { margin: 0; overflow-wrap: anywhere; }
+.vote { padding: 12px 0; border-top: 1px solid var(--line); }
+.vote:first-of-type { border-top: 0; padding-top: 4px; }
+.vote-line { margin: 6px 0 0; line-height: 1.5; color: var(--ink2); }
+.vote-line .act { font-size: 11px; padding: 1px 6px; margin: 0 4px; }

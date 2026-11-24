@@ -1731,7 +1731,7 @@
       ${(D.ladder || []).map((x) => `<tr class="${x.risk === cur ? 'on' : ''}"><td>${x.risk}%${x.risk === cur ? ' ✓' : ''}</td><td class="${dirClass(x.avgMonth)}">${pct(x.avgMonth, 1)}</td><td>${x.hit == null ? '—' : x.hit + '%'}</td><td class="${dirClass(x.worstMonth)}">${pct(x.worstMonth, 1)}</td><td>${pct(x.mdd, 0)}</td><td>${x.liq}</td></tr>`).join('')}
       </tbody></table></div>
       <p class="muted xs" style="margin-top:6px">✓ = 지금 봇 설정. 과거 1~2년 데이터라 운 좋은 구간이 섞여 있을 수 있어요. 아래 10년 일봉 검증도 같이 보세요.</p></section>`;
-    const posCard = `<section class="card"><h2>지금 포지션 ${L.positions.length}개 <span class="muted xs">· 최대 ${D.cfg.maxPos}개</span></h2>
+    const posCardOf = (L) => `<section class="card"><h2>지금 포지션 ${L.positions.length}개 <span class="muted xs">· 최대 ${D.cfg.maxPos}개</span></h2>
       ${L.positions.length ? L.positions.map((p) => `<div class="fpos">
         <div class="row between"><p class="b"><span class="side ${SIDE[p.side][1]}">${SIDE[p.side][0]}</span> ${esc(p.name)} <span class="muted xs">${p.lev}배 · 격리 ${D.cfg.isoLev}배</span></p><p class="num b ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</p></div>
         <div class="kv"><span>진입→현재</span><b class="num">${usd(p.entry)} → ${usd(p.mark)} <span class="muted xs">증거금 대비 ${pct(p.roe, 1)}</span></b></div>
@@ -1740,6 +1740,24 @@
         <div class="kv"><span>펀딩비 누적</span><b class="num ${dirClass(p.funding)}">${p.funding >= 0 ? '+' : ''}${man(p.funding)}</b></div>
         <p class="muted xs">${esc(p.since)} 진입 · ${esc(p.why)}</p></div>`).join('') : '<p class="muted sm">지금은 들고 있는 포지션이 없어요. 조건이 맞는 돌파가 나오면 다음 4시간봉 시가에 들어가요.</p>'}
       ${L.pending.length ? `<p class="sm" style="margin-top:8px">다음 봉 시가 진입 예정: ${L.pending.map((o) => `<b>${SIDE[o.side][0]} ${esc(o.name)}</b>`).join(', ')}</p>` : ''}</section>`;
+    const posCard = posCardOf(L);
+    const CN = D.council;
+    const RES = { approved: ['만장일치 · 진입', 'live'], rejected: ['보류', 'neu'], nokey: ['키 등록 전', 'neu'] };
+    const VT = { yes: ['찬성', 'live'], no: ['반대', 'neu'], none: ['키 없음', 'neu'], error: ['응답 실패', 'warn'] };
+    const council = !CN ? '<section class="card"><p class="muted sm">AI 회의 결과가 아직 없어요. 다음 4시간 실행 때 생겨요.</p></section>' : `
+      <section class="card"><h2>AI 회의 · 셋 다 찬성할 때만 진입</h2>
+        <p class="muted xs">FLUX가 찾은 후보를 Claude·Gemini·GPT가 각자 심사해요. 만장일치면 계좌의 ${CN.risk}%를 걸고, 한 명이라도 반대하면 들어가지 않아요. 금고 규칙(레버리지 ${D.cfg.maxLevTotal}배, 손절, 킬 스위치)은 AI가 바꿀 수 없어요.</p>
+        <div class="kv"><span>FLUX (엔진 혼자, ${D.cfg.riskPct}%)</span><b class="num ${dirClass(L.ret)}">${pct(L.ret, 2)} <span class="muted xs">거래 ${(L.metrics && L.metrics.trades) || 0} · 포지션 ${L.positions.length}</span></b></div>
+        <div class="kv"><span>AI 회의 (만장일치, ${CN.risk}%)</span><b class="num ${dirClass(CN.ret)}">${pct(CN.ret, 2)} <span class="muted xs">거래 ${(CN.metrics && CN.metrics.trades) || 0} · 포지션 ${CN.positions.length}</span></b></div>
+        <div class="kv"><span>심사한 후보</span><b class="num">${CN.asked}건 중 ${CN.approved}건 진입${CN.asked ? ' (' + Math.round(CN.approved / CN.asked * 100) + '%)' : ''}</b></div></section>
+      <section class="card"><h2>심사위원</h2><div class="ai-grid">${CN.ai.map((a) => `<div class="ai-card"><p class="b">${esc(a.name)}</p><p class="muted xs">${esc(a.model)}</p>
+        <p class="sm" style="margin-top:6px">${a.key ? `찬성 ${a.yes}/${a.votes}${a.errors ? ' · 실패 ' + a.errors : ''}` : '<span class="act warn">키 등록 전</span>'}</p></div>`).join('')}</div>
+        ${CN.ai.some((a) => !a.key) ? `<p class="muted xs" style="margin-top:8px">키가 없는 AI가 있으면 만장일치가 될 수 없어서 진입하지 않아요${CN.waiting ? ' (지금까지 ' + CN.waiting + '건이 투표를 기다렸어요)' : ''}. GitHub → Settings → Secrets → Actions 에 ANTHROPIC_API_KEY · GEMINI_API_KEY · OPENAI_API_KEY 를 넣으면 다음 4시간 실행부터 투표해요.</p>` : ''}</section>
+      <section class="card"><h2>최근 투표</h2>${CN.votes.length ? CN.votes.slice(0, 12).map((v) => `<div class="vote">
+        <div class="row between"><p class="b sm"><span class="side ${SIDE[v.side][1]}">${SIDE[v.side][0]}</span> ${esc(v.name)} <span class="muted xs">${futT(v.t)} 봉 · ${usd(v.price)}</span></p><span class="act ${(RES[v.result] || RES.rejected)[1]}">${(RES[v.result] || RES.rejected)[0]}</span></div>
+        ${v.result === 'nokey' ? '' : v.votes.map((x) => `<p class="xs vote-line"><b>${esc(x.name)}</b> <span class="act ${(VT[x.vote] || VT.error)[1]}">${(VT[x.vote] || VT.error)[0]}${x.confidence ? ' ' + x.confidence : ''}</span> ${esc(x.reason)}</p>`).join('')}</div>`).join('') : '<p class="muted sm">아직 후보가 없었어요. FLUX가 돌파를 찾으면 여기서 투표가 열려요.</p>'}</section>
+      ${posCardOf(CN)}
+      <section class="card"><h2>AI 회의 거래</h2>${futTrades(CN.trades, 10)}</section>`;
     const liveCard = `<section class="card"><h2>모의 계좌 흐름</h2>${lineSvg([{ pts: L.curve.map(([t, v]) => [t.replace(' ', 'T') + ':00Z', v]), cls: 'l-bot', label: 'FLUX' }], { h: 170 })}
       <div class="grid3">${mini('끝난 거래', String((L.metrics && L.metrics.trades) || 0) + '번', '승률 ' + (L.metrics && L.metrics.winRate != null ? L.metrics.winRate + '%' : '—'))}${mini('손익비', L.metrics && L.metrics.pf != null ? String(L.metrics.pf) : '—', '1.3 이상이 목표')}${mini('펀딩·수수료', man(-(L.funding + L.fees)), '지금까지 낸 비용')}</div></section>
       <section class="card"><h2>최근 거래</h2>${futTrades(L.trades, 10)}</section>`;
@@ -1777,9 +1795,9 @@
       <p class="muted xs">선물은 주식 봇보다 조건이 더 엄격해요(90일·30번·강제청산 0번). 통과해도 처음엔 아주 작은 금액, 레버리지 그대로로 시작해요.</p></section>
       <section class="card note"><p class="b">알아둘 점</p><p class="muted xs">· 시세는 야후의 현물 가격으로 계산해요. 실제 선물 가격과 아주 조금 다를 수 있어요.<br>· 펀딩비는 실제 기록이 아니라 장세에 따라 0.01~0.03%(8시간)로 추정해요.<br>· 4시간 데이터가 약 2년치라 백테스트 기간이 짧아요 → 10년 일봉 검증을 꼭 같이 보세요.<br>· 과거 성적은 미래 수익을 보장하지 않아요. 선물은 원금보다 크게 잃을 수 있는 상품이에요.</p></section>`;
     const tab = S.ui.futTab || 'live';
-    const segs = [['live', '모의 계좌'], ['goal', '월 목표'], ['bt', '검증'], ['rule', '규칙·조건']];
+    const segs = [['live', 'FLUX'], ['council', 'AI 회의'], ['goal', '월 목표'], ['bt', '검증'], ['rule', '규칙']];
     const seg = `<div class="seg" role="tablist">${segs.map(([k, l]) => `<button role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-act="fut-tab" data-v="${k}">${l}</button>`).join('')}</div>`;
-    const body = tab === 'goal' ? reality : tab === 'bt' ? btCard : tab === 'rule' ? rules + ready : posCard + liveCard;
+    const body = tab === 'council' ? council : tab === 'goal' ? reality : tab === 'bt' ? btCard : tab === 'rule' ? rules + ready : posCard + liveCard;
     return head + hero + seg + body;
   }
   function futuresEntry() {

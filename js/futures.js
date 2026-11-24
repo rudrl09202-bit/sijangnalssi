@@ -93,13 +93,14 @@
       pend.forEach((o) => {
         const op = px(o.sym, i, 'o'); if (op == null) return;
         if (o.kind === 'exit') { const p = acc.pos[o.sym]; if (p) closePos(acc, p, op * (p.side === 'long' ? 1 - cfg.slipIn : 1 + cfg.slipIn), t, o.reason, cfg, ev); return; }
+        if (o.needVote && !o.approved) return; // AI 회의에서 만장일치가 안 나온 후보
         if (acc.pos[o.sym] || acc.dayBlock || i < acc.killUntil) return;
         const entry = op * (o.side === 'long' ? 1 + cfg.slipIn : 1 - cfg.slipIn);
         const eq = markEquity(acc, (s) => px(s, i, 'o'));
         const stopDist = o.atr * P.stopAtr, liqDist = entry - liqPrice('long', entry, cfg);
         if (stopDist > liqDist * 0.5) return; // 손절이 청산보다 확실히 먼저 오도록
         const riskMult = acc.half ? 0.5 : 1;
-        const riskAmt = eq * cfg.riskPct / 100 * riskMult;
+        const riskAmt = eq * (o.risk != null ? o.risk : cfg.riskPct) / 100 * riskMult;
         let qty = riskAmt / stopDist;
         const used = Object.values(acc.pos).reduce((a, p) => a + p.qty * (px(p.sym, i, 'o') || p.entry), 0);
         const capCoin = eq * cfg.maxLevCoin, capAll = Math.max(0, eq * cfg.maxLevTotal - used);
@@ -163,7 +164,7 @@
         else if (btcBear && x.eF[j] < x.eS[j] && c < x.eS[j] && c < x.lo[j]) cands.push({ sym: s, name: meta.name, side: 'short', atr: a, str: (x.lo[j] - c) / a, why: P.brk + '봉 저점 이탈 + 역배열 + BTC 하락장' });
       });
       const room = cfg.maxPos - Object.keys(acc.pos).length - acc.pending.filter((o) => o.kind !== 'exit').length;
-      cands.sort((a, b) => b.str - a.str).slice(0, Math.max(0, room)).forEach((o) => acc.pending.push({ kind: 'open', ...o }));
+      cands.sort((a, b) => b.str - a.str).slice(0, Math.max(0, room)).forEach((o) => acc.pending.push({ kind: 'open', ...o, t: iso(t), i, needVote: !!opts.vote }));
     }
     acc.lastT = T[Math.min(i1, T.length - 1)];
     return acc;
