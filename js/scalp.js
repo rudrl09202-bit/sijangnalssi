@@ -134,6 +134,11 @@
   /* ---------- 후보 찾기 (봉 마감 j 기준) ---------- */
   function setups(x, j, P) {
     if (P.mk) return mkSetups(x, j, P);
+    if (P.ml) { // 학습형: 미리 계산한 모델 신호(x.mlSig[j])를 그대로 후보로
+      const g = x.mlSig && x.mlSig[j], a0 = x.atr[j], c0 = x.d.c[j];
+      if (!g || a0 == null || a0 / c0 * 100 > P.atrMaxPct) return [];
+      return [{ side: g.side, setup: 'mk-ml', why: g.why, p: g.p, ev: g.ev, atr: a0, str: g.ev, ref: c0, hl: [x.d.h[j], x.d.l[j]] }];
+    }
     const out = [];
     if (j < 2 || x.eS[j] == null || x.atr[j] == null || x.rsi[j - 1] == null) return out;
     const c = x.d.c[j], o = x.d.o[j], h = x.d.h[j], l = x.d.l[j], a = x.atr[j];
@@ -242,7 +247,7 @@
       if (!blocked) W.syms.forEach((s) => {
         if (acc.pos[s] || (acc.cool && acc.cool[s] > tn)) return;
         const x = X[s], j = x.map[i]; if (j < 0) return;
-        const meta = COINS.find((k) => k.sym === s) || { name: s };
+        const meta = COINS.find((k) => k.sym === s) || { name: (P.names && P.names[s]) || s };
         setups(x, j, P).forEach((c) => cands.push({ sym: s, name: meta.name, ...c }));
       });
       const room = P.maxPos - Object.keys(acc.pos).length;

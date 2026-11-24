@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 봇 루프: 약 5시간 40분 동안 15분봉 마감 1분 뒤마다 단타 봇, 4시간마다 선물 봇·금리 갱신
+# 봇 루프: 약 5시간 40분 동안 15분봉 마감 1분 뒤마다 단타 봇, 매시간 민경기 봇, 4시간마다 선물 봇·금리 갱신
 # (GitHub 예약 실행이 늦거나 빠지는 문제를 피하려고 한 작업 안에서 직접 시간을 맞춤)
 set -u
 END=$(( $(date +%s) + ${LOOP_MINUTES:-340} * 60 ))
@@ -17,8 +17,12 @@ while [ "$(date +%s)" -lt "$END" ]; do
   echo "── $(date -u +'%F %H:%M:%S') UTC"
   git pull -q --rebase origin main 2>/dev/null || true   # 그사이 고친 코드도 바로 반영
   SCALP_DIR=botdata timeout 420 node connect/scalp.mjs || echo "단타 봇 실패"
+  H=$(date -u +%H); M=$(date -u +%M)
+  if [ $((10#$M)) -lt 15 ] || [ ! -f botdata/mk-live.json ]; then  # 매시간(처음엔 바로) 첫 15분 안: 민경기 봇(학습형) — 1시간봉 마감 뒤 판단, 일주일마다 다시 학습
+    MK_DIR=botdata timeout 900 node connect/mk.mjs || echo "민경기 봇 실패"
+  fi
   save_botdata
-  H=$(date -u +%H); M=$(date -u +%M); SLOT="$(date -u +%F)-$((10#$H / 4))"
+  SLOT="$(date -u +%F)-$((10#$H / 4))"
   if [ $((10#$H % 4)) -eq 0 ] && [ "$last_fut" != "$SLOT" ]; then
     last_fut="$SLOT"
     git pull -q --rebase origin main || git reset -q --hard origin/main
