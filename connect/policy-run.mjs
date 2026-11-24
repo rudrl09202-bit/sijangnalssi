@@ -18,7 +18,8 @@ export async function run({ root = ROOT, env = loadEnv(), log = console.log, fet
   const keep = (a, b) => { if (!b) return a; if (!a) return b; const o = { ...b, ...a }; Object.keys(b).forEach((k) => { if (o[k] == null) o[k] = b[k]; }); return o; };
   if (prev && prev.v === cur.v) { cur.fred = keep(cur.fred, prev.fred); cur.ecos = keep(cur.ecos, prev.ecos); }
   const news = prev ? policyNews(prev, cur) : [];
-  cur.news = news.length ? news.map((t) => ({ t, at: now.toISOString() })).concat((prev && prev.news) || []).slice(0, 10) : (prev && prev.news) || [];
+  const old = prev && prev.v === cur.v ? prev.news || [] : []; // 형식이 바뀌면 예전 발표 기록은 버림
+  cur.news = news.map((t) => ({ t, at: now.toISOString() })).concat(old).slice(0, 10);
   mkdirSync(join(root, 'data'), { recursive: true });
   writeFileSync(stFile, JSON.stringify(cur));
   writeFileSync(join(root, 'data', 'policy-live.json'), JSON.stringify(cur));

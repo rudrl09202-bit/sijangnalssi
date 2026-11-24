@@ -92,7 +92,7 @@ export async function fetchEcos(key, { fetchImpl = fetch, now = new Date() } = {
 }
 
 /* ---------- 묶기 + 바뀐 값 = 발표 알림 ---------- */
-export const POLICY_V = 2;
+export const POLICY_V = 3;
 export async function fetchPolicy(env, opts = {}) {
   const res = { v: POLICY_V, fetchedAt: (opts.now || new Date()).toISOString(), keys: { fred: !!env.FRED_API_KEY, ecos: !!env.ECOS_API_KEY } };
   if (env.FRED_API_KEY) { try { res.fred = await fetchFred(env.FRED_API_KEY, opts); } catch (e) { res.fredError = e.message; } }
