@@ -3051,7 +3051,9 @@
     const out = [], live = A.filter((a) => !a.cmp);
     live.forEach((a) => {
       const tr = (a.trades || []).filter((t) => t.pnl != null), x = a.st;
-      if (a.upd && Date.now() - Date.parse(a.upd) > 3 * 3600e3) out.push({ lv: 'bad', title: a.name + ' 갱신 멈춤', text: agoTxt(Date.now() - Date.parse(a.upd)) + ' 동안 새 결과가 없어요. 본부에서 원인을 확인하세요.' });
+      // 봇마다 갱신 주기가 다름: 단타 15분, 민경기 매시간, FLUX·AI 3명은 4시간 → 주기보다 넉넉히 늦을 때만 경고
+      const lim = (a.tf === '15분봉' ? 1 : a.id === 'mk' ? 3 : 5.5) * 3600e3;
+      if (a.upd && Date.now() - Date.parse(a.upd) > lim) out.push({ lv: 'bad', title: a.name + ' 갱신 늦음', text: '마지막 갱신이 ' + agoTxt(Date.now() - Date.parse(a.upd)) + '이에요 (평소 ' + (a.tf === '15분봉' ? '15분' : a.id === 'mk' ? '1시간' : '4시간') + '마다). 본부에서 원인을 확인하세요.' });
       if (x.mdd != null && x.mdd <= -10) out.push({ lv: 'bad', title: a.name + ' 낙폭 ' + pct(x.mdd, 1), text: '고점 대비 많이 빠졌어요. 위험을 줄이거나 규칙을 점검할 때예요.' });
       if (tr.length >= 20) {
         const sides = groupBy(tr, (t) => t.side); sides.forEach((g) => { if (g.n >= 10 && g.avgR <= -0.25) out.push({ lv: 'warn', title: a.name + ' ' + SIDE[g.k][0] + ' 성적 나쁨', text: SIDE[g.k][0] + ' ' + g.n + '번 평균 ' + rr(g.avgR) + ' — ' + SIDE[g.k][0] + ' 조건을 더 까다롭게 하거나 끄는 걸 검토해요.' }); });
