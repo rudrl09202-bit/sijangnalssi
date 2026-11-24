@@ -116,8 +116,11 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
       if (age > 2 * 3600e3) { o.approved = false; st.decisions.push({ ...rec, decision: 'late', reason: '실행이 늦어 2시간 지난 신호 — 건너뜀' }); continue; }
       if (!key) { o.approved = false; st.decisions.push({ ...rec, decision: 'nokey', reason: 'Claude 키 없음' }); continue; }
       let d;
-      try { d = parseDecision(await askClaude(key, model, '후보 자료(JSON):\n' + JSON.stringify(brief(W, P, i, o, A)), fetchImpl, SYSTEM, 300)); }
-      catch (e) { d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + String(e.message || e).slice(0, 60) }; }
+      const msg = '후보 자료(JSON):\n' + JSON.stringify(brief(W, P, i, o, A));
+      for (let k = 0; k < 2 && !d; k++) {
+        try { d = parseDecision(await askClaude(key, model, msg, fetchImpl, SYSTEM, 300)); }
+        catch (e) { if (k === 1) d = { decision: 'error', confidence: 0, reason: '응답 실패: ' + String(e.message || e).slice(0, 80) }; else await sleep(1500); }
+      }
       asked++;
       o.approved = d.decision === 'enter'; o.ai = { decision: d.decision, confidence: d.confidence, reason: d.reason };
       st.decisions.push({ ...rec, ...d, model });
