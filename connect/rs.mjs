@@ -180,6 +180,9 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
     for (const o of cands) {
       const x = W.X[o.sym], j = x.map[i], nSame = cands.filter((z) => z.side === o.side).length;
       const row = j >= 0 ? featRow(W, o.sym, j, i, o, deriv, nSame, SC) : null;
+      // 시험(처음 보는 데이터)에서 손실이면 실전 모의에서도 쉼 — 우위가 확인된 전략만 매매
+      const wfRet = st.wf && st.wf.study && st.wf.study[1] ? st.wf.study[1].all.ret : null;
+      if (M && wfRet != null && wfRet < 0) { o.approved = false; st.decisions.push({ t: isoT(W.T[i]), sym: o.sym, name: o.name, side: o.side, kind: o.setup, p: null, ok: false, why: '시험 손실(' + wfRet + '%) — 새 후보 규칙을 찾을 때까지 쉼' }); continue; }
       if (!M) { o.approved = false; st.decisions.push({ t: isoT(W.T[i]), sym: o.sym, name: o.name, side: o.side, kind: o.setup, p: null, ok: false, why: '아직 학습 전 — 건너뜀' }); continue; }
       const p = row ? predict(M, row) : 0, ok = p >= M.qs[50];
       o.approved = ok; o.why = o.why + ' · 학습 점수 ' + Math.round(p * 100) + (ok ? ' (상위 절반 — 진입)' : ' (하위 절반 — 건너뜀)');
