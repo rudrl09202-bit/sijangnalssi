@@ -150,7 +150,7 @@
         return { id: 'live-coin-' + x.symbol, type: 'coin', live: true, source: x.source, name: c && c.name ? c.name : (COIN_KO[x.symbol] || x.symbol), symbol: x.symbol, market: x.market, qty: x.qty, avg, syncPrice: x.syncPrice, syncValue: x.syncValue };
       }
       const cur = x.currency || (/^(US|USA)$/i.test(x.country || '') || /^[A-Z][A-Z.\-]{0,9}$/.test(x.symbol || '') ? 'USD' : 'KRW');
-      return { id: 'live-stock-' + x.symbol, type: 'stock', live: true, source: x.source, name: x.name || x.symbol, symbol: x.symbol, currency: cur, country: x.country, qty: x.qty, avg: x.avg, price: x.price, rate: x.rate, syncValue: x.syncValue, sector: S.sectorMap[x.symbol] || T.sectorOf(x.symbol), autoSector: !S.sectorMap[x.symbol] && !!T.sectorOf(x.symbol) };
+      return { id: 'live-stock-' + x.symbol, type: 'stock', live: true, source: x.source, name: x.name || x.symbol, symbol: x.symbol, currency: cur, country: x.country, qty: x.qty, avg: x.avg, price: x.price, prev: x.prev, rate: x.rate, syncValue: x.syncValue, sector: S.sectorMap[x.symbol] || T.sectorOf(x.symbol), autoSector: !S.sectorMap[x.symbol] && !!T.sectorOf(x.symbol) };
     }) : [];
     if (S.demo) return live;
     // 연동된 종목과 같은 종목을 직접 입력해 두었으면 두 번 세지 않음
@@ -492,6 +492,7 @@
   // 오늘 내 종목: 현재가 · 오늘 등락 · 오늘 손익 (코인은 빗썸 24시간 등락, 주식은 전날 종가 대비)
   function dayChange(h) {
     if (h.type === 'coin') { const p = S.prices[h.market]; return p && p.chg24 != null ? { pct: p.chg24, base: '24시간' } : null; }
+    if (h.price && h.prev > 0) return { pct: (h.price / h.prev - 1) * 100, base: '전날 종가' };
     const k = ML && ML.series[stockKey(h.symbol)]; if (!k || !k.t || !h.price) return null;
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: h.currency === 'USD' ? 'America/New_York' : 'Asia/Seoul' }).format(new Date());
     let i = k.t.length - 1; while (i >= 0 && k.t[i] >= today) i--; if (i < 0 || !k.c[i]) return null;

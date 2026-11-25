@@ -152,6 +152,7 @@ for (const [name, fn] of [['빗썸', syncBithumb], ['토스증권', syncToss]]) 
   }
 }
 await checkMyFilings(out); // 내 보유 주식의 최근 30일 공시(DART·SEC) — 결과는 보유 내역과 함께 잠가서 보냄
+await addPrevClose(out); // 주식 전날 종가 (앱 '오늘 내 종목'의 등락 계산용, 공개 시세)
 await printSummary(out); // 동기화 시점 가격·환율·총액을 결과에 함께 저장 (앱에서 시세를 못 받을 때 대신 씀)
 writeFileSync(OUT, '/* 자동 생성 파일 — connect/sync.mjs 가 만듭니다. 인터넷에 올리지 마세요(내 보유 자산이 들어 있음). */\nwindow.LIVE_HOLDINGS = ' + JSON.stringify(out, null, 2) + ';\n');
 console.log('\n저장: ' + OUT + '\n앱을 새로고침하면 "내 자산"에 반영됩니다.');
@@ -226,6 +227,23 @@ async function checkMyFilings(o) {
 }
 
 /* ---------- 확인용 요약: 앱과 증권사 앱의 총액을 비교할 수 있게 ---------- */
+// 야후 공개 시세로 주식마다 '직전 거래일 종가'를 붙임 → 앱이 오늘 등락(현재가 ÷ 전날 종가)을 계산. 실패하면 그 종목만 빠짐
+async function addPrevClose(o) {
+  const stocks = o.holdings.filter((h) => h.type === 'stock' && h.symbol); let ok = 0;
+  for (const h of stocks) {
+    const raw = String(h.symbol).toUpperCase().replace(/^A(?=\d{6}$)/, '');
+    const cands = /^\d{6}$/.test(raw) ? [raw + '.KS', raw + '.KQ'] : [raw.replace('.', '-')];
+    for (const y of cands) {
+      try {
+        const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(y) + '?range=1d&interval=1d', { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!r.ok) continue; const m = (await r.json()).chart.result[0].meta, p1 = num(m.chartPreviousClose ?? m.previousClose);
+        if (p1 > 0) { h.prev = p1; h.prevAt = new Date((m.regularMarketTime || 0) * 1000).toISOString().slice(0, 10); ok++; break; }
+      } catch (e) { /* 다음 후보 */ }
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  if (stocks.length) console.log('· 주식 전날 종가: ' + ok + '/' + stocks.length + '개');
+}
 async function printSummary(o) {
   let usd = 0;
   try { const r = await http('https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=FRX.KRWUSD', {}, '환율'); usd = num(r[0] && r[0].basePrice); } catch (e) { /* 아래 기본값 */ }
