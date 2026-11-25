@@ -305,7 +305,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href &
 else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   run({ reset: process.argv.includes('--reset') }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; }).then(async () => {
     // 예전 루프(민경기 봇을 따로 부르지 않는 버전)가 돌고 있을 때를 위해: 매시간 첫 15분이거나 결과가 없으면 여기서 민경기 봇도 실행
-    // 류신영 봇(단타 + 학습 필터): 새 루프는 따로 부름(RS_SEPARATE), 예전 루프면 여기서 이어서
+    // 류신영 봇(4시간봉 거래량 돌파 + 학습 필터): 새 루프는 따로 부름(RS_SEPARATE), 예전 루프면 여기서 이어서
     if (!process.env.RS_SEPARATE) { try { const { run: rs } = await import('./rs.mjs'); await rs({ dir: process.env.SCALP_DIR || join(ROOT, 'data') }); } catch (e) { console.error('✗ 류신영 봇: ' + e.message); } }
     if (process.env.MK_SEPARATE) return;
     const dir = process.env.SCALP_DIR || join(ROOT, 'data');
