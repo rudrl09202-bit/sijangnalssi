@@ -81,7 +81,7 @@ export function buildSamples(W, P, deriv) {
   return S.sort((a, b) => a.t - b.t);
 }
 const GB = { rounds: 100, depth: 3, lr: 0.06, minLeaf: 60, lambda: 5, sub: 0.6 };
-function trainOn(samples, tCut, P) {
+export function trainOn(samples, tCut, P) {
   const tr = samples.filter((z) => z.R != null && z.exitT < tCut); if (tr.length < 300) return null;
   const m = trainGBM(tr.map((z) => z.row), tr.map((z) => (z.R > P.label ? 1 : 0)), GB);
   const ps = tr.map((z) => predict(m, z.row)).sort((a, b) => a - b), q = (f) => ps[Math.floor(f * (ps.length - 1))];
