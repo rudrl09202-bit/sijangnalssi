@@ -276,15 +276,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       const k = at('Asia/Seoul'), u = at('America/New_York'), wk = (w) => !['Sat', 'Sun'].includes(w);
       return (wk(k.wd) && k.m >= 9 * 60 && k.m <= 15 * 60 + 40) || (wk(u.wd) && u.m >= 9 * 60 + 30 && u.m <= 16 * 60 + 10); };
     // 봇 결과가 바뀌면 바로 따라감: bot-data 브랜치의 최신 커밋을 40초마다 확인(토큰 없으면 75초) → 바뀌었으면 즉시 데모 맞춤. 54분에 끝(다음 cron 이 이어받음)
-    //  + 15분마다는 바뀐 게 없어도 한 번 맞춤(손절 이동 누락 방지) + 장 시간엔 20·35·50분에 주식 가격 빠른 동기화
+    //  + 15분마다는 바뀐 게 없어도 한 번 맞춤(손절 이동 누락 방지) + 장 시간엔 5분마다 주식 가격 빠른 동기화
     (async () => { const { spawnSync } = await import('node:child_process');
       const repo = env.GITHUB_REPOSITORY || env.GITHUB_REPO || 'rudrl09202-bit/sijangnalssi', tok = env.GITHUB_TOKEN || env.GH_TOKEN || '';
       const head = async () => { try { const r = await fetch('https://api.github.com/repos/' + repo + '/commits/bot-data', { headers: Object.assign({ 'User-Agent': 'sijangnalssi-exec', Accept: 'application/vnd.github.sha' }, tok ? { Authorization: 'Bearer ' + tok } : {}) }); return r.ok ? (await r.text()).trim() : null; } catch (e) { return null; } };
-      const step = tok ? 40e3 : 75e3, t0 = Date.now(); let last = await head(), lastRun = Date.now(); const synced = new Set();
+      const step = tok ? 40e3 : 75e3, t0 = Date.now(); let last = await head(), lastRun = Date.now(), lastSync = Date.now();
       while (new Date().getMinutes() < 54 && Date.now() - t0 < 50 * 60e3) {
         await new Promise((r) => setTimeout(r, step)); const mm = new Date().getMinutes();
-        const q = [20, 35, 50].find((m) => mm >= m && mm < m + 5 && !synced.has(m));
-        if (q != null) { synced.add(q); if (open() && !env.SNW_NO_FAST_SYNC) { const r = spawnSync(process.execPath, ['--dns-result-order=ipv4first', join(HERE, 'sync.mjs')], { cwd: HERE, env: { ...process.env, SNW_FAST: '1', SNW_SKIP_DERIV: '1', SNW_SKIP_EXEC: '1', SNW_SKIP_MARKET: '1' }, stdio: 'inherit', timeout: 300e3 }); if (r.status !== 0) console.log('✗ 빠른 동기화 (' + q + '분) 실패'); } }
+        // 장 시간엔 5분마다 보유 자산(주식 가격) 빠른 동기화 → 앱 새로고침 때 최대 5분 전 가격
+        const q = mm; if (open() && !env.SNW_NO_FAST_SYNC && Date.now() - lastSync >= 5 * 60e3) { lastSync = Date.now(); { const r = spawnSync(process.execPath, ['--dns-result-order=ipv4first', join(HERE, 'sync.mjs')], { cwd: HERE, env: { ...process.env, SNW_FAST: '1', SNW_SKIP_DERIV: '1', SNW_SKIP_EXEC: '1', SNW_SKIP_MARKET: '1' }, stdio: 'inherit', timeout: 300e3 }); if (r.status !== 0) console.log('✗ 빠른 동기화 (' + q + '분) 실패'); } }
         const h = await head(), changed = h && h !== last;
         if (changed || Date.now() - lastRun > 15 * 60e3) { if (h) last = h; lastRun = Date.now();
           try { await run({ env }); } catch (e) { console.log('✗ 바이낸스 데모 (' + mm + '분): ' + e.message); } }

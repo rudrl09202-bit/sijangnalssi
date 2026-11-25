@@ -513,7 +513,7 @@
       ${shown.map((r) => `<div class="td3"><span>${esc(r.h.name)}<br><span class="muted xs">${r.h.type === 'coin' ? '코인' : r.h.currency === 'USD' ? '미국' : '국내'}${r.h.qty != null ? ' · ' + qtyTxt(r.h) : ''}</span></span><span class="right num">${px(r.h)}</span>
         <span class="right num ${r.d ? dirClass(r.d.pct) : ''}">${r.d ? sign(r.d.pct, 2) + '%' : '—'}<br><span class="xs">${r.dw == null ? '' : (r.dw >= 0 ? '+' : '') + wonShort(r.dw)}</span></span></div>`).join('')}
       ${L.length > shown.length || open ? `<button class="link-btn" data-act="today-all">${open ? '접기' : '전체 ' + L.length + '개 보기'}</button>` : ''}
-      <p class="muted xs" style="margin-top:6px">코인은 24시간 등락(실시간), 주식은 전날 종가 대비(동기화 시점 가격, 약 1시간마다). 미국 주식은 장이 열리기 전엔 지난 거래일 등락이에요.</p></section>`;
+      <p class="muted xs" style="margin-top:6px">코인은 24시간 등락(실시간), 주식은 전날 종가 대비(서버 동기화 가격 — 장중 5분마다, 그 외 1시간마다. 위 ↻ 를 누르면 최신으로). 미국 주식은 장이 열리기 전엔 지난 거래일 등락이에요.</p></section>`;
   }
   function viewAssets() {
     loadFilings();
