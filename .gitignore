@@ -1,0 +1,4 @@
+connect/.cache/
+connect/.env
+connect/sync-log.txt
+js/holdings-live.js
