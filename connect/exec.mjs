@@ -202,7 +202,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     })().catch((e) => { console.error('✗ 주문 점검 실패: ' + e.message + (e.code ? ' (코드 ' + e.code + ')' : '')); process.exitCode = 1; });
   } else if (process.argv.includes('--loop')) {
     // 단타 봇은 15분봉이라: 매시 20·35·50분에 한 번씩 더 맞춤 (서버 cron 이 매시 5분에 sync 뒤 이걸 부름, 55분 전에 끝)
-    (async () => { for (const m of [20, 35, 50]) { const d = new Date(), wait = (m - d.getMinutes()) * 60e3 - d.getSeconds() * 1e3; if (wait < -60e3) continue; if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-      try { await run({ env }); } catch (e) { console.log('✗ 바이낸스 데모 (' + m + '분): ' + e.message); } } })();
+    // 장이 열린 시간(한국 평일 09:00~15:30 · 미국 평일 09:30~16:00 뉴욕 시간)에는 보유 주식 가격도 같이 갱신 (빠른 동기화: 공시 확인·선물 데이터 생략)
+    const open = (d = new Date()) => { const at = (tz) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d).map((x) => [x.type, x.value])); return { wd: p.weekday, m: (+p.hour % 24) * 60 + +p.minute }; };
+      const k = at('Asia/Seoul'), u = at('America/New_York'), wk = (w) => !['Sat', 'Sun'].includes(w);
+      return (wk(k.wd) && k.m >= 9 * 60 && k.m <= 15 * 60 + 40) || (wk(u.wd) && u.m >= 9 * 60 + 30 && u.m <= 16 * 60 + 10); };
+    (async () => { const { spawnSync } = await import('node:child_process');
+      for (const m of [20, 35, 50]) { const d = new Date(), wait = (m - d.getMinutes()) * 60e3 - d.getSeconds() * 1e3; if (wait < -60e3) continue; if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+        if (open() && !env.SNW_NO_FAST_SYNC) { const r = spawnSync(process.execPath, ['--dns-result-order=ipv4first', join(HERE, 'sync.mjs')], { cwd: HERE, env: { ...process.env, SNW_FAST: '1', SNW_SKIP_DERIV: '1', SNW_SKIP_EXEC: '1', SNW_SKIP_MARKET: '1' }, stdio: 'inherit', timeout: 300e3 }); if (r.status !== 0) console.log('✗ 빠른 동기화 (' + m + '분) 실패'); }
+        try { await run({ env }); } catch (e) { console.log('✗ 바이낸스 데모 (' + m + '분): ' + e.message); } } })();
   } else run({ env }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; });
 }

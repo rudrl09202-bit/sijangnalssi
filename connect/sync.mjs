@@ -151,7 +151,7 @@ for (const [name, fn] of [['빗썸', syncBithumb], ['토스증권', syncToss]]) 
     console.error('✗ ' + name + ' — ' + e.message);
   }
 }
-await checkMyFilings(out); // 내 보유 주식의 최근 30일 공시(DART·SEC) — 결과는 보유 내역과 함께 잠가서 보냄
+if (env.SNW_FAST) { try { out.filings = JSON.parse(readFileSync(join(HERE, '.cache', 'my-filings-last.json'), 'utf8')); } catch (e) { /* 아직 없음 */ } } else await checkMyFilings(out); // 내 보유 주식의 최근 30일 공시(DART·SEC) — 결과는 보유 내역과 함께 잠가서 보냄
 await addPrevClose(out); // 주식 전날 종가 (앱 '오늘 내 종목'의 등락 계산용, 공개 시세)
 await printSummary(out); // 동기화 시점 가격·환율·총액을 결과에 함께 저장 (앱에서 시세를 못 받을 때 대신 씀)
 writeFileSync(OUT, '/* 자동 생성 파일 — connect/sync.mjs 가 만듭니다. 인터넷에 올리지 마세요(내 보유 자산이 들어 있음). */\nwindow.LIVE_HOLDINGS = ' + JSON.stringify(out, null, 2) + ';\n');
@@ -210,6 +210,7 @@ async function checkMyFilings(o) {
     for (const h of stocks) { const id = normId(h.symbol); if (!seen.has(id) && (/^\d{6}$/.test(id) || /^[A-Z][A-Z.\-]{0,5}$/.test(id))) { seen.add(id); list.push({ id, name: h.name || id, why: ['내 보유'] }); } }
     const r = await checkFilings(list, { env, log: (m) => console.log('  ' + m) });
     o.filings = { at: new Date().toISOString(), items: r.items.map((x) => ({ id: x.id, name: x.name, src: x.src, checked: x.checked, bad: x.bad, good: x.good, filings: x.filings })) };
+    try { mkdirSync(join(HERE, '.cache'), { recursive: true }); writeFileSync(join(HERE, '.cache', 'my-filings-last.json'), JSON.stringify(o.filings)); } catch (e) { /* 다음에 */ }
     const bad = r.items.filter((x) => x.bad);
     console.log('✓ 내 종목 공시: ' + r.items.length + '종목 확인 (받음 ' + r.items.filter((x) => x.checked).length + ') · 위험 공시 ' + bad.length + '종목');
     bad.forEach((x) => console.log('  주의 ' + x.name + ': ' + x.filings.filter((f) => f.level === 'bad').map((f) => f.date + ' ' + (f.note || f.title)).join(' | ')));
