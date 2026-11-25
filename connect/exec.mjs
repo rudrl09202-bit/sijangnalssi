@@ -137,6 +137,10 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
   const book = async (sym) => { const b = await B.call('GET', '/fapi/v1/ticker/bookTicker', { symbol: sym }, false); const bid = Number(b.bidPrice), ask = Number(b.askPrice), mid = (bid + ask) / 2;
     return { bid, ask, mid, bp: mid ? (ask - bid) / mid * 1e4 : null, bidUsd: bid * Number(b.bidQty), askUsd: ask * Number(b.askQty) }; };
 
+  // 데모에서 손절·목표가가 먼저 체결됐는지 — 진입 판단보다 먼저 확인해야 같은 포지션에 다시 들어가지 않음
+  Object.entries(st.map).forEach(([sym, m]) => { if (isMeta(sym)) return; if (tgt[sym] && !cur[sym] && m.since === tgt[sym].since && m.qty && !m.stopped) { m.stopped = true; note(sym + ' 데모에서 손절·목표가 주문이 먼저 체결된 것으로 보임 — 같은 포지션엔 다시 들어가지 않음'); } });
+  // 늦은 진입 막기: 봇이 이미 들어가 가격이 유리하게 LATE_BP 넘게 움직였거나, 이미 봇 손절·목표가를 지났으면 따라 들어가지 않음
+  const LATE_BP = Number(env.EXEC_LATE_BP || 30);
   for (const sym of new Set([...Object.keys(tgt), ...Object.keys(cur), ...Object.keys(st.map).filter((k) => !isMeta(k))])) {
     const T = tgt[sym], C = cur[sym], R = info[sym];
     if (!T && st.map[sym] && unknown.has(st.map[sym].bot)) continue;
@@ -152,11 +156,14 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
     if (!T) { if (!C) { await cancelStops(sym); delete st.map[sym]; } continue; }
     // 진입: 봇엔 있는데 데모엔 없음 (같은 봇 포지션에 한 번만)
     if (!C || T.side !== cSide) {
-      if (st.map[sym] && st.map[sym].since === T.since && st.map[sym].stopped) { continue; } // 데모에서 먼저 손절됨 — 같은 포지션에 다시 들어가지 않음
+      if (st.map[sym] && st.map[sym].since === T.since && (st.map[sym].stopped || st.map[sym].late)) { continue; } // 데모에서 먼저 손절됨 / 늦어서 건너뜀 — 같은 포지션에 다시 들어가지 않음
       try {
         try { await B.call('POST', '/fapi/v1/marginType', { symbol: sym, marginType: 'ISOLATED' }); } catch (e) { /* 이미 격리 */ }
         await B.call('POST', '/fapi/v1/leverage', { symbol: sym, leverage: 5 });
         const mk = Number((await B.call('GET', '/fapi/v1/premiumIndex', { symbol: sym }, false)).markPrice);
+        const g = T.side === 'long' ? 1 : -1, ahead = T.entry ? g * (mk / T.entry - 1) * 1e4 : 0;
+        const why = g * (mk - T.stop) <= 0 ? '이미 봇 손절선을 지남' : T.tp && g * (T.tp - mk) <= 0 ? '이미 봇 목표가를 지남' : ahead > LATE_BP ? '봇 진입가보다 ' + ahead.toFixed(0) + 'bp 유리하게 움직임(기준 ' + LATE_BP + 'bp)' : null;
+        if (why) { st.map[sym] = { side: T.side, since: T.since, bot: T.bot, late: true }; note(botName[T.bot] + ' · ' + sym + ' 늦어서 따라가지 않음: ' + why + ' — 이 포지션은 건너뜀'); continue; }
         let qty = floorTo(T.lev * eq / mk, R.step);
         if (qty < R.minQty || qty * mk < R.minNotional) { note(sym + ' 진입 건너뜀: 데모 잔고 대비 너무 작음 (' + r6(qty * mk) + ' USDT)'); continue; }
         let bk = null; try { bk = await book(sym); } catch (e) { /* 호가 조회 실패 — 그냥 진행 */ }
@@ -193,8 +200,6 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
       } catch (e) { if (!have || cancelled) { note(sym + ' 손절 주문이 없고 다시 걸기도 실패(' + e.message + ') — 보호 없는 포지션이라 정리'); try { await market(sym, C.amt > 0 ? 'SELL' : 'BUY', Math.abs(C.amt), true); } catch (e2) { note(sym + ' 긴급 정리 실패: ' + e2.message); } } else note(sym + ' 손절 이동 실패(기존 ' + havePx + ' 유지): ' + e.message); }
     }
   }
-  // 데모에서 손절이 먼저 체결됐는지 (봇엔 있는데 데모엔 없고, 우리가 들어갔던 포지션)
-  Object.entries(st.map).forEach(([sym, m]) => { if (!opened.has(sym) && tgt[sym] && !cur[sym] && m.since === tgt[sym].since && m.qty && !m.stopped) { m.stopped = true; note(sym + ' 데모에서 손절·목표가 주문이 먼저 체결된 것으로 보임 — 같은 포지션엔 다시 들어가지 않음'); } });
 
   // 오늘(한국 날짜) 시작 잔고 — 앱의 '오늘 손익'
   const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
