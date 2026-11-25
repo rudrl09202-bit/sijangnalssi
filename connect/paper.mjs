@@ -206,10 +206,11 @@ export async function push(env, payload, log) {
   const tg = await telegram(env, payload, log);
   let subs; try { subs = JSON.parse(env.PUSH_SUBSCRIPTIONS || '[]'); } catch (e) { return tg; }
   const list = Array.isArray(subs) ? subs : [subs];
-  if (!list.length || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return tg;
+  if (!list.length || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) { if (log) log('휴대폰 알림 안 보냄: ' + (!list.length ? '연결된 휴대폰 없음(PUSH_SUBSCRIPTIONS 비어 있음)' : '알림 키(VAPID) 없음') + ' — ' + (payload.title || '')); return tg; }
   const wp = (await import('web-push')).default;
   wp.setVapidDetails('mailto:' + (env.VAPID_EMAIL || 'admin@example.com'), env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-  let n = 0; for (const s of list) { try { await wp.sendNotification(s, JSON.stringify(payload), { TTL: 12 * 3600 }); n++; } catch (e) { log('푸시 실패: ' + (e.statusCode || e.message)); } }
+  let n = 0; for (const s of list) { try { await wp.sendNotification(s, JSON.stringify(payload), { TTL: 12 * 3600 }); n++; } catch (e) { log('푸시 실패: ' + (e.statusCode || e.message) + (e.statusCode === 410 || e.statusCode === 404 ? ' (휴대폰 연결이 만료됨 — 앱 알림 화면에서 다시 연결 필요)' : '')); } }
+  if (log) log('휴대폰 알림 ' + n + '/' + list.length + '대 보냄 — ' + (payload.title || ''));
   return n;
 }
 
