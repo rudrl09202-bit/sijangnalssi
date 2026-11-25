@@ -915,3 +915,5 @@ html.big body { zoom: 1.15; }
 .chipb { flex: none; border: 1px solid var(--line2); background: var(--card); color: var(--ink2); border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 13px; cursor: pointer; }
 .chipb.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
 .tbl .tr2.tr3 > span:nth-child(2) { line-height: 1.5; }
+.sc-card { padding: 12px 0; border-top: 1px solid var(--line); } .sc-card:first-of-type { border-top: 0; } .sc-card p { margin: 0; }
+.sc-card.main .b { font-weight: 800; }

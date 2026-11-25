@@ -1962,7 +1962,7 @@
     if (S.scLoading || (S.sc && !force && Date.now() - S.scAt < 2 * 60e3)) return;
     S.scLoading = true;
     fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/scalp-live.json?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures', 'mk', 'home', 'bot', 'analysis', 'open', 'closed'].indexOf(route()) >= 0) render(); } });
+      .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scalp-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null).then((j) => { S.scLoading = false; if (j && j.live) { S.sc = j; S.scAt = Date.now(); if (['scalp', 'paper', 'hq', 'futures', 'mk', 'home', 'bot', 'analysis', 'open', 'closed', 'explore'].indexOf(route()) >= 0) render(); } });
   }
   const scT = (u, addMin) => { const t = Date.parse(String(u).replace(' ', 'T') + ':00Z') + (addMin || 0) * 60e3; if (!isFinite(t)) return String(u); const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   const SC_ST = { ok: ['정상 운용', 'neu'], dayblock: ['오늘 진입 금지', 'warn'], pause: ['연패 휴식', 'warn'], killed: ['킬 스위치 휴식', 'neg'] };
@@ -2221,19 +2221,25 @@
       <p class="muted xs">민경기 봇은 이 데이터도 학습 재료로 써요.</p></section>`;
   }
   function viewExplore() {
-    return `<header class="top"><div><p class="kicker">종목과 시장 찾아보기</p><h1>시장</h1></div>${tools()}</header>
-      ${tape()}
+    const fng = S.fng, RG = S.sc && S.sc.regime, btc = S.prices['KRW-BTC'];
+    loadScalp();
+    const crypto = `<section class="card"><div class="card-head"><h2>코인 시장 분위기</h2>${tvButton('perp', 'BTC', '비트코인 무기한 선물', '240')}</div>
+      <div class="kpis k3">${kpi('비트코인', btc ? nf(Math.round(btc.krw / 1e4)) + '만' : '—', '', btc ? `<span class="${dirClass(btc.chg24)}">${sign(btc.chg24, 2)}%</span> 24시간` : '')}${kpi('장세 (15분봉)', RG && RG.label ? esc(RG.label.split('·')[0].trim()) : '—', '', RG && RG.label && RG.label.split('·')[1] ? esc(RG.label.split('·')[1].trim()) : '')}${kpi('공포·탐욕', fng != null ? String(fng) : '—', '', fng == null ? '' : fng <= 25 ? '극단적 공포' : fng >= 75 ? '극단적 탐욕' : fng < 45 ? '공포' : fng > 55 ? '탐욕' : '보통')}</div>
+      ${S.sc && (S.sc.news || []).length ? `<details class="pro-inline"><summary>코인 뉴스 ${S.sc.news.length}건 (최근 12시간)</summary>${S.sc.news.slice(0, 8).map((n) => `<p class="xs news-line">${esc(n.title)} <span class="muted">${esc(n.src || '')} · ${n.ago}시간 전</span></p>`).join('')}</details>` : ''}</section>`;
+    return `<header class="top"><div><p class="kicker">코인 선물 · 금리 · 주식</p><h1>시장</h1></div>${tools()}</header>
+      ${crypto}
       ${derivCard()}
-      <section class="card"><h2>종목 고르기</h2>
+      ${policyCard()}
+      ${tape()}
+      <h2 class="sec">주식 · 공부</h2>
+      <section class="card">
+        ${lrow('#coin', IC.coin, '코인 분석', '조건 33개와 분할 매수 계획')}
         ${lrow('#rank', IC.rank, '오늘의 종목 순위', '나스닥·S&P500·코스피·코스닥 TOP 10')}
         ${lrow('#score', IC.score, '종목 분석', '이름만 넣으면 1~100점 오각형 분석')}
-        ${lrow('#coin', IC.coin, '코인 분석', '조건 33개와 분할 매수 계획')}</section>
-      <section class="card"><h2>시장 공부</h2>
         ${lrow('#world', IC.world, '세계 돈의 지도', '부동산·금·달러·비트코인의 크기와 환율')}
         ${lrow('#cycle', IC.cycle, '테마 사이클', '돈은 지금 어디서 어디로')}
         ${lrow('#compare', IC.compare, '1년 성적표', '1년 전 1,000만 원을 넣었다면')}
-        ${lrow('#quants', IC.info, '월가 퀀트는 어떻게 하나', '르네상스·투시그마·제인스트리트 방식과 이 앱')}</section>
-      ${policyCard()}`;
+        ${lrow('#quants', IC.info, '월가 퀀트는 어떻게 하나', '르네상스·투시그마·제인스트리트 방식과 이 앱')}</section>`;
   }
   /* ---------- 화면: 더보기 ---------- */
 
@@ -3085,6 +3091,34 @@
     if (nAll < 20) out.push({ lv: 'info', title: '아직 판단하기엔 거래가 적어요', text: '모든 봇 합쳐 끝난 거래 ' + nAll + '번. 20번이 넘으면 무엇이 잘 되고 안 되는지 자동으로 짚어 드려요.' });
     return out;
   }
+  /* ---------- 성적표: 대회처럼 '위험 대비 수익'으로 비교 (과거 시험 + 실시간) ---------- */
+  function scoreCard(A) {
+    const M3 = S.mk3, RS = S.rs, G2 = S.mk, FU = S.fut;
+    const rows = [];
+    const add = (name, src, r, tag) => { if (r) rows.push({ name, src, tag, ...r }); };
+    if (M3 && M3.wf && M3.wf.study) { const w = M3.wf; add('민경기 봇', '4시간봉 · ' + w.from.slice(0, 4) + '~ · 시험 ' + w.folds.length + '구간', { ret: w.study[1].all.ret, cagr: w.study[1].all.cagr, mdd: w.study[1].all.mdd, sharpe: w.study[1].all.sharpe, pf: w.study[1].all.pf, n: w.study[1].all.n, h1: w.study[1].h1.ret, h2: w.study[1].h2.ret, pass: w.pass && w.pass.ok }, 'main');
+      add('FLUX (규칙만)', '같은 기간 · 같은 규칙', { ret: w.study[0].all.ret, cagr: w.study[0].all.cagr, mdd: w.study[0].all.mdd, sharpe: w.study[0].all.sharpe, pf: w.study[0].all.pf, n: w.study[0].all.n, h1: w.study[0].h1.ret, h2: w.study[0].h2.ret }); }
+    if (RS && RS.wf && RS.wf.study) { const w = RS.wf; add('류신영 봇', '15분봉 · ' + w.from.slice(0, 10) + '~ · 시험 ' + w.folds.length + '구간', { ret: w.study[1].all.ret, mdd: w.study[1].all.mdd, sharpe: w.study[1].all.sharpe, pf: w.study[1].all.pf, n: w.study[1].all.n, h1: w.study[1].h1.ret, h2: w.study[1].h2.ret, pass: w.pass && w.pass.ok }, 'main');
+      add('단타 엔진 (규칙만)', '같은 기간 · 같은 규칙', { ret: w.study[0].all.ret, mdd: w.study[0].all.mdd, sharpe: w.study[0].all.sharpe, pf: w.study[0].all.pf, n: w.study[0].all.n, h1: w.study[0].h1.ret, h2: w.study[0].h2.ret }); }
+    if (G2 && G2.wf && G2.wf.study) { const w = G2.wf, z = w.study[0]; add('민경기 2세대', '1시간봉 학습 · 비교용', { ret: z.all.ret, pf: z.all.pf, n: z.all.n, h1: z.h1.ret, h2: z.h2.ret, mdd: z.mdd, pass: w.pass && w.pass.ok }); }
+    const fmt = (v, d) => (v == null ? '—' : pct(v, d == null ? 1 : d));
+    const grade = (r) => { const sh = r.sharpe, ok = r.h1 > 0 && r.h2 > 0; if (sh == null) return ok ? '보통' : '약함'; return sh >= 1.5 && ok ? '우수' : sh >= 0.8 && ok ? '양호' : sh >= 0.3 && ok ? '보통' : '약함'; };
+    const live = A.filter((a) => !a.cmp);
+    return `<section class="card"><h2>대회 기준으로 보면</h2>
+      <p class="sm">자동매매 대회는 보통 <b>수익률</b>만이 아니라 <b>얼마나 덜 흔들리며 벌었나</b>(샤프 지수·최대 낙폭)로 순위를 매겨요. 그래서 과거 시험 성적을 같은 기준으로 정리했어요.</p>
+      <p class="muted xs">샤프 = 변동 대비 수익 (1 이상 좋음, 2 이상 매우 좋음) · 낙폭 = 고점에서 가장 많이 빠진 폭 · 앞/뒤 = 시험 기간을 반으로 나눈 성적 (둘 다 플러스여야 우연이 아님)</p></section>
+      <section class="card"><h2>과거 시험 성적 (처음 보는 데이터)</h2>
+      ${rows.length ? rows.map((r) => `<div class="sc-card${r.tag === 'main' ? ' main' : ''}"><div class="row between"><div><p class="b">${esc(r.name)}</p><p class="muted xs">${esc(r.src)}</p></div><div class="right"><span class="act ${grade(r) === '우수' || grade(r) === '양호' ? 'live' : grade(r) === '보통' ? 'neu' : 'warn'}">${grade(r)}</span>${r.pass != null ? `<p class="muted xs" style="margin:4px 0 0">${r.pass ? '합격' : '불합격'}</p>` : ''}</div></div>
+        <div class="kpis k4" style="margin-top:8px">${kpi(r.cagr != null ? '연 수익' : '수익', r.cagr != null ? fmt(r.cagr) : fmt(r.ret), dirClass(r.cagr != null ? r.cagr : r.ret), '')}${kpi('최대 낙폭', fmt(r.mdd, 0), '', '')}${kpi('샤프', String(r.sharpe ?? '—'), '', '')}${kpi('손익비', String(r.pf ?? '—'), '', '거래 ' + (r.n ?? '—'))}</div>
+        <p class="muted xs" style="margin-top:6px">기간을 반으로 나눈 성적: 앞 <span class="${dirClass(r.h1)}">${fmt(r.h1, 0)}</span> · 뒤 <span class="${dirClass(r.h2)}">${fmt(r.h2, 0)}</span></p></div>`).join('') : '<p class="muted sm">시험 결과를 불러오는 중이에요.</p>'}</section>
+      <section class="card"><h2>실시간 모의 성적</h2><p class="muted xs">시작한 지 얼마 안 돼서 아직 실력을 말하기엔 일러요. 거래가 30번 넘게 쌓이면 시험 성적과 비교해요.</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>봇</th><th>수익</th><th>거래</th><th>승률</th><th>손익비</th><th>낙폭</th></tr></thead><tbody>
+      ${live.map((a) => `<tr${a.main ? ' class="hl"' : ''}><td>${esc(a.name)}</td><td class="${dirClass(a.ret)}">${pct(a.ret, 2)}</td><td>${a.st.n}</td><td>${a.st.win == null ? '—' : Math.round(a.st.win) + '%'}</td><td>${fmtPF(a.st.pf)}</td><td>${a.st.mdd == null ? '—' : pct(a.st.mdd, 1)}</td></tr>`).join('')}</tbody></table></div></section>
+      <section class="card"><h2>지금 솔직한 위치</h2>
+      <p class="sm">· 상위권 퀀트 펀드는 보통 <b>샤프 1.5~3</b>이에요. 지금 가장 좋은 민경기 봇은 시험 기준 샤프 ${M3 && M3.wf && M3.wf.study ? M3.wf.study[1].all.sharpe : '—'}이라, 아직 그 수준은 아니에요.</p>
+      <p class="sm">· 15분봉 단타 계열(단타 엔진·류신영 봇)은 바이낸스 1년 넘는 데이터에서 <b>큰 손실</b>이었어요. 후보를 뽑는 규칙 자체를 새로 찾아야 해요.</p>
+      <p class="sm">· 올릴 방향: ① 우위가 확인된 4시간봉 추세 쪽 강화 ② 단타는 새 후보 규칙 연구 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습 ④ 봇 여러 개를 섞어 낙폭 줄이기.</p></section>`;
+  }
   const CHANGES = [
     ['11/25', '류신영 봇 추가', '단타 엔진 15분봉 후보에 학습 필터(하위 50% 건너뜀)를 더한 단타 봇. 바이낸스 15분봉 약 540일로 학습·시험하고 "단타 엔진 혼자"와 비교', null],
     ['11/24', '민경기 3세대 정책 변경', '바이낸스 6년치(2021~) 시험: FLUX 혼자 연 3.1%·낙폭 -36% vs 하위 30% 건너뛰기+크게 연 10.1% vs 하위 50% 건너뛰기 연 13.9%·낙폭 -22%. 점수 상위가 더 낫지 않아 "크게"를 빼고 하위 50% 건너뛰기로 바꿈', null],
@@ -3099,13 +3133,16 @@
     const A = accounts(true), tab = S.ui.anaTab || 'cmp';
     const head = `<header class="top"><div><p class="kicker">성과를 보고 · 원인을 찾고 · 봇을 고쳐요</p><h1>분석</h1></div>${tools()}</header>`;
     if (!A.length) return head + '<section class="card empty"><p class="h-md">불러오는 중이에요</p></section>';
-    const seg = `<div class="seg" role="tablist">${[['cmp', '비교'], ['why', '원인'], ['log', '업그레이드']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="ana-tab" data-v="${k}">${l}</button>`).join('')}</div>`;
+    const seg = `<div class="seg" role="tablist">${[['cmp', '비교'], ['card', '성적표'], ['why', '원인'], ['log', '업그레이드']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="ana-tab" data-v="${k}">${l}</button>`).join('')}</div>`;
     let body = '';
     if (tab === 'cmp') {
-      body = `<section class="card"><div class="card-head"><h2>수익률 비교</h2>${periodSeg('ap')}</div>${eqChart(A.map((a) => ({ name: a.name, curve: a.curve, start: a.start })), { from: periodFrom('ap'), base: (S.ui.ap || 'all') === 'all', h: 220 })}</section>
+      const CA = S.ui.anaAll ? A : A.filter((a) => !a.cmp);
+      body = `<section class="card"><div class="card-head"><h2>수익률 비교</h2>${periodSeg('ap')}</div>${eqChart(CA.map((a) => ({ name: a.name, curve: a.curve, start: a.start })), { from: periodFrom('ap'), base: (S.ui.ap || 'all') === 'all', h: 220 })}<button class="chipb${S.ui.anaAll ? ' on' : ''}" style="margin-top:10px" data-act="ana-all">비교용 계좌도 그리기</button></section>
         <section class="card"><h2>성과표</h2><div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>봇</th><th>수익</th><th>거래</th><th>승률</th><th>손익비</th><th>평균</th><th>낙폭</th></tr></thead><tbody>
         ${A.slice().sort((a, b) => b.ret - a.ret).map((a) => `<tr${a.main ? ' class="hl"' : ''}><td><a href="#bot/${a.id}">${esc(a.name)}</a>${a.cmp ? ' <span class="muted xs">비교</span>' : ''}</td><td class="${dirClass(a.ret)}">${pct(a.ret, 2)}</td><td>${a.st.n}</td><td>${a.st.win == null ? '—' : Math.round(a.st.win) + '%'}</td><td>${fmtPF(a.st.pf)}</td><td class="${dirClass(a.st.avgR)}">${a.st.avgR == null ? '—' : rr(a.st.avgR)}</td><td>${a.st.mdd == null ? '—' : pct(a.st.mdd, 1)}</td></tr>`).join('')}</tbody></table></div>
         <p class="muted xs">손익비 = 번 돈 ÷ 잃은 돈 (1보다 커야 수익). 평균 = 거래 한 번에 건 위험 대비 평균 결과(R).</p></section>`;
+    } else if (tab === 'card') {
+      body = scoreCard(A);
     } else if (tab === 'why') {
       const all = [].concat(...A.filter((a) => !a.cmp).map((a) => a.trades || []));
       const ins = insights(A);
@@ -3173,6 +3210,7 @@
     else if (act === 'sc-tab') { S.ui.scTab = v; render(); }
     else if (act === 'period') { S.ui[b.dataset.k] = v; render(); }
     else if (act === 'pick-bot') { S.ui[b.dataset.k] = v; render(); }
+    else if (act === 'ana-all') { S.ui.anaAll = !S.ui.anaAll; render(); }
     else if (act === 'bot-tab') { S.ui.botTab = v; render(); }
     else if (act === 'ana-tab') { S.ui.anaTab = v; render(); }
     else if (act === 'fut-tab') { S.ui.futTab = v; render(); window.scrollTo(0, 0); }
