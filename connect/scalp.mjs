@@ -233,7 +233,8 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
   // ── 4) 앱용 결과
   const pendOf = (acc) => acc.pending.filter((o) => o.kind === 'open' && (!o.needVote || o.approved)).map((o) => ({ sym: o.sym, name: o.name, side: o.side, kind: o.setup, why: o.why, decidedBar: o.t, fillAt: isoT(W.T[last] + BAR), ai: o.ai ? { confidence: o.ai.confidence, reason: o.ai.reason } : null }));
   function summarize(X) {
-    const BA = X.acc, e2 = BA.equity.length ? BA.equity[BA.equity.length - 1][1] : BA.cash, dd = X.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
+    const BA = X.acc, e2 = Math.round(BA.cash + Object.values(BA.pos).reduce((t, p) => { const m = series[p.sym].c[series[p.sym].c.length - 1]; return t + (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty; }, 0)), // 현금 + 지금 가격 평가손익 (자산 곡선 마지막 점은 한 봉 늦을 수 있음)
+      dd = X.decisions.filter((d) => d.decision === 'enter' || d.decision === 'skip');
     const pos = Object.values(BA.pos).map((p) => { const m = series[p.sym].c[series[p.sym].c.length - 1], u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
       return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, lev: Math.round(m * p.qty / e2 * 100) / 100, upnl: Math.round(u), stop: p.stop, tp: p.tp, liq: p.liq, be: p.be,
         toStop: Math.round(Math.abs(m / p.stop - 1) * 1000) / 10, toLiq: Math.round(Math.abs(m / p.liq - 1) * 1000) / 10, ai: p.ai, barsLeft: Math.max(0, P.maxBars - 1 - Math.round((W.T[last] - p.t) / BAR)) }; });
@@ -252,7 +253,8 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
     });
   }
   const mark = (s) => { const d = series[s]; return d ? d.c[d.c.length - 1] : null; };
-  const eq = A.equity.length ? A.equity[A.equity.length - 1][1] : A.cash;
+  const markNow = (acc) => Math.round(acc.cash + Object.values(acc.pos).reduce((t, p) => { const m = series[p.sym].c[series[p.sym].c.length - 1]; return t + (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty; }, 0));
+  const eq = markNow(A); // 현금 + 지금 가격 평가손익
   const ldc = SC.daily(A.equity), ls = SC.stats(A);
   const positions = Object.values(A.pos).map((p) => { const m = mark(p.sym), u = (p.side === 'long' ? 1 : -1) * (m - p.entry) * p.qty;
     return { sym: p.sym, name: p.name, side: p.side, kind: p.kind, entry: p.entry, mark: m, qty: p.qty, notional: Math.round(m * p.qty), lev: Math.round(m * p.qty / eq * 100) / 100, margin: Math.round(p.margin),
@@ -264,7 +266,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || join(ROO
     live: { equity: eq, start: A.start, ret: Math.round((eq / A.start - 1) * 10000) / 100, days: ldc.length, stats: ls, curve: thin(A.equity),
       positions, pending: pendOf(A), lev: Math.round(positions.reduce((a, p) => a + p.notional, 0) / (eq || 1) * 100) / 100, trades: A.trades.slice(-300).reverse(),
       status: A.killUntilT > W.T[last] ? 'killed' : A.dayBlock ? 'dayblock' : A.pauseUntilT > W.T[last] ? 'pause' : 'ok', peak: Math.round(A.peak) },
-    shadow: (() => { const S2 = st.shadow, e2 = S2.equity.length ? S2.equity[S2.equity.length - 1][1] : S2.cash; return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), curve: thin(S2.equity), start: S2.start, trades: S2.trades.slice(-300).reverse(), open: Object.keys(S2.pos).length }; })(),
+    shadow: (() => { const S2 = st.shadow, e2 = markNow(S2); return { equity: e2, ret: Math.round((e2 / S2.start - 1) * 10000) / 100, stats: SC.stats(S2), curve: thin(S2.equity), start: S2.start, trades: S2.trades.slice(-300).reverse(), open: Object.keys(S2.pos).length }; })(),
     major: summarize(M3),
     mk: (() => { const X = summarize({ inception: st.mk.inception, acc: st.mk.acc, decisions: [] }); delete X.decisions; delete X.aiStats;
       X.curve = st.mk.acc.equity.slice(-400).filter((e, k, a) => k % 4 === 0 || k === a.length - 1).map(([t, v]) => [isoT(t), v]);

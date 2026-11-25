@@ -220,7 +220,7 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
   writeFileSync(stFile, JSON.stringify(st));
 
   // ── 3) 앱용
-  const A = st.acc, eq = A.equity.length ? A.equity[A.equity.length - 1][1] : A.cash, mark = (s) => series[s].c[series[s].c.length - 1];
+  const A = st.acc, mark = (s) => series[s].c[series[s].c.length - 1], eq = Math.round(A.cash + Object.values(A.pos).reduce((t, p) => t + (p.side === 'long' ? 1 : -1) * (mark(p.sym) - p.entry) * p.qty, 0));
   // 지금 조건에 걸린 후보 (다음 봉 판단 미리보기)
   const watch = W.syms.map((s) => { const x = W.X[s], j = x.map[last]; if (j < 1) return null; const c = x.d.c[j], a = x.atr[j];
     const up = x.eF[j] > x.eS[j], toHi = x.hi[j] ? (x.hi[j] / c - 1) * 100 : null, toLo = x.lo[j] ? (1 - x.lo[j] / c) * 100 : null;

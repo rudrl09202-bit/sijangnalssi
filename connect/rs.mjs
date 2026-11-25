@@ -191,7 +191,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
   writeFileSync(stFile, JSON.stringify(st));
 
   // ── 3) 앱용
-  const A = st.acc, eq = A.equity.length ? A.equity[A.equity.length - 1][1] : A.cash, mark = (s) => series[s].c[series[s].c.length - 1];
+  const A = st.acc, mark = (s) => series[s].c[series[s].c.length - 1], eq = Math.round(A.cash + Object.values(A.pos).reduce((t, p) => t + (p.side === 'long' ? 1 : -1) * (mark(p.sym) - p.entry) * p.qty, 0));
   const out = {
     v: 1, generatedAt: now.toISOString(), lastBar: isoT(W.T[last]), inception: isoT(st.inception), cfg: { riskPct: P.riskPct, maxPos: P.maxPos, stopAtr: P.stopAtr, minStopPct: P.minStopPct, tpR: P.tpR, beR: P.beR, maxBars: P.maxBars, bar: P.bar, dayLoss: P.dayLoss, ddKill: P.ddKill },
     model: M ? { ver: M.ver, at: M.at, n: M.n, rate: M.rate, imp: M.imp.slice(0, 10) } : null, wf: st.wf,

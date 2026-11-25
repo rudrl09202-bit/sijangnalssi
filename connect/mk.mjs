@@ -310,7 +310,7 @@ export async function run({ root = ROOT, dir = process.env.MK_DIR || join(ROOT, 
   writeFileSync(stFile, JSON.stringify(st));
 
   // ── 3) 앱용
-  const A = st.acc, eq = A.equity.length ? A.equity[A.equity.length - 1][1] : A.cash, mark = (s) => series[s].c[series[s].c.length - 1];
+  const A = st.acc, mark = (s) => series[s].c[series[s].c.length - 1], eq = Math.round(A.cash + Object.values(A.pos).reduce((t, p) => t + (p.side === 'long' ? 1 : -1) * (mark(p.sym) - p.entry) * p.qty, 0));
   const out = {
     v: 1, generatedAt: now.toISOString(), lastBar: isoT(W.T[last]), inception: isoT(st.inception), cfg: { riskPct: P.riskPct, maxPos: P.maxPos, stopAtr: P.stopAtr, minStopPct: P.minStopPct, tpR: P.tpR, maxBars: P.maxBars, dayLoss: P.dayLoss, ddKill: P.ddKill, maxLevTotal: P.maxLevTotal },
     model: { at: st.model.at, ver: st.model.ver, n: st.model.n, rate: st.model.rate, imp: st.model.imp, feats: FL.list.length, coins: W.syms.length, from: isoT(W.T[0]) },
