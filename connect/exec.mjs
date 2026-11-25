@@ -2,7 +2,7 @@
  *  · 봇 5개(민경기·류신영·단타 조심형·AI 다수결·적극형)가 잔고를 똑같이 나눠 씀(각 봇의 레버리지 × 잔고의 1/5). 같은 코인은 한 봇만: 먼저 들어간 봇이 주인
  *  · 안전장치: 429·5xx·끊김은 기다렸다 재시도, 주문은 고유 번호로 중복 방지, 손절을 못 걸면 바로 정리, 손절 이동은 새 주문 먼저,
  *    호가 차이 15bp 넘으면 진입 보류(최대 4번), 동시 실행 잠금. 서버가 죽어도 손절은 거래소에 걸려 있음 + GitHub 감시자(watch.mjs)가 90분 무응답이면 알림
- *  · 단타 봇의 목표가는 거래소에 TAKE_PROFIT_MARKET 으로 걸어 둠. 매시 5분(sync) + 20·35·50분(--loop) 에 맞춤
+ *  · 단타 봇의 목표가는 거래소에 TAKE_PROFIT_MARKET 으로 걸어 둠. 매시 5분(sync) + 봇 결과가 바뀔 때마다 40초 안에(--loop) 맞춤
  *
  *  · 진짜 돈이 아닌 데모 계좌 전용: 주소가 demo-fapi(데모)가 아니면 아예 실행하지 않음
  *  · 민경기 봇(3세대) 모의 계좌의 포지션을 목표로 삼아 데모 계좌를 맞춤
@@ -265,9 +265,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const open = (d = new Date()) => { const at = (tz) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d).map((x) => [x.type, x.value])); return { wd: p.weekday, m: (+p.hour % 24) * 60 + +p.minute }; };
       const k = at('Asia/Seoul'), u = at('America/New_York'), wk = (w) => !['Sat', 'Sun'].includes(w);
       return (wk(k.wd) && k.m >= 9 * 60 && k.m <= 15 * 60 + 40) || (wk(u.wd) && u.m >= 9 * 60 + 30 && u.m <= 16 * 60 + 10); };
+    // 봇 결과가 바뀌면 바로 따라감: bot-data 브랜치의 최신 커밋을 40초마다 확인(토큰 없으면 75초) → 바뀌었으면 즉시 데모 맞춤. 54분에 끝(다음 cron 이 이어받음)
+    //  + 15분마다는 바뀐 게 없어도 한 번 맞춤(손절 이동 누락 방지) + 장 시간엔 20·35·50분에 주식 가격 빠른 동기화
     (async () => { const { spawnSync } = await import('node:child_process');
-      for (const m of [20, 35, 50]) { const d = new Date(), wait = (m - d.getMinutes()) * 60e3 - d.getSeconds() * 1e3; if (wait < -60e3) continue; if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-        if (open() && !env.SNW_NO_FAST_SYNC) { const r = spawnSync(process.execPath, ['--dns-result-order=ipv4first', join(HERE, 'sync.mjs')], { cwd: HERE, env: { ...process.env, SNW_FAST: '1', SNW_SKIP_DERIV: '1', SNW_SKIP_EXEC: '1', SNW_SKIP_MARKET: '1' }, stdio: 'inherit', timeout: 300e3 }); if (r.status !== 0) console.log('✗ 빠른 동기화 (' + m + '분) 실패'); }
-        try { await run({ env }); } catch (e) { console.log('✗ 바이낸스 데모 (' + m + '분): ' + e.message); } } })();
+      const repo = env.GITHUB_REPOSITORY || env.GITHUB_REPO || 'rudrl09202-bit/sijangnalssi', tok = env.GITHUB_TOKEN || env.GH_TOKEN || '';
+      const head = async () => { try { const r = await fetch('https://api.github.com/repos/' + repo + '/commits/bot-data', { headers: Object.assign({ 'User-Agent': 'sijangnalssi-exec', Accept: 'application/vnd.github.sha' }, tok ? { Authorization: 'Bearer ' + tok } : {}) }); return r.ok ? (await r.text()).trim() : null; } catch (e) { return null; } };
+      const step = tok ? 40e3 : 75e3, t0 = Date.now(); let last = await head(), lastRun = Date.now(); const synced = new Set();
+      while (new Date().getMinutes() < 54 && Date.now() - t0 < 50 * 60e3) {
+        await new Promise((r) => setTimeout(r, step)); const mm = new Date().getMinutes();
+        const q = [20, 35, 50].find((m) => mm >= m && mm < m + 5 && !synced.has(m));
+        if (q != null) { synced.add(q); if (open() && !env.SNW_NO_FAST_SYNC) { const r = spawnSync(process.execPath, ['--dns-result-order=ipv4first', join(HERE, 'sync.mjs')], { cwd: HERE, env: { ...process.env, SNW_FAST: '1', SNW_SKIP_DERIV: '1', SNW_SKIP_EXEC: '1', SNW_SKIP_MARKET: '1' }, stdio: 'inherit', timeout: 300e3 }); if (r.status !== 0) console.log('✗ 빠른 동기화 (' + q + '분) 실패'); } }
+        const h = await head(), changed = h && h !== last;
+        if (changed || Date.now() - lastRun > 15 * 60e3) { if (h) last = h; lastRun = Date.now();
+          try { await run({ env }); } catch (e) { console.log('✗ 바이낸스 데모 (' + mm + '분): ' + e.message); } }
+      } })();
   } else run({ env }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; });
 }
