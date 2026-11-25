@@ -498,6 +498,9 @@
     let i = k.t.length - 1; while (i >= 0 && k.t[i] >= today) i--; if (i < 0 || !k.c[i]) return null;
     return { pct: (h.price / k.c[i] - 1) * 100, base: '전날 종가' };
   }
+  // 보유 수량: 코인은 소수점까지(끝 0 지움) '개', 주식은 '주' (소수점 주식이면 소수점 4자리까지)
+  function qtyTxt(h) { const q = Number(h.qty); if (!isFinite(q)) return ''; const d = h.type === 'coin' ? (q >= 100 ? 2 : q >= 1 ? 4 : 8) : (Number.isInteger(q) ? 0 : 4);
+    const t = q.toLocaleString('ko-KR', { maximumFractionDigits: d }); return t + (h.type === 'coin' ? '개' : '주'); }
   function todayCard(rows) {
     const L = rows.filter((r) => r.v != null).map((r) => { const d = dayChange(r.h); return { ...r, d, dw: d ? r.v * (d.pct / 100) / (1 + d.pct / 100) : null }; });
     if (!L.length) return '';
@@ -507,7 +510,7 @@
     return `<section class="card panel">
       <div class="row between"><h2>오늘 내 종목</h2><p class="num b ${dirClass(tot)}">${tot >= 0 ? '+' : ''}${wonShort(tot)} <span class="xs">${base ? sign(tot / base * 100, 2) + '%' : ''}</span></p></div>
       <div class="td3 th"><span>종목</span><span class="right">현재가</span><span class="right">오늘</span></div>
-      ${shown.map((r) => `<div class="td3"><span>${esc(r.h.name)}<br><span class="muted xs">${r.h.type === 'coin' ? '코인' : r.h.currency === 'USD' ? '미국' : '국내'}</span></span><span class="right num">${px(r.h)}</span>
+      ${shown.map((r) => `<div class="td3"><span>${esc(r.h.name)}<br><span class="muted xs">${r.h.type === 'coin' ? '코인' : r.h.currency === 'USD' ? '미국' : '국내'}${r.h.qty != null ? ' · ' + qtyTxt(r.h) : ''}</span></span><span class="right num">${px(r.h)}</span>
         <span class="right num ${r.d ? dirClass(r.d.pct) : ''}">${r.d ? sign(r.d.pct, 2) + '%' : '—'}<br><span class="xs">${r.dw == null ? '' : (r.dw >= 0 ? '+' : '') + wonShort(r.dw)}</span></span></div>`).join('')}
       ${L.length > shown.length || open ? `<button class="link-btn" data-act="today-all">${open ? '접기' : '전체 ' + L.length + '개 보기'}</button>` : ''}
       <p class="muted xs" style="margin-top:6px">코인은 24시간 등락(실시간), 주식은 전날 종가 대비(동기화 시점 가격, 약 1시간마다). 미국 주식은 장이 열리기 전엔 지난 거래일 등락이에요.</p></section>`;
