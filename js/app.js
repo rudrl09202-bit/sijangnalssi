@@ -541,7 +541,7 @@
     const stat = (label, v, cls, sub) => `<div class="stat"><p class="kicker">${label}</p><p class="num ${cls || ''}">${v}</p>${sub ? `<p class="muted xs num">${sub}</p>` : ''}</div>`;
     const summary = `
       <section class="card panel">
-        <div class="row between"><p class="kicker">총 자산</p><p class="kicker num">${syncT ? syncT.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' 업데이트' : '직접 입력'}</p></div>
+        <div class="row between"><p class="kicker">총 자산</p>${syncT ? `<button class="kicker num refresh-btn" data-act="refresh-assets" aria-label="새로고침">${S.ui.refreshing ? '불러오는 중…' : syncT.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' 업데이트 ↻'}</button>` : '<p class="kicker num">직접 입력</p>'}</div>
         <p class="nav num">${won(all)}</p>
         <p class="hero-sub ${dirClass(pnl)}">${pnl >= 0 ? '+' : ''}${won(pnl)} (${cost ? sign(pnl / cost * 100, 1) + '%' : '—'}) <span class="muted" style="font-weight:500">투자 손익</span></p>
         <div class="alloc" role="img" aria-label="코인 ${nf(share(coinV), 1)}%, 주식 ${nf(share(stockV), 1)}%, 현금 ${nf(share(cash), 1)}%">
@@ -3299,6 +3299,9 @@
     else if (act === 'rank-stock') { const it = U && Object.values(U.LIST).flat().find((x) => x.s === v); location.hash = '#score'; runScore(it ? it.n + ' (' + it.s + ')' : v, b.dataset.sec || ''); }
     else if (act === 'rank-coin') { const c = S.coinList.find((x) => x.market === v); location.hash = '#score'; runScore(c && c.name ? c.name + ' (' + c.symbol + ')' : v.slice(4) + ' (' + v.slice(4) + ')', ''); }
     else if (act === 'asset-tab') { S.ui.assetTab = v; render(); }
+    else if (act === 'refresh-assets') { if (S.ui.refreshing) return; S.ui.refreshing = true; render();
+      // 서버가 올린 최신 자산 파일 + 코인 실시간 시세 다시 받기 (주식 가격은 서버 동기화 시점 것)
+      Promise.all([tryVault(), loadPrices([])]).catch(() => {}).then(() => { S.ui.refreshing = false; render(); }); }
     else if (act === 'today-all') { S.ui.todayAll = !S.ui.todayAll; render(); }
     else if (act === 'toggle-add') { S.ui.showAdd = !S.ui.showAdd; render(); }
     else if (act === 'add-type') { S.ui.addType = v; render(); }
