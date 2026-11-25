@@ -145,6 +145,9 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
   // 데모에서 손절이 먼저 체결됐는지 (봇엔 있는데 데모엔 없고, 우리가 들어갔던 포지션)
   Object.entries(st.map).forEach(([sym, m]) => { if (!opened.has(sym) && tgt[sym] && !cur[sym] && m.since === tgt[sym].since && m.qty && !m.stopped) { m.stopped = true; note(sym + ' 데모에서 손절·목표가 주문이 먼저 체결된 것으로 보임 — 같은 포지션엔 다시 들어가지 않음'); } });
 
+  // 오늘(한국 날짜) 시작 잔고 — 앱의 '오늘 손익'
+  const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
+  if (!st.day || st.day.date !== today) st.day = { date: today, start: r6(eq) };
   st.actions = (st.actions || []).concat(acts).slice(-80); st.fills = (st.fills || []).slice(-200); st.updatedAt = new Date(now).toISOString();
   mkdirSync(dirname(SFILE), { recursive: true }); writeFileSync(SFILE, JSON.stringify(st));
   // 앱용 (데모 계좌)
@@ -152,7 +155,7 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
   const opens = st.fills.filter((f) => f.kind === 'open' && f.slipBps != null);
   const out = { v: 1, at: new Date(now).toISOString(), base: B.base, equity: r6(eq), wallet: Number(acct.totalWalletBalance || 0), upnl: Number(acct.totalUnrealizedProfit || 0),
     positions: (posNow || []).filter((p) => Number(p.positionAmt)).map((p) => ({ sym: p.symbol, side: Number(p.positionAmt) > 0 ? 'long' : 'short', qty: Math.abs(Number(p.positionAmt)), entry: Number(p.entryPrice), mark: Number(p.markPrice), upnl: Number(p.unRealizedProfit), liq: Number(p.liquidationPrice), stop: st.map[p.symbol] ? st.map[p.symbol].stop : null, bot: st.map[p.symbol] ? st.map[p.symbol].bot : null })),
-    fills: st.fills.slice(-40).reverse(), actions: st.actions.slice(-30).reverse(), slip: opens.length ? Math.round(opens.reduce((s, f) => s + f.slipBps, 0) / opens.length * 10) / 10 : null, botLive: { ret: M.live.ret, n: M.live.n, positions: (M.live.positions || []).length },
+    day: st.day, fills: st.fills.slice(-40).reverse(), actions: st.actions.slice(-30).reverse(), slip: opens.length ? Math.round(opens.reduce((s, f) => s + f.slipBps, 0) / opens.length * 10) / 10 : null, botLive: { ret: M.live.ret, n: M.live.n, positions: (M.live.positions || []).length },
     bots: BOTS.map(([id, nm]) => { const D = TG[id]; return { id, name: nm, share: Math.round(share * 100), ok: !!(D && D.live), ret: D && D.live ? D.live.ret : null, positions: D && D.live ? (D.live.positions || []).length : 0 }; }) };
   await upload(out, env, fetchImpl, log);
   log('바이낸스 데모: 잔고 ' + r6(eq) + ' USDT · 포지션 ' + out.positions.length + ' · 이번에 한 일 ' + acts.length + '건');

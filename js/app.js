@@ -2089,7 +2089,7 @@
     if (S.exLoading || (S.exAt && Date.now() - S.exAt < 5 * 60e3)) return;
     S.exLoading = true;
     fetch('https://raw.githubusercontent.com/' + futRepo() + '/deriv-data/exec-live.json?t=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
-      .then((j) => { S.exLoading = false; S.exAt = Date.now(); if (j && j.at) { S.ex = j; if (['mk', 'bot'].indexOf(route()) >= 0) render(); } });
+      .then((j) => { S.exLoading = false; S.exAt = Date.now(); if (j && j.at) { S.ex = j; if (['mk', 'bot', 'home', 'demo'].indexOf(route()) >= 0) render(); } });
   }
   function execCard() {
     loadExec();
@@ -2980,7 +2980,17 @@
       ${nTr ? `<div class="tbl">${allTr.slice(0, 8).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${esc(t.who.name)} · ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     const ins = insights(A);
     const insCard = ins.length ? `<section class="card"><div class="card-head"><h2>오늘의 점검</h2><a href="#analysis" class="xs">자세히 ›</a></div>${ins.slice(0, 3).map((x) => `<div class="ins ${x.lv}"><p class="sm"><b>${esc(x.title)}</b></p><p class="muted xs">${esc(x.text)}</p></div>`).join('')}</section>` : '';
-    return head + guideCard() + hero + chart + posCard + insCard + recent + homeMarket();
+    return head + guideCard() + hero + demoLine() + chart + posCard + insCard + recent + homeMarket();
+  }
+  // 홈: 바이낸스 데모(가짜 돈) 계좌 요약 한 줄 → 누르면 #demo
+  function demoLine() {
+    loadExec(); const X = S.ex; if (!X) return '';
+    const dp = X.day && X.day.start ? X.equity - X.day.start : null, stale = Date.now() - Date.parse(X.at) > 3 * 3600e3;
+    return `<a class="card demo-line" href="#demo"><div class="row between"><p class="b">바이낸스 데모 <span class="muted xs">가짜 돈 · ${stale ? '갱신 늦음' : kT(X.at)}</span></p><span class="muted">›</span></div>
+      <div class="kpis k3" style="margin-top:8px">${kpi('잔고', nf(X.equity, 0) + ' USDT', '', '평가 ' + (X.upnl >= 0 ? '+' : '') + nf(X.upnl, 1))}${kpi('포지션', X.positions.length + '개', '', X.bots ? '봇 ' + X.bots.length + '개 연결' : '')}${kpi('오늘 손익', dp == null ? '—' : (dp >= 0 ? '+' : '') + nf(dp, 1) + '$', dp == null ? '' : dirClass(dp), dp == null ? '' : sign(dp / X.day.start * 100, 2) + '%')}</div></a>`;
+  }
+  function viewDemo() {
+    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">바이낸스 선물 데모 트레이딩 · 실제 돈 아님</p><h1>바이낸스 데모</h1></div>${tools()}</header>` + execCard() + (S.ex && S.ex.fills && S.ex.fills.length ? `<section class="card"><h2>체결 내역</h2><div class="tbl">${S.ex.fills.map((f) => `<div class="tr2"><span>${sideTag(f.side)} <b>${esc(f.sym.replace('USDT', ''))}</b> <span class="muted xs">${f.kind === 'open' ? '진입' : '정리'}${f.bot ? ' · ' + ({ mk3: '민경기', rs: '류신영', sc1: '조심형', sc2: '적극형', sc3: 'AI 다수결' }[f.bot] || '') : ''}</span></span><span class="num xs muted">${kT(f.t)} · ${f.qty} @ ${usd(f.price)}</span><span class="num ${f.pnl != null ? dirClass(f.pnl) : ''}">${f.pnl != null ? (f.pnl >= 0 ? '+' : '') + nf(f.pnl, 2) + '$' : ''}</span></div>`).join('')}</div></section>` : '');
   }
   function homeMarket() {
     const SCd = S.sc, RG = SCd && SCd.regime, btc = S.prices['KRW-BTC'];
@@ -3193,8 +3203,8 @@
     }
     return head + seg + body;
   }
-  const VIEWS = { open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle };
-  const TAB_OF = { open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
+  const TAB_OF = { demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { let h = (location.hash || '#home').slice(1); if (h.indexOf('bot/') === 0) { S.ui.bot = h.slice(4); h = 'bot'; } return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
