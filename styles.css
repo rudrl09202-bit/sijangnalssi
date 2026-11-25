@@ -917,3 +917,7 @@ html.big body { zoom: 1.15; }
 .tbl .tr2.tr3 > span:nth-child(2) { line-height: 1.5; }
 .sc-card { padding: 12px 0; border-top: 1px solid var(--line); } .sc-card:first-of-type { border-top: 0; } .sc-card p { margin: 0; }
 .sc-card.main .b { font-weight: 800; }
+/* 오늘 내 종목 */
+.td3 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, .9fr); gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.45; }
+.td3.th { font-size: 12px; color: var(--muted); padding: 6px 0; border-top: 0; }
+.td3 .right { text-align: right; }
