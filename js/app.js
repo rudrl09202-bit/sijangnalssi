@@ -2096,10 +2096,10 @@
     if (!X) return `<section class="card"><div class="card-head"><h2>바이낸스 데모 계좌</h2><span class="act neu">준비 중</span></div><p class="muted sm">서울 서버에 바이낸스 데모 키를 넣으면, 민경기 봇이 들어갈 때마다 바이낸스 데모(가짜 돈) 계좌에 <b>진짜 주문</b>을 넣고 손절 주문도 거래소에 걸어요. 모의 계산과 실제 체결이 얼마나 다른지 확인하는 단계예요.</p></section>`;
     const age = Date.now() - Date.parse(X.at);
     return `<section class="card"><div class="card-head"><h2>바이낸스 데모 계좌</h2><span class="act ${age > 3 * 3600e3 ? 'warn' : 'live'}">${age > 3 * 3600e3 ? '갱신 늦음' : '연결됨'}</span></div>
-      <div class="kpis k3">${kpi('잔고 (가짜 돈)', nf(X.equity, 0) + ' USDT', '', '평가 ' + (X.upnl >= 0 ? '+' : '') + nf(X.upnl, 1))}${kpi('포지션', String(X.positions.length), '', '봇 ' + X.botLive.positions + '개')}${kpi('체결 차이', X.slip == null ? '—' : X.slip + 'bp', X.slip > 10 ? 'down' : '', '봇 진입가 대비')}</div>
-      ${X.positions.length ? `<div class="tbl" style="margin-top:8px">${X.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.sym.replace('USDT', ''))}</b> <span class="muted xs">${p.qty}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)}${p.stop ? ' · 거래소 손절 ' + usd(p.stop) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${nf(p.upnl, 1)}$</span></div>`).join('')}</div>` : ''}
+      <div class="kpis k3">${kpi('잔고 (가짜 돈)', nf(X.equity, 0) + ' USDT', '', '평가 ' + (X.upnl >= 0 ? '+' : '') + nf(X.upnl, 1))}${kpi('포지션', String(X.positions.length), '', X.bots ? X.bots.map((b) => (b.id === 'mk3' ? 'MK ' : 'RS ') + b.positions).join(' · ') : '봇 ' + X.botLive.positions + '개')}${kpi('체결 차이', X.slip == null ? '—' : X.slip + 'bp', X.slip > 10 ? 'down' : '', '봇 진입가 대비')}</div>
+      ${X.positions.length ? `<div class="tbl" style="margin-top:8px">${X.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.sym.replace('USDT', ''))}</b> <span class="muted xs">${p.qty}${p.bot ? ' · ' + (p.bot === 'rs' ? '류신영' : '민경기') : ''}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)}${p.stop ? ' · 거래소 손절 ' + usd(p.stop) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${nf(p.upnl, 1)}$</span></div>`).join('')}</div>` : ''}
       ${X.actions.length ? `<details class="pro-inline"><summary>최근 주문 기록</summary>${X.actions.slice(0, 12).map((a) => `<p class="xs news-line"><span class="muted num">${kT(a.t)}</span> ${esc(a.m)}</p>`).join('')}</details>` : ''}
-      <p class="muted xs">${kT(X.at)} 확인 · 매시간 5분 · 실제 돈 아님 (바이낸스 데모 트레이딩)</p></section>`;
+      <p class="muted xs">${kT(X.at)} 확인 · 매시간 5분 · 실제 돈 아님 (바이낸스 데모 트레이딩)${X.bots ? ' · 민경기 봇·류신영 봇이 잔고를 반씩 사용, 같은 코인은 먼저 들어간 봇만' : ''}</p></section>`;
   }
   function viewMk() {
     loadMk(); loadScalp();
@@ -3054,7 +3054,7 @@
       body = `<section class="card"><h2>포지션 ${a.positions.length}</h2>${a.positions.length ? `<div class="tbl">${a.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.name)}</b> <span class="muted xs">${p.lev != null ? p.lev + '배' : ''}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)} · ${p.be || (p.stop != null && Math.abs(p.stop / p.entry - 1) < 1e-6) ? '본전 손절' : p.trail ? '추적 손절' : '손절'} ${usd(p.stop)}${p.tp ? ' · 목표 ' + usd(p.tp) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">지금은 포지션이 없어요.</p>'}</section>
         <section class="card"><h2>거래 기록 ${x.n}</h2>${x.n ? `<div class="tbl">${a.trades.slice(0, 40).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${kT(t.in)} → ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')} · ${rr(t.R || 0)}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     } else if (tab === 'ana') body = anaBlocks(a.trades, a.name);
-    else body = valBlock(a) + (a.id === 'mk' ? execCard() : '');
+    else body = valBlock(a) + (a.id === 'mk' || a.id === 'rs' ? execCard() : '');
     return head(a.name, a.code + ' · 가상 1억 · 실제 돈 아님') + top + chart + seg + body + (a.href !== '#bot/' + a.id ? `<a class="lrow-mini pad" href="${a.href}">전략 화면 자세히 보기 ›</a>` : '');
   }
   function anaBlocks(trades, who) {

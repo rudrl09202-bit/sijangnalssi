@@ -1,4 +1,5 @@
-/* 바이낸스 선물 '데모 트레이딩'(가짜 돈) 계좌에 민경기 봇의 포지션을 실제 주문으로 따라 넣기 — 서울 서버에서 매시간
+/* 바이낸스 선물 '데모 트레이딩'(가짜 돈) 계좌에 민경기 봇·류신영 봇의 포지션을 실제 주문으로 따라 넣기 — 서울 서버에서 매시간
+ *  · 두 봇이 잔고를 반씩 나눠 씀(각 봇의 레버리지 × 잔고의 절반). 같은 코인은 한 봇만: 먼저 들어간 봇이 주인, 다른 봇의 같은 코인 신호는 데모에선 건너뜀
  *
  *  · 진짜 돈이 아닌 데모 계좌 전용: 주소가 demo-fapi(데모)가 아니면 아예 실행하지 않음
  *  · 민경기 봇(3세대) 모의 계좌의 포지션을 목표로 삼아 데모 계좌를 맞춤
@@ -44,16 +45,25 @@ const dec = (x) => { const s = String(x); return s.includes('e-') ? Number(s.spl
 const floorTo = (v, st) => Number((Math.floor(v / st + 1e-9) * st).toFixed(dec(st)));
 const roundTo = (v, st) => Number((Math.round(v / st) * st).toFixed(dec(st)));
 
-export async function run({ env = {}, fetchImpl = fetch, log = console.log, now = Date.now(), target = null } = {}) {
+export const BOTS = [['mk3', '민경기 봇', 'mk3-live.json'], ['rs', '류신영 봇', 'rs-live.json']];
+export async function run({ env = {}, fetchImpl = fetch, log = console.log, now = Date.now(), target = null, targets = null } = {}) {
   if (!env.BINANCE_DEMO_KEY || !env.BINANCE_DEMO_SECRET) { log('· 바이낸스 데모: BINANCE_DEMO_KEY·SECRET 이 없어 건너뜀'); return null; }
   const B = client(env, fetchImpl), repo = env.GITHUB_REPO || 'rudrl09202-bit/sijangnalssi';
   let st = { v: 1, map: {}, fills: [], actions: [] }; try { st = JSON.parse(readFileSync(SFILE, 'utf8')); } catch (e) { /* 처음 */ }
   const opened = new Set(), acts = [], note = (m) => { acts.push({ t: new Date(now).toISOString(), m }); log('  ' + m); };
+  st.map = st.map || {};
 
-  // 1) 목표: 민경기 봇 3세대 포지션
-  let M = target;
-  if (!M) { const r = await fetchImpl('https://raw.githubusercontent.com/' + repo + '/bot-data/mk3-live.json?t=' + Math.floor(now / 6e4)); if (!r.ok) throw new Error('민경기 봇 결과를 못 읽음 (HTTP ' + r.status + ')'); M = await r.json(); }
-  const tgt = {}; (M.live.positions || []).forEach((p) => { tgt[p.sym + 'USDT'] = { side: p.side, lev: p.lev, stop: p.stop, entry: p.entry, name: p.name, since: p.since }; });
+  // 1) 목표: 민경기 봇 3세대 + 류신영 봇 2세대 포지션 (같은 코인은 주인 한 봇만)
+  const TG = targets || (target ? { mk3: target } : {}), share = 1 / BOTS.length;
+  for (const [id, nm, file] of BOTS) { if (TG[id] !== undefined) continue; try { const r = await fetchImpl('https://raw.githubusercontent.com/' + repo + '/bot-data/' + file + '?t=' + Math.floor(now / 6e4)); TG[id] = r.ok ? await r.json() : null; if (!r.ok) note(nm + ' 결과를 못 읽음 (HTTP ' + r.status + ') — 이번엔 그대로 둠'); } catch (e) { TG[id] = null; note(nm + ' 결과 읽기 실패: ' + e.message); } }
+  const M = TG.mk3 || { live: { ret: 0, n: 0, positions: [] } };
+  const tgt = {}, botName = Object.fromEntries(BOTS.map(([id, nm]) => [id, nm])), wantBy = {};
+  BOTS.forEach(([id]) => { const D = TG[id]; if (!D || !D.live) return; (D.live.positions || []).forEach((p) => { const sym = p.sym + 'USDT'; (wantBy[sym] = wantBy[sym] || []).push({ bot: id, side: p.side, lev: p.lev * share, stop: p.stop, entry: p.entry, name: p.name, since: id + '|' + p.since }); }); });
+  // 결과를 못 읽은 봇이 가진 데모 포지션은 건드리지 않음
+  const unknown = new Set(BOTS.filter(([id]) => !TG[id] || !TG[id].live).map(([id]) => id));
+  for (const [sym, L] of Object.entries(wantBy)) { const own = st.map[sym] && st.map[sym].bot, pick = L.find((x) => x.bot === own) || L[0]; tgt[sym] = pick;
+    L.filter((x) => x !== pick).forEach((x) => { const k = 'skip|' + x.since; if (!st.map[k]) { st.map[k] = { skip: true, at: now }; note(sym.replace('USDT', '') + ': ' + botName[x.bot] + ' 신호는 ' + botName[pick.bot] + '이 이미 가진 코인이라 데모에선 건너뜀'); } }); }
+  Object.keys(st.map).forEach((k) => { if (k.startsWith('skip|') && now - st.map[k].at > 30 * 864e5) delete st.map[k]; });
 
   // 2) 데모 계좌 현황
   const info = rules(await B.call('GET', '/fapi/v1/exchangeInfo', {}, false));
@@ -74,15 +84,16 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
     if (!Number(o.avgPrice) && o.orderId) { try { const q = await B.call('GET', '/fapi/v1/order', { symbol: sym, orderId: o.orderId }); if (Number(q.avgPrice)) o.avgPrice = q.avgPrice; } catch (e) { /* 체결가 조회 실패 — 표시만 빠짐 */ } }
     return o; };
 
-  for (const sym of new Set([...Object.keys(tgt), ...Object.keys(cur), ...Object.keys(st.map)])) {
+  for (const sym of new Set([...Object.keys(tgt), ...Object.keys(cur), ...Object.keys(st.map).filter((k) => !k.startsWith('skip|'))])) {
     const T = tgt[sym], C = cur[sym], R = info[sym];
+    if (!T && st.map[sym] && unknown.has(st.map[sym].bot)) continue;
     if (!R) { note(sym + ': 바이낸스 선물에 없는 종목 — 건너뜀'); continue; }
     const cSide = C ? (C.amt > 0 ? 'long' : 'short') : null;
     // 정리: 봇엔 없는데 데모엔 있음 / 방향이 반대
     if (C && (!T || T.side !== cSide)) {
       try { const o = await market(sym, C.amt > 0 ? 'SELL' : 'BUY', Math.abs(C.amt), true); await cancelStops(sym);
         const px = Number(o.avgPrice) || C.mark; st.fills.push({ t: new Date(now).toISOString(), sym, kind: 'close', side: cSide, qty: Math.abs(C.amt), price: px, pnl: r6((cSide === 'long' ? 1 : -1) * (px - C.entry) * Math.abs(C.amt)) });
-        note(sym + ' ' + (cSide === 'long' ? '롱' : '숏') + ' 정리 @' + px + ' (봇에서 정리됨)'); delete st.map[sym]; } catch (e) { note(sym + ' 정리 실패: ' + e.message); }
+        const ob = st.map[sym] && st.map[sym].bot; st.fills[st.fills.length - 1].bot = ob; note(sym + ' ' + (cSide === 'long' ? '롱' : '숏') + ' 정리 @' + px + ' (' + (botName[ob] || '봇') + '에서 정리됨)'); delete st.map[sym]; } catch (e) { note(sym + ' 정리 실패: ' + e.message); }
       if (!T) continue;
     }
     if (!T) { if (!C) { await cancelStops(sym); delete st.map[sym]; } continue; }
@@ -97,10 +108,10 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
         if (qty < R.minQty || qty * mk < R.minNotional) { note(sym + ' 진입 건너뜀: 데모 잔고 대비 너무 작음 (' + r6(qty * mk) + ' USDT)'); continue; }
         const o = await market(sym, T.side === 'long' ? 'BUY' : 'SELL', qty, false), px = Number(o.avgPrice) || mk;
         const slip = T.entry ? ((T.side === 'long' ? 1 : -1) * (px / T.entry - 1) * 1e4) : null;
-        st.fills.push({ t: new Date(now).toISOString(), sym, kind: 'open', side: T.side, qty, price: px, botEntry: T.entry, slipBps: slip == null ? null : Math.round(slip * 10) / 10 });
-        st.map[sym] = { side: T.side, since: T.since, qty }; opened.add(sym);
+        st.fills.push({ t: new Date(now).toISOString(), sym, bot: T.bot, kind: 'open', side: T.side, qty, price: px, botEntry: T.entry, slipBps: slip == null ? null : Math.round(slip * 10) / 10 });
+        st.map[sym] = { side: T.side, since: T.since, qty, bot: T.bot }; opened.add(sym);
         const sp = await placeStop(sym, T.side, T.stop);
-        note(sym + ' ' + (T.side === 'long' ? '롱' : '숏') + ' 진입 ' + qty + ' @' + px + ' (봇 진입가 ' + T.entry + ', 차이 ' + (slip == null ? '—' : slip.toFixed(1) + 'bp') + ') · 손절 주문 ' + sp);
+        note(botName[T.bot] + ' · ' + sym + ' ' + (T.side === 'long' ? '롱' : '숏') + ' 진입 ' + qty + ' @' + px + ' (봇 진입가 ' + T.entry + ', 차이 ' + (slip == null ? '—' : slip.toFixed(1) + 'bp') + ') · 손절 주문 ' + sp);
       } catch (e) { note(sym + ' 진입 실패: ' + e.message + (e.code ? ' (' + e.code + ')' : '')); }
       continue;
     }
@@ -120,8 +131,9 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
   const posNow = await B.call('GET', '/fapi/v3/positionRisk').catch(() => posArr);
   const opens = st.fills.filter((f) => f.kind === 'open' && f.slipBps != null);
   const out = { v: 1, at: new Date(now).toISOString(), base: B.base, equity: r6(eq), wallet: Number(acct.totalWalletBalance || 0), upnl: Number(acct.totalUnrealizedProfit || 0),
-    positions: (posNow || []).filter((p) => Number(p.positionAmt)).map((p) => ({ sym: p.symbol, side: Number(p.positionAmt) > 0 ? 'long' : 'short', qty: Math.abs(Number(p.positionAmt)), entry: Number(p.entryPrice), mark: Number(p.markPrice), upnl: Number(p.unRealizedProfit), liq: Number(p.liquidationPrice), stop: st.map[p.symbol] ? st.map[p.symbol].stop : null })),
-    fills: st.fills.slice(-40).reverse(), actions: st.actions.slice(-30).reverse(), slip: opens.length ? Math.round(opens.reduce((s, f) => s + f.slipBps, 0) / opens.length * 10) / 10 : null, botLive: { ret: M.live.ret, n: M.live.n, positions: (M.live.positions || []).length } };
+    positions: (posNow || []).filter((p) => Number(p.positionAmt)).map((p) => ({ sym: p.symbol, side: Number(p.positionAmt) > 0 ? 'long' : 'short', qty: Math.abs(Number(p.positionAmt)), entry: Number(p.entryPrice), mark: Number(p.markPrice), upnl: Number(p.unRealizedProfit), liq: Number(p.liquidationPrice), stop: st.map[p.symbol] ? st.map[p.symbol].stop : null, bot: st.map[p.symbol] ? st.map[p.symbol].bot : null })),
+    fills: st.fills.slice(-40).reverse(), actions: st.actions.slice(-30).reverse(), slip: opens.length ? Math.round(opens.reduce((s, f) => s + f.slipBps, 0) / opens.length * 10) / 10 : null, botLive: { ret: M.live.ret, n: M.live.n, positions: (M.live.positions || []).length },
+    bots: BOTS.map(([id, nm]) => { const D = TG[id]; return { id, name: nm, share: Math.round(share * 100), ok: !!(D && D.live), ret: D && D.live ? D.live.ret : null, positions: D && D.live ? (D.live.positions || []).length : 0 }; }) };
   await upload(out, env, fetchImpl, log);
   log('바이낸스 데모: 잔고 ' + r6(eq) + ' USDT · 포지션 ' + out.positions.length + ' · 이번에 한 일 ' + acts.length + '건');
   return out;
