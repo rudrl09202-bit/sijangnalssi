@@ -532,7 +532,7 @@
         else if ((j.action === 'trim' || j.action === 'reduce') && !p.tag.trimmed) { p.tag.trimmed = true; sell(acc, id, '행동 가이드 "' + (j.label || '분할 매도') + '" — 1/3 정리', 1 / 3); }
       }
     }
-    if (!canEnter || !weekly) return;
+    if (!canEnter || !(weekly || bot.daily)) return; // bot.daily: 알림처럼 매일 후보를 보고 다음 날 시가에 1차 매수 (재채점·정리는 그대로 매주)
     const cands = [];
     for (const id in W.A) {
       const a = W.A[id]; if (a.kind !== 'stock' || acc.pos[id] || hasOrder(acc, id)) continue;

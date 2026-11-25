@@ -1,0 +1,32 @@
+# 연구용 1회 실행 (수동): 10년치 시세를 받아 research/ 의 비교 스크립트를 돌리고 결과를 research-out 브랜치에 저장
+name: 연구 실행
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'research/ 안의 스크립트 이름'
+        default: 'chief-compare.mjs'
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: 10년치 시세 받기
+        run: node connect/market.mjs
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
+      - name: 연구 스크립트
+        run: node research/${{ github.event.inputs.script }}
+      - name: 결과 저장
+        run: |
+          mkdir -p /tmp/out && cp data/chief-compare.json /tmp/out/ 2>/dev/null || true
+          git config user.name "sijangnalssi-bot"; git config user.email "actions@users.noreply.github.com"
+          git checkout --orphan research-out && git rm -rqf . && cp /tmp/out/* . && git add -A && git commit -qm "연구 결과 $(date -u +%F)" && git push -qf origin research-out || echo "저장 건너뜀"

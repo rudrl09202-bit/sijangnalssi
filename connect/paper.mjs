@@ -83,7 +83,7 @@ export function loadAssets(root, app, cutoff) {
 }
 
 // CHIEF 봇의 판단: 앱의 스크리너(R.screenStock) + 행동 가이드(R.actionFor)를 그 날까지의 데이터로
-function makeChief(app, Q, getW, liveFrom) {
+export function makeChief(app, Q, getW, liveFrom) {
   const W0 = app.window || app, R = W0.Rules, SNAP = W0.SNAPSHOT, ML = W0.MARKET_LIVE;
   const markets = JSON.parse(JSON.stringify(SNAP.markets));
   const base = { markets, rates: SNAP.rates, sectors: SNAP.sectors, events: [], now: Date.now() };
