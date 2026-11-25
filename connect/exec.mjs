@@ -1,5 +1,7 @@
 /* 바이낸스 선물 '데모 트레이딩'(가짜 돈) 계좌에 자동매매 봇들의 포지션을 실제 주문으로 따라 넣기 — 서울 서버에서 매시간
  *  · 봇 5개(민경기·류신영·단타 조심형·AI 다수결·적극형)가 잔고를 똑같이 나눠 씀(각 봇의 레버리지 × 잔고의 1/5). 같은 코인은 한 봇만: 먼저 들어간 봇이 주인
+ *  · 안전장치: 429·5xx·끊김은 기다렸다 재시도, 주문은 고유 번호로 중복 방지, 손절을 못 걸면 바로 정리, 손절 이동은 새 주문 먼저,
+ *    호가 차이 15bp 넘으면 진입 보류(최대 4번), 동시 실행 잠금. 서버가 죽어도 손절은 거래소에 걸려 있음 + GitHub 감시자(watch.mjs)가 90분 무응답이면 알림
  *  · 단타 봇의 목표가는 거래소에 TAKE_PROFIT_MARKET 으로 걸어 둠. 매시 5분(sync) + 20·35·50분(--loop) 에 맞춤
  *
  *  · 진짜 돈이 아닌 데모 계좌 전용: 주소가 demo-fapi(데모)가 아니면 아예 실행하지 않음
@@ -11,7 +13,7 @@
  *  · 결과: connect/.cache/exec-state.json (서버) + GitHub deriv-data 브랜치 exec-live.json (앱이 읽음, 데모 계좌라 개인 정보 없음)
  *  키: connect/.env 의 BINANCE_DEMO_KEY · BINANCE_DEMO_SECRET (데모 트레이딩에서 만든 키. 실제 계좌 키는 넣지 마세요)
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createHmac } from 'node:crypto';
@@ -24,14 +26,29 @@ export function client(env, fetchImpl = fetch) {
   const base = env.BINANCE_DEMO_BASE || 'https://demo-fapi.binance.com';
   if (!/demo-fapi\.binance\.com|testnet\.binancefuture\.com/.test(base)) throw new Error('데모(가짜 돈) 주소가 아니라서 멈춤: ' + base);
   const key = env.BINANCE_DEMO_KEY, sec = env.BINANCE_DEMO_SECRET;
-  const call = async (method, path, params = {}, signed = true) => {
-    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));
-    if (signed) { q.set('recvWindow', '10000'); q.set('timestamp', String(Date.now())); q.set('signature', createHmac('sha256', sec).update(q.toString()).digest('hex')); }
-    const url = base + path + (q.toString() ? '?' + q : '');
-    const res = await fetchImpl(url, { method, headers: { 'X-MBX-APIKEY': key || '', 'User-Agent': 'sijangnalssi-exec' } });
-    const text = await res.text(); let j; try { j = JSON.parse(text); } catch (e) { j = text; }
-    if (!res.ok) { const err = new Error((j && j.msg) || String(text).slice(0, 160)); err.code = j && j.code; err.status = res.status; throw err; }
-    return j;
+  // 거래소 호출 제한·일시 오류 대비: 429(너무 잦음)·5xx·네트워크 끊김·시간 어긋남(-1021)은 기다렸다 다시 (최대 4번)
+  //  · 418(IP 차단)은 즉시 멈춤 · 사용량(분당 가중치)이 한도 75%를 넘으면 다음 분까지 쉼
+  //  · 주문(POST /order)은 같은 주문 번호(newClientOrderId)로만 재시도 → 같은 주문이 두 번 들어가지 않음 (market() 에서 확인)
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); let used = 0;
+  const call = async (method, path, params = {}, signed = true, { retries = 4 } = {}) => {
+    for (let k = 0; ; k++) {
+      if (used > 1800) { await sleep(61e3 - (Date.now() % 60e3)); used = 0; }
+      const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([kk, v]) => [kk, String(v)]));
+      if (signed) { q.set('recvWindow', '10000'); q.set('timestamp', String(Date.now())); q.set('signature', createHmac('sha256', sec).update(q.toString()).digest('hex')); }
+      const url = base + path + (q.toString() ? '?' + q : '');
+      let res, text, j;
+      try { res = await fetchImpl(url, { method, headers: { 'X-MBX-APIKEY': key || '', 'User-Agent': 'sijangnalssi-exec' }, signal: AbortSignal.timeout ? AbortSignal.timeout(15e3) : undefined }); text = await res.text(); }
+      catch (e) { const isOrder = method === 'POST' && path === '/fapi/v1/order'; if (k < retries && !isOrder) { await sleep(1000 * 2 ** k); continue; } const err = new Error('거래소 연결 실패: ' + e.message); err.network = true; throw err; }
+      try { j = JSON.parse(text); } catch (e) { j = text; }
+      const w = res.headers && res.headers.get ? Number(res.headers.get('x-mbx-used-weight-1m')) : 0; if (w) used = w;
+      if (res.ok) return j;
+      const code = j && j.code, err = new Error((j && j.msg) || String(text).slice(0, 160)); err.code = code; err.status = res.status;
+      if (res.status === 418) { err.message = '거래소가 이 서버 IP를 잠시 차단함(418) — 이번엔 멈춤'; err.fatal = true; throw err; }
+      const again = res.status === 429 || res.status >= 500 || code === -1021 || code === -1003 || code === -1001;
+      if (again && k < retries) { const ra = res.headers && res.headers.get ? Number(res.headers.get('retry-after')) : 0; err.unknown = res.status >= 500; if (err.unknown && path === '/fapi/v1/order' && method === 'POST') throw err; await sleep(ra ? ra * 1000 : 1000 * 2 ** k); continue; }
+      if (res.status >= 500) err.unknown = true;
+      throw err;
+    }
   };
   return { call, base };
 }
@@ -50,7 +67,14 @@ const roundTo = (v, st) => Number((Math.round(v / st) * st).toFixed(dec(st)));
 export const BOTS = [
   ['mk3', '민경기 봇', 'mk3-live.json', (D) => D.live, 6], ['rs', '류신영 봇', 'rs-live.json', (D) => D.live, 6],
   ['sc1', '단타 조심형', 'scalp-live.json', (D) => D.live, 1], ['sc3', '단타 AI 다수결', 'scalp-live.json', (D) => D.major, 1], ['sc2', '단타 적극형', 'scalp-live.json', (D) => D.bold, 1]];
-export async function run({ env = {}, fetchImpl = fetch, log = console.log, now = Date.now(), target = null, targets = null } = {}) {
+// 동시에 두 번 돌지 않게 잠금 (매시 5분 sync 와 20·35·50분 확인이 겹칠 때). 10분 넘은 잠금은 죽은 것으로 보고 무시
+const LOCK = join(HERE, '.cache', 'exec.lock');
+export async function run(opts = {}) {
+  if (!opts.targets && !opts.target) { try { if (Date.now() - statSync(LOCK).mtimeMs < 10 * 60e3) { (opts.log || console.log)('바이낸스 데모: 다른 실행이 진행 중 — 이번엔 건너뜀'); return null; } } catch (e) { /* 잠금 없음 */ }
+    mkdirSync(dirname(LOCK), { recursive: true }); writeFileSync(LOCK, String(process.pid)); }
+  try { return await runOnce(opts); } finally { if (!opts.targets && !opts.target) { try { unlinkSync(LOCK); } catch (e) { /* 없음 */ } } }
+}
+async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = Date.now(), target = null, targets = null } = {}) {
   if (!env.BINANCE_DEMO_KEY || !env.BINANCE_DEMO_SECRET) { log('· 바이낸스 데모: BINANCE_DEMO_KEY·SECRET 이 없어 건너뜀'); return null; }
   const B = client(env, fetchImpl), repo = env.GITHUB_REPO || 'rudrl09202-bit/sijangnalssi';
   let st = { v: 1, map: {}, fills: [], actions: [] }; try { st = JSON.parse(readFileSync(SFILE, 'utf8')); } catch (e) { /* 처음 */ }
@@ -75,7 +99,8 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
   for (const [sym, L] of Object.entries(wantBy)) { const own = st.map[sym] && st.map[sym].bot, pick = L.find((x) => x.bot === own) || L[0]; tgt[sym] = pick;
     L.filter((x) => x !== pick).forEach((x) => { const k = 'skip|' + x.since; if (!st.map[k]) { st.map[k] = { skip: true, at: now }; note(sym.replace('USDT', '') + ': ' + botName[x.bot] + ' 신호는 ' + botName[pick.bot] + '이 이미 가진 코인이라 데모에선 건너뜀'); } }); }
   Object.keys(st.map).forEach((k) => { if (k.startsWith('skip|') && now - st.map[k].at > 30 * 864e5) delete st.map[k]; });
-  const isMeta = (k) => /^(skip|stale)\|/.test(k);
+  const isMeta = (k) => /^(skip|stale|hold)\|/.test(k);
+  Object.keys(st.map).forEach((k) => { if (k.startsWith('hold|') && now - (st.map[k].at || 0) > 864e5) delete st.map[k]; });
 
   // 2) 데모 계좌 현황
   const info = rules(await B.call('GET', '/fapi/v1/exchangeInfo', {}, false));
@@ -97,9 +122,20 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
     const o = await B.call('POST', '/fapi/v1/algoOrder', { algoType: 'CONDITIONAL', symbol: sym, side: side === 'long' ? 'SELL' : 'BUY', type: 'TAKE_PROFIT_MARKET', triggerPrice: px, closePosition: 'true', workingType: 'MARK_PRICE', priceProtect: 'true' });
     st.map[sym] = Object.assign(st.map[sym] || {}, { tp: px, tpId: o.algoId }); return px;
   };
-  const market = async (sym, side, qty, reduce) => { const o = await B.call('POST', '/fapi/v1/order', { symbol: sym, side, type: 'MARKET', quantity: qty, reduceOnly: reduce ? 'true' : null, newOrderRespType: 'RESULT' });
+  // 시장가 주문: 주문 번호를 미리 정해 두고, 결과를 모를 때(연결 끊김·5xx)는 그 번호로 조회해서 들어갔는지 확인 → 없을 때만 다시
+  const market = async (sym, side, qty, reduce) => {
+    const cid = 'snw' + now.toString(36) + Math.random().toString(36).slice(2, 8); let o = null;
+    for (let k = 0; k < 3 && !o; k++) {
+      try { o = await B.call('POST', '/fapi/v1/order', { symbol: sym, side, type: 'MARKET', quantity: qty, reduceOnly: reduce ? 'true' : null, newOrderRespType: 'RESULT', newClientOrderId: cid }, true, { retries: 2 }); }
+      catch (e) { if (!(e.network || e.unknown)) throw e; await new Promise((r) => setTimeout(r, 1500 * (k + 1)));
+        try { o = await B.call('GET', '/fapi/v1/order', { symbol: sym, origClientOrderId: cid }); note(sym + ' 주문 응답이 끊겼지만 거래소에 들어간 것 확인 (중복 주문 없음)'); } catch (e2) { if (k === 2) throw e; } }
+    }
     if (!Number(o.avgPrice) && o.orderId) { try { const q = await B.call('GET', '/fapi/v1/order', { symbol: sym, orderId: o.orderId }); if (Number(q.avgPrice)) o.avgPrice = q.avgPrice; } catch (e) { /* 체결가 조회 실패 — 표시만 빠짐 */ } }
     return o; };
+  // 호가 확인: 매수·매도 호가 차이(스프레드)가 너무 벌어졌거나 맨 앞 호가가 너무 얇으면 이번엔 진입 보류 (다음 15분에 다시)
+  const MAX_SPREAD_BP = Number(env.EXEC_MAX_SPREAD_BP || 15);
+  const book = async (sym) => { const b = await B.call('GET', '/fapi/v1/ticker/bookTicker', { symbol: sym }, false); const bid = Number(b.bidPrice), ask = Number(b.askPrice), mid = (bid + ask) / 2;
+    return { bid, ask, mid, bp: mid ? (ask - bid) / mid * 1e4 : null, bidUsd: bid * Number(b.bidQty), askUsd: ask * Number(b.askQty) }; };
 
   for (const sym of new Set([...Object.keys(tgt), ...Object.keys(cur), ...Object.keys(st.map).filter((k) => !isMeta(k))])) {
     const T = tgt[sym], C = cur[sym], R = info[sym];
@@ -123,11 +159,18 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
         const mk = Number((await B.call('GET', '/fapi/v1/premiumIndex', { symbol: sym }, false)).markPrice);
         let qty = floorTo(T.lev * eq / mk, R.step);
         if (qty < R.minQty || qty * mk < R.minNotional) { note(sym + ' 진입 건너뜀: 데모 잔고 대비 너무 작음 (' + r6(qty * mk) + ' USDT)'); continue; }
+        let bk = null; try { bk = await book(sym); } catch (e) { /* 호가 조회 실패 — 그냥 진행 */ }
+        const hold = st.map['hold|' + T.since] || { n: 0 };
+        if (bk && bk.bp != null && bk.bp > MAX_SPREAD_BP && hold.n < 4) { hold.n++; hold.at = now; st.map['hold|' + T.since] = hold; note(sym + ' 진입 보류: 호가 차이 ' + bk.bp.toFixed(1) + 'bp (기준 ' + MAX_SPREAD_BP + 'bp) — 다음 확인 때 다시 (' + hold.n + '/4)'); continue; }
+        delete st.map['hold|' + T.since];
+        const thin = bk && (T.side === 'long' ? bk.askUsd : bk.bidUsd) < qty * mk * 0.5;
         const o = await market(sym, T.side === 'long' ? 'BUY' : 'SELL', qty, false), px = Number(o.avgPrice) || mk;
         const slip = T.entry ? ((T.side === 'long' ? 1 : -1) * (px / T.entry - 1) * 1e4) : null;
-        st.fills.push({ t: new Date(now).toISOString(), sym, bot: T.bot, kind: 'open', side: T.side, qty, price: px, botEntry: T.entry, slipBps: slip == null ? null : Math.round(slip * 10) / 10 });
+        st.fills.push({ t: new Date(now).toISOString(), sym, bot: T.bot, kind: 'open', side: T.side, qty, price: px, botEntry: T.entry, slipBps: slip == null ? null : Math.round(slip * 10) / 10, spreadBp: bk && bk.bp != null ? Math.round(bk.bp * 10) / 10 : null, thin: thin || undefined });
         st.map[sym] = { side: T.side, since: T.since, qty, bot: T.bot }; opened.add(sym);
-        const sp = await placeStop(sym, T.side, T.stop);
+        // 손절 없는 포지션은 절대 두지 않음: 손절 주문이 끝내 실패하면 바로 정리
+        let sp; try { sp = await placeStop(sym, T.side, T.stop); } catch (e) {
+          note(sym + ' 손절 주문 실패(' + e.message + ') — 보호 없는 포지션이라 바로 정리'); try { await market(sym, T.side === 'long' ? 'SELL' : 'BUY', qty, true); st.map[sym].stopped = true; } catch (e2) { note(sym + ' 긴급 정리도 실패: ' + e2.message + ' — 다음 확인 때 다시'); } continue; }
         if (T.tp) { try { await placeTp(sym, T.side, T.tp); } catch (e) { note(sym + ' 목표가 주문 실패: ' + e.message); } }
         note(botName[T.bot] + ' · ' + sym + ' ' + (T.side === 'long' ? '롱' : '숏') + ' 진입 ' + qty + ' @' + px + ' (봇 진입가 ' + T.entry + ', 차이 ' + (slip == null ? '—' : slip.toFixed(1) + 'bp') + ') · 손절 주문 ' + sp);
       } catch (e) { note(sym + ' 진입 실패: ' + e.message + (e.code ? ' (' + e.code + ')' : '')); }
@@ -139,7 +182,15 @@ export async function run({ env = {}, fetchImpl = fetch, log = console.log, now 
     const havePx = have ? Number(have.triggerPrice || have.stopPrice) : null;
     const tpOk = !T.tp || mine.some((x) => String(x.algoId) === String(m0.tpId));
     if (!have || Math.abs(havePx - want) >= R.tick || !tpOk) {
-      try { await cancelStops(sym); const sp = await placeStop(sym, T.side, T.stop); if (T.tp) { try { await placeTp(sym, T.side, T.tp); } catch (e) { note(sym + ' 목표가 주문 실패: ' + e.message); } } note(sym + ' 손절 주문 ' + (have ? havePx + ' → ' : '새로 ') + sp + (have ? ' (본전·추적 손절 반영)' : '')); } catch (e) { note(sym + ' 손절 주문 실패: ' + e.message); }
+      // 새 손절을 먼저 걸고 → 성공하면 옛 주문을 지움 (바꾸는 사이 손절이 비는 순간을 없앰)
+      let cancelled = false;
+      try { const old = mine.map((x) => x.algoId); let sp;
+        try { sp = await placeStop(sym, T.side, T.stop); for (const id of old) { try { await B.call('DELETE', '/fapi/v1/algoOrder', { symbol: sym, algoId: id }); } catch (e) { /* 이미 없음 */ } } }
+        catch (e) { if (e.network || e.unknown) throw e; // 거래소가 '전량 손절 주문은 하나만' 이라고 거절하면: 옛 주문 지우고 바로 새로 (실패하면 아래에서 처리)
+          await cancelStops(sym); cancelled = true; sp = await placeStop(sym, T.side, T.stop); cancelled = false; }
+        if (T.tp) { try { await placeTp(sym, T.side, T.tp); } catch (e) { note(sym + ' 목표가 주문 실패: ' + e.message); } }
+        note(sym + ' 손절 주문 ' + (have ? havePx + ' → ' : '새로 ') + sp + (have ? ' (본전·추적 손절 반영)' : ''));
+      } catch (e) { if (!have || cancelled) { note(sym + ' 손절 주문이 없고 다시 걸기도 실패(' + e.message + ') — 보호 없는 포지션이라 정리'); try { await market(sym, C.amt > 0 ? 'SELL' : 'BUY', Math.abs(C.amt), true); } catch (e2) { note(sym + ' 긴급 정리 실패: ' + e2.message); } } else note(sym + ' 손절 이동 실패(기존 ' + havePx + ' 유지): ' + e.message); }
     }
   }
   // 데모에서 손절이 먼저 체결됐는지 (봇엔 있는데 데모엔 없고, 우리가 들어갔던 포지션)

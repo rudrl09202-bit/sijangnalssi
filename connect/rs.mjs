@@ -251,4 +251,6 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
   }
   return out;
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) run({ reset: process.argv.includes('--reset'), retrain: process.argv.includes('--retrain') }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) run({ reset: process.argv.includes('--reset'), retrain: process.argv.includes('--retrain') }).catch((e) => { console.error('✗ ' + e.message); process.exitCode = 1; })
+  // 감시자(서울 서버 생존 확인)를 이어서 — 루프 본문이 바뀌기 전까지 여기서 부름
+  .finally(async () => { if (process.env.WATCH_SEPARATE) return; try { const W = await import('./watch.mjs'); await W.run({ dir: process.env.SCALP_DIR || process.env.MK_DIR || join(ROOT, 'data') }); } catch (e) { console.log('✗ 감시자: ' + e.message); } });
