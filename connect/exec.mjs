@@ -1,5 +1,6 @@
 /* 바이낸스 선물 '데모 트레이딩'(가짜 돈) 계좌에 자동매매 봇들의 포지션을 실제 주문으로 따라 넣기 — 서울 서버에서 매시간
- *  · 봇 5개(민경기·류신영·단타 조심형·AI 다수결·적극형)가 잔고를 똑같이 나눠 씀(각 봇의 레버리지 × 잔고의 1/5). 같은 코인은 한 봇만: 먼저 들어간 봇이 주인
+ *  · 봇 5개(민경기·류신영·단타 조심형·AI 다수결·적극형)가 잔고를 똑같이 나눠 씀(각 봇의 레버리지 × 잔고의 1/5)
+ *  · 봇별 다리(leg): 같은 코인·같은 방향이면 몫을 합쳐 한 포지션, 손절·목표가는 봇마다 자기 수량만큼(reduceOnly) 따로 → 봇 하나가 정리하면 그 몫만 줄임. 반대 방향이면 나중 봇은 건너뜀
  *  · 안전장치: 429·5xx·끊김은 기다렸다 재시도, 주문은 고유 번호로 중복 방지, 손절을 못 걸면 바로 정리, 손절 이동은 새 주문 먼저,
  *    호가 차이 15bp 넘으면 진입 보류(최대 4번), 동시 실행 잠금. 서버가 죽어도 손절은 거래소에 걸려 있음 + GitHub 감시자(watch.mjs)가 90분 무응답이면 알림
  *  · 단타 봇의 목표가는 거래소에 TAKE_PROFIT_MARKET 으로 걸어 둠. 매시 5분(sync) + 봇 결과가 바뀔 때마다 40초 안에(--loop) 맞춤
@@ -92,16 +93,16 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
     else { delete st.map['stale|' + id]; TG[id] = L ? { live: L } : null; }
   }
   const M = TG.mk3 || { live: { ret: 0, n: 0, positions: [] } };
-  const tgt = {}, botName = Object.fromEntries(BOTS.map(([id, nm]) => [id, nm])), wantBy = {};
-  BOTS.forEach(([id]) => { const D = TG[id]; if (!D || !D.live) return; (D.live.positions || []).forEach((p) => { const sym = p.sym + 'USDT'; (wantBy[sym] = wantBy[sym] || []).push({ bot: id, side: p.side, lev: p.lev * share, stop: p.stop, tp: p.tp || null, entry: p.entry, name: p.name, since: id + '|' + p.since }); }); });
-  // 결과를 못 읽은 봇이 가진 데모 포지션은 건드리지 않음
+  const botName = Object.fromEntries(BOTS.map(([id, nm]) => [id, nm]));
+  // 봇별 '다리(leg)': 같은 코인·같은 방향이면 여러 봇 몫을 한 포지션에 합침. 손절·목표가는 봇마다 자기 수량만큼 따로(reduceOnly)
+  const want = {}; // key = bot|SYM
+  BOTS.forEach(([id]) => { const D = TG[id]; if (!D || !D.live) return; (D.live.positions || []).forEach((p) => { const sym = p.sym + 'USDT'; want[id + '|' + sym] = { key: id + '|' + sym, bot: id, sym, side: p.side, lev: p.lev * share, stop: p.stop, tp: p.tp || null, entry: p.entry, since: id + '|' + p.since }; }); });
   const unknown = new Set(BOTS.filter(([id]) => !TG[id] || !TG[id].live).map(([id]) => id));
-  for (const [sym, L] of Object.entries(wantBy)) { const own = st.map[sym] && st.map[sym].bot, pick = L.find((x) => x.bot === own) || L[0]; tgt[sym] = pick;
-    L.filter((x) => x !== pick).forEach((x) => { const k = 'skip|' + x.since; if (!st.map[k]) { st.map[k] = { skip: true, at: now }; note(sym.replace('USDT', '') + ': ' + botName[x.bot] + ' 신호는 ' + botName[pick.bot] + '이 이미 가진 코인이라 데모에선 건너뜀'); } }); }
-  Object.keys(st.map).forEach((k) => { if (k.startsWith('skip|') && now - st.map[k].at > 30 * 864e5) delete st.map[k]; });
-  const isMeta = (k) => /^(skip|stale|hold)\|/.test(k);
-  Object.keys(st.map).forEach((k) => { if (k.startsWith('hold|') && now - (st.map[k].at || 0) > 864e5) delete st.map[k]; });
-
+  const isMeta = (k) => /^(skip|stale|hold|condqty)\|/.test(k);
+  Object.keys(st.map).forEach((k) => { if ((k.startsWith('skip|') && now - st.map[k].at > 30 * 864e5) || (k.startsWith('hold|') && now - (st.map[k].at || 0) > 864e5)) delete st.map[k]; });
+  st.legs = st.legs || {};
+  // 예전 방식(코인당 한 봇) 기록 → 다리로 옮김. 기존 '전량 손절' 주문은 아래에서 수량 손절로 바뀜
+  Object.keys(st.map).filter((k) => !isMeta(k)).forEach((sym) => { const m = st.map[sym]; if (m && m.bot && !st.legs[m.bot + '|' + sym]) st.legs[m.bot + '|' + sym] = { bot: m.bot, sym, side: m.side, since: m.since, qty: m.qty || null, stop: null, stopId: m.algoId || null, tpId: m.tpId || null, late: m.late, stopped: m.stopped, legacy: true }; delete st.map[sym]; });
   // 2) 데모 계좌 현황
   const info = rules(await B.call('GET', '/fapi/v1/exchangeInfo', {}, false));
   const acct = await B.call('GET', '/fapi/v3/account');
@@ -111,17 +112,16 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
   let algos = []; try { algos = await B.call('GET', '/fapi/v1/openAlgoOrders'); algos = Array.isArray(algos) ? algos : (algos.orders || []); } catch (e) { note('조건 주문 조회 실패: ' + e.message); }
   try { await B.call('POST', '/fapi/v1/positionSide/dual', { dualSidePosition: 'false' }); } catch (e) { /* 이미 한 방향 모드 */ }
 
-  const cancelStops = async (sym) => { for (const o of algos.filter((x) => x.symbol === sym)) { try { await B.call('DELETE', '/fapi/v1/algoOrder', { symbol: sym, algoId: o.algoId }); } catch (e) { note(sym + ' 조건 주문 취소 실패: ' + e.message); } } };
-  const placeStop = async (sym, side, stop) => {
-    const R = info[sym]; const px = roundTo(stop, R.tick);
-    const o = await B.call('POST', '/fapi/v1/algoOrder', { algoType: 'CONDITIONAL', symbol: sym, side: side === 'long' ? 'SELL' : 'BUY', type: 'STOP_MARKET', triggerPrice: px, closePosition: 'true', workingType: 'MARK_PRICE', priceProtect: 'true' });
-    st.map[sym] = Object.assign(st.map[sym] || {}, { stop: px, algoId: o.algoId }); return px;
-  };
-  const placeTp = async (sym, side, tp) => {
-    const R = info[sym]; const px = roundTo(tp, R.tick);
-    const o = await B.call('POST', '/fapi/v1/algoOrder', { algoType: 'CONDITIONAL', symbol: sym, side: side === 'long' ? 'SELL' : 'BUY', type: 'TAKE_PROFIT_MARKET', triggerPrice: px, closePosition: 'true', workingType: 'MARK_PRICE', priceProtect: 'true' });
-    st.map[sym] = Object.assign(st.map[sym] || {}, { tp: px, tpId: o.algoId }); return px;
-  };
+  const cancelAlgo = async (sym, id) => { if (!id) return; try { await B.call('DELETE', '/fapi/v1/algoOrder', { symbol: sym, algoId: id }); } catch (e) { /* 이미 없음·체결됨 */ } };
+  // 봇 한 개 몫(qty)만 닫는 조건 주문. type: STOP_MARKET(손절) / TAKE_PROFIT_MARKET(목표가)
+  // 거래소가 '수량 지정 + reduceOnly' 조건 주문을 거절하면(형식 오류): 그 코인에 다리가 하나뿐일 때만 '전량' 조건 주문으로 대신 걸음
+  const placeCond = async (sym, side, type, price, qty, self) => { const R = info[sym], px = roundTo(price, R.tick), base = { algoType: 'CONDITIONAL', symbol: sym, side: side === 'long' ? 'SELL' : 'BUY', type, triggerPrice: px, workingType: 'MARK_PRICE', priceProtect: 'true' };
+    try { const o = await B.call('POST', '/fapi/v1/algoOrder', { ...base, quantity: qty, reduceOnly: 'true' }); return { px, id: o.algoId }; }
+    catch (e) { if (e.network || e.unknown || e.code === -2021) throw e;
+      const others = Object.values(st.legs).filter((L) => L !== self && L.sym === sym && L.qty > 0 && !L.stopped).length;
+      if (others > 0) throw e; // 다른 봇 몫이 이미 있으면 전량 주문은 위험 → 이 몫은 들어가지 않음(호출한 쪽에서 정리)
+      if (!st.map['condqty|warn']) { st.map['condqty|warn'] = { at: now }; note('수량 지정 조건 주문이 거절됨(' + e.message + ') — 다리가 하나인 코인은 전량 조건 주문으로 대신'); }
+      const o = await B.call('POST', '/fapi/v1/algoOrder', { ...base, closePosition: 'true' }); return { px, id: o.algoId }; } };
   // 시장가 주문: 주문 번호를 미리 정해 두고, 결과를 모를 때(연결 끊김·5xx)는 그 번호로 조회해서 들어갔는지 확인 → 없을 때만 다시
   const market = async (sym, side, qty, reduce) => {
     const cid = 'snw' + now.toString(36) + Math.random().toString(36).slice(2, 8); let o = null;
@@ -137,69 +137,78 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
   const book = async (sym) => { const b = await B.call('GET', '/fapi/v1/ticker/bookTicker', { symbol: sym }, false); const bid = Number(b.bidPrice), ask = Number(b.askPrice), mid = (bid + ask) / 2;
     return { bid, ask, mid, bp: mid ? (ask - bid) / mid * 1e4 : null, bidUsd: bid * Number(b.bidQty), askUsd: ask * Number(b.askQty) }; };
 
-  // 데모에서 손절·목표가가 먼저 체결됐는지 — 진입 판단보다 먼저 확인해야 같은 포지션에 다시 들어가지 않음
-  Object.entries(st.map).forEach(([sym, m]) => { if (isMeta(sym)) return; if (tgt[sym] && !cur[sym] && m.since === tgt[sym].since && m.qty && !m.stopped) { m.stopped = true; note(sym + ' 데모에서 손절·목표가 주문이 먼저 체결된 것으로 보임 — 같은 포지션엔 다시 들어가지 않음'); } });
-  // 늦은 진입 막기: 봇이 이미 들어가 가격이 유리하게 LATE_BP 넘게 움직였거나, 이미 봇 손절·목표가를 지났으면 따라 들어가지 않음
-  const LATE_BP = Number(env.EXEC_LATE_BP || 30);
-  for (const sym of new Set([...Object.keys(tgt), ...Object.keys(cur), ...Object.keys(st.map).filter((k) => !isMeta(k))])) {
-    const T = tgt[sym], C = cur[sym], R = info[sym];
-    if (!T && st.map[sym] && unknown.has(st.map[sym].bot)) continue;
-    if (!R) { note(sym + ': 바이낸스 선물에 없는 종목 — 건너뜀'); continue; }
-    const cSide = C ? (C.amt > 0 ? 'long' : 'short') : null;
-    // 정리: 봇엔 없는데 데모엔 있음 / 방향이 반대
-    if (C && (!T || T.side !== cSide)) {
-      try { const o = await market(sym, C.amt > 0 ? 'SELL' : 'BUY', Math.abs(C.amt), true); await cancelStops(sym);
-        const px = Number(o.avgPrice) || C.mark; st.fills.push({ t: new Date(now).toISOString(), sym, kind: 'close', side: cSide, qty: Math.abs(C.amt), price: px, pnl: r6((cSide === 'long' ? 1 : -1) * (px - C.entry) * Math.abs(C.amt)) });
-        const ob = st.map[sym] && st.map[sym].bot; st.fills[st.fills.length - 1].bot = ob; note(sym + ' ' + (cSide === 'long' ? '롱' : '숏') + ' 정리 @' + px + ' (' + (botName[ob] || '봇') + '에서 정리됨)'); delete st.map[sym]; } catch (e) { note(sym + ' 정리 실패: ' + e.message); }
-      if (!T) continue;
-    }
-    if (!T) { if (!C) { await cancelStops(sym); delete st.map[sym]; } continue; }
-    // 진입: 봇엔 있는데 데모엔 없음 (같은 봇 포지션에 한 번만)
-    if (!C || T.side !== cSide) {
-      if (st.map[sym] && st.map[sym].since === T.since && (st.map[sym].stopped || st.map[sym].late)) { continue; } // 데모에서 먼저 손절됨 / 늦어서 건너뜀 — 같은 포지션에 다시 들어가지 않음
+  const LATE_BP = Number(env.EXEC_LATE_BP || 30), openIds = new Set(algos.map((x) => String(x.algoId)));
+  const legSum = (sym) => Object.values(st.legs).filter((L) => L.sym === sym && L.qty > 0 && !L.stopped).reduce((a, L) => a + (L.side === 'long' ? 1 : -1) * L.qty, 0);
+  const closeLeg = async (L, why) => { // 그 봇 몫만 시장가로 닫고 그 봇의 조건 주문 취소
+    const C = cur[L.sym], R = info[L.sym]; await cancelAlgo(L.sym, L.stopId); await cancelAlgo(L.sym, L.tpId);
+    const have = C && (C.amt > 0 ? 'long' : 'short') === L.side ? Math.abs(C.amt) : 0, q = floorTo(Math.min(L.qty || have, have), R.step);
+    if (q > 0) { try { const o = await market(L.sym, L.side === 'long' ? 'SELL' : 'BUY', q, true), px = Number(o.avgPrice) || (C && C.mark);
+        st.fills.push({ t: new Date(now).toISOString(), sym: L.sym, bot: L.bot, kind: 'close', side: L.side, qty: q, price: px, pnl: C ? r6((L.side === 'long' ? 1 : -1) * (px - (L.entry || C.entry)) * q) : null });
+        cur[L.sym] = C ? Object.assign(C, { amt: C.amt - (L.side === 'long' ? q : -q) }) : C; if (cur[L.sym] && Math.abs(cur[L.sym].amt) < R.step / 2) delete cur[L.sym];
+        note(botName[L.bot] + ' · ' + L.sym + ' ' + (L.side === 'long' ? '롱' : '숏') + ' ' + q + ' 정리 @' + px + ' (' + why + ')'); } catch (e) { note(L.sym + ' ' + botName[L.bot] + ' 몫 정리 실패: ' + e.message); return false; } }
+    return true; };
+  // ① 거래소에서 먼저 체결된 다리 찾기: 그 봇의 손절·목표가 주문이 사라졌으면 체결된 것 → 남은 짝 주문 취소, 같은 포지션엔 다시 안 들어감
+  for (const L of Object.values(st.legs)) { if (L.stopped || L.late || !L.qty || L.legacy) continue;
+    const sGone = L.stopId && !openIds.has(String(L.stopId)), tGone = L.tpId && !openIds.has(String(L.tpId));
+    if (sGone || tGone) { L.stopped = true; await cancelAlgo(L.sym, sGone ? L.tpId : L.stopId); note(botName[L.bot] + ' · ' + L.sym + ' 데모에서 ' + (sGone ? '손절' : '목표가') + ' 주문이 먼저 체결됨 — 이 포지션엔 다시 들어가지 않음'); L.qty = 0; } }
+  // ② 봇에서 끝난 다리 정리 (그 봇 결과를 못 읽었으면 건드리지 않음)
+  for (const [k, L] of Object.entries(st.legs)) { const W = want[k];
+    if (unknown.has(L.bot)) continue;
+    if (!W || W.since !== L.since) { if (L.qty > 0 && !L.stopped && !L.late) { if (!(await closeLeg(L, '봇에서 정리됨'))) continue; } delete st.legs[k]; } }
+  // ③ 새 다리 진입 / 기존 다리 손절·목표가 맞추기
+  for (const W of Object.values(want)) {
+    const R = info[W.sym]; if (!R) { if (!st.map['skip|' + W.since]) { st.map['skip|' + W.since] = { at: now }; note(W.sym + ': 바이낸스 선물에 없는 종목 — 건너뜀'); } continue; }
+    let L = st.legs[W.key];
+    if (L && (L.stopped || L.late)) continue;
+    const net = legSum(W.sym), C = cur[W.sym];
+    if (!L) {
+      // 반대 방향 다리가 이미 있으면 (한 방향 모드라 상쇄됨) 건너뜀
+      if ((W.side === 'long' && net < 0) || (W.side === 'short' && net > 0)) { const k = 'skip|' + W.since; if (!st.map[k]) { st.map[k] = { at: now }; note(W.sym.replace('USDT', '') + ': ' + botName[W.bot] + ' 신호가 다른 봇과 반대 방향이라 데모에선 건너뜀'); } continue; }
       try {
-        try { await B.call('POST', '/fapi/v1/marginType', { symbol: sym, marginType: 'ISOLATED' }); } catch (e) { /* 이미 격리 */ }
-        await B.call('POST', '/fapi/v1/leverage', { symbol: sym, leverage: 5 });
-        const mk = Number((await B.call('GET', '/fapi/v1/premiumIndex', { symbol: sym }, false)).markPrice);
-        const g = T.side === 'long' ? 1 : -1, ahead = T.entry ? g * (mk / T.entry - 1) * 1e4 : 0;
-        const why = g * (mk - T.stop) <= 0 ? '이미 봇 손절선을 지남' : T.tp && g * (T.tp - mk) <= 0 ? '이미 봇 목표가를 지남' : ahead > LATE_BP ? '봇 진입가보다 ' + ahead.toFixed(0) + 'bp 유리하게 움직임(기준 ' + LATE_BP + 'bp)' : null;
-        if (why) { st.map[sym] = { side: T.side, since: T.since, bot: T.bot, late: true }; note(botName[T.bot] + ' · ' + sym + ' 늦어서 따라가지 않음: ' + why + ' — 이 포지션은 건너뜀'); continue; }
-        let qty = floorTo(T.lev * eq / mk, R.step);
-        if (qty < R.minQty || qty * mk < R.minNotional) { note(sym + ' 진입 건너뜀: 데모 잔고 대비 너무 작음 (' + r6(qty * mk) + ' USDT)'); continue; }
-        let bk = null; try { bk = await book(sym); } catch (e) { /* 호가 조회 실패 — 그냥 진행 */ }
-        const hold = st.map['hold|' + T.since] || { n: 0 };
-        if (bk && bk.bp != null && bk.bp > MAX_SPREAD_BP && hold.n < 4) { hold.n++; hold.at = now; st.map['hold|' + T.since] = hold; note(sym + ' 진입 보류: 호가 차이 ' + bk.bp.toFixed(1) + 'bp (기준 ' + MAX_SPREAD_BP + 'bp) — 다음 확인 때 다시 (' + hold.n + '/4)'); continue; }
-        delete st.map['hold|' + T.since];
-        const thin = bk && (T.side === 'long' ? bk.askUsd : bk.bidUsd) < qty * mk * 0.5;
-        const o = await market(sym, T.side === 'long' ? 'BUY' : 'SELL', qty, false), px = Number(o.avgPrice) || mk;
-        const slip = T.entry ? ((T.side === 'long' ? 1 : -1) * (px / T.entry - 1) * 1e4) : null;
-        st.fills.push({ t: new Date(now).toISOString(), sym, bot: T.bot, kind: 'open', side: T.side, qty, price: px, botEntry: T.entry, slipBps: slip == null ? null : Math.round(slip * 10) / 10, spreadBp: bk && bk.bp != null ? Math.round(bk.bp * 10) / 10 : null, thin: thin || undefined });
-        st.map[sym] = { side: T.side, since: T.since, qty, bot: T.bot }; opened.add(sym);
-        // 손절 없는 포지션은 절대 두지 않음: 손절 주문이 끝내 실패하면 바로 정리
-        let sp; try { sp = await placeStop(sym, T.side, T.stop); } catch (e) {
-          note(sym + ' 손절 주문 실패(' + e.message + ') — 보호 없는 포지션이라 바로 정리'); try { await market(sym, T.side === 'long' ? 'SELL' : 'BUY', qty, true); st.map[sym].stopped = true; } catch (e2) { note(sym + ' 긴급 정리도 실패: ' + e2.message + ' — 다음 확인 때 다시'); } continue; }
-        if (T.tp) { try { await placeTp(sym, T.side, T.tp); } catch (e) { note(sym + ' 목표가 주문 실패: ' + e.message); } }
-        note(botName[T.bot] + ' · ' + sym + ' ' + (T.side === 'long' ? '롱' : '숏') + ' 진입 ' + qty + ' @' + px + ' (봇 진입가 ' + T.entry + ', 차이 ' + (slip == null ? '—' : slip.toFixed(1) + 'bp') + ') · 손절 주문 ' + sp);
-      } catch (e) { note(sym + ' 진입 실패: ' + e.message + (e.code ? ' (' + e.code + ')' : '')); }
+        try { await B.call('POST', '/fapi/v1/marginType', { symbol: W.sym, marginType: 'ISOLATED' }); } catch (e) { /* 이미 격리 */ }
+        await B.call('POST', '/fapi/v1/leverage', { symbol: W.sym, leverage: 5 });
+        const mk = Number((await B.call('GET', '/fapi/v1/premiumIndex', { symbol: W.sym }, false)).markPrice), g = W.side === 'long' ? 1 : -1, ahead = W.entry ? g * (mk / W.entry - 1) * 1e4 : 0;
+        const late = g * (mk - W.stop) <= 0 ? '이미 봇 손절선을 지남' : W.tp && g * (W.tp - mk) <= 0 ? '이미 봇 목표가를 지남' : ahead > LATE_BP ? '봇 진입가보다 ' + ahead.toFixed(0) + 'bp 유리하게 움직임(기준 ' + LATE_BP + 'bp)' : null;
+        if (late) { st.legs[W.key] = { bot: W.bot, sym: W.sym, side: W.side, since: W.since, qty: 0, late: true }; note(botName[W.bot] + ' · ' + W.sym + ' 늦어서 따라가지 않음: ' + late); continue; }
+        const qty = floorTo(W.lev * eq / mk, R.step);
+        if (st.map['condqty|warn'] && Object.values(st.legs).some((x) => x.sym === W.sym && x.qty > 0 && !x.stopped)) { const k = 'skip|' + W.since; if (!st.map[k]) { st.map[k] = { at: now }; note(W.sym + ' ' + botName[W.bot] + ': 이 거래소는 봇별 손절을 못 걸어 같은 코인에 두 번째 봇은 건너뜀'); } continue; }
+        if (qty < R.minQty || qty * mk < R.minNotional) { const k = 'skip|' + W.since; if (!st.map[k]) { st.map[k] = { at: now }; note(W.sym + ' ' + botName[W.bot] + ' 진입 건너뜀: 데모 잔고 대비 너무 작음 (' + r6(qty * mk) + ' USDT)'); } continue; }
+        let bk = null; try { bk = await book(W.sym); } catch (e) { /* 호가 조회 실패 — 그냥 진행 */ }
+        const hold = st.map['hold|' + W.since] || { n: 0 };
+        if (bk && bk.bp != null && bk.bp > MAX_SPREAD_BP && hold.n < 4) { hold.n++; hold.at = now; st.map['hold|' + W.since] = hold; note(W.sym + ' 진입 보류: 호가 차이 ' + bk.bp.toFixed(1) + 'bp (기준 ' + MAX_SPREAD_BP + 'bp) — 다음 확인 때 다시 (' + hold.n + '/4)'); continue; }
+        delete st.map['hold|' + W.since];
+        const thin = bk && (W.side === 'long' ? bk.askUsd : bk.bidUsd) < qty * mk * 0.5;
+        const o = await market(W.sym, W.side === 'long' ? 'BUY' : 'SELL', qty, false), px = Number(o.avgPrice) || mk, slip = W.entry ? g * (px / W.entry - 1) * 1e4 : null;
+        st.fills.push({ t: new Date(now).toISOString(), sym: W.sym, bot: W.bot, kind: 'open', side: W.side, qty, price: px, botEntry: W.entry, slipBps: slip == null ? null : Math.round(slip * 10) / 10, spreadBp: bk && bk.bp != null ? Math.round(bk.bp * 10) / 10 : null, thin: thin || undefined });
+        L = st.legs[W.key] = { bot: W.bot, sym: W.sym, side: W.side, since: W.since, qty, entry: px, stop: null, stopId: null, tp: null, tpId: null };
+        if (cur[W.sym]) cur[W.sym].amt += g * qty; else cur[W.sym] = { amt: g * qty, entry: px, mark: mk };
+        // 손절 없는 다리는 두지 않음
+        try { const r = await placeCond(W.sym, W.side, 'STOP_MARKET', W.stop, qty, L); L.stop = r.px; L.stopId = r.id; }
+        catch (e) { note(W.sym + ' ' + botName[W.bot] + ' 손절 주문 실패(' + e.message + ') — 보호 없는 몫이라 바로 정리'); await closeLeg(L, '손절 주문 실패'); L.qty = 0; L.stopped = true; continue; }
+        if (W.tp) { try { const r = await placeCond(W.sym, W.side, 'TAKE_PROFIT_MARKET', W.tp, qty, L); L.tp = r.px; L.tpId = r.id; } catch (e) { note(W.sym + ' 목표가 주문 실패: ' + e.message); } }
+        note(botName[W.bot] + ' · ' + W.sym + ' ' + (W.side === 'long' ? '롱' : '숏') + ' 진입 ' + qty + ' @' + px + ' (봇 진입가 ' + W.entry + ', 차이 ' + (slip == null ? '—' : slip.toFixed(1) + 'bp') + ') · 손절 ' + L.stop + (L.tp ? ' · 목표 ' + L.tp : ''));
+      } catch (e) { note(W.sym + ' 진입 실패: ' + e.message + (e.code ? ' (' + e.code + ')' : '')); }
       continue;
     }
-    // 유지: 손절 주문이 봇 손절선과 같은지
-    const m0 = st.map[sym] || {}, mine = algos.filter((x) => x.symbol === sym);
-    const want = roundTo(T.stop, R.tick), have = mine.find((x) => String(x.algoId) === String(m0.algoId)) || (m0.tpId ? mine.find((x) => String(x.algoId) !== String(m0.tpId)) : mine[0]);
-    const havePx = have ? Number(have.triggerPrice || have.stopPrice) : null;
-    const tpOk = !T.tp || mine.some((x) => String(x.algoId) === String(m0.tpId));
-    if (!have || Math.abs(havePx - want) >= R.tick || !tpOk) {
-      // 새 손절을 먼저 걸고 → 성공하면 옛 주문을 지움 (바꾸는 사이 손절이 비는 순간을 없앰)
-      let cancelled = false;
-      try { const old = mine.map((x) => x.algoId); let sp;
-        try { sp = await placeStop(sym, T.side, T.stop); for (const id of old) { try { await B.call('DELETE', '/fapi/v1/algoOrder', { symbol: sym, algoId: id }); } catch (e) { /* 이미 없음 */ } } }
-        catch (e) { if (e.network || e.unknown) throw e; // 거래소가 '전량 손절 주문은 하나만' 이라고 거절하면: 옛 주문 지우고 바로 새로 (실패하면 아래에서 처리)
-          await cancelStops(sym); cancelled = true; sp = await placeStop(sym, T.side, T.stop); cancelled = false; }
-        if (T.tp) { try { await placeTp(sym, T.side, T.tp); } catch (e) { note(sym + ' 목표가 주문 실패: ' + e.message); } }
-        note(sym + ' 손절 주문 ' + (have ? havePx + ' → ' : '새로 ') + sp + (have ? ' (본전·추적 손절 반영)' : ''));
-      } catch (e) { if (!have || cancelled) { note(sym + ' 손절 주문이 없고 다시 걸기도 실패(' + e.message + ') — 보호 없는 포지션이라 정리'); try { await market(sym, C.amt > 0 ? 'SELL' : 'BUY', Math.abs(C.amt), true); } catch (e2) { note(sym + ' 긴급 정리 실패: ' + e2.message); } } else note(sym + ' 손절 이동 실패(기존 ' + havePx + ' 유지): ' + e.message); }
-    }
+    // 기존 다리: 수량 모르면(예전 기록) 지금 포지션에서 채움
+    if (!L.qty) { const have = C && (C.amt > 0 ? 'long' : 'short') === L.side ? Math.abs(C.amt) : 0; if (!have) { L.stopped = true; continue; } L.qty = floorTo(have - Math.abs(legSum(W.sym)), R.step) || have; }
+    const want2 = roundTo(W.stop, R.tick), tpWant = W.tp ? roundTo(W.tp, R.tick) : null;
+    const needStop = L.legacy || !L.stopId || !openIds.has(String(L.stopId)) || Math.abs((L.stop || 0) - want2) >= R.tick;
+    const needTp = !!tpWant && (L.legacy || !L.tpId || !openIds.has(String(L.tpId)) || Math.abs((L.tp || 0) - tpWant) >= R.tick);
+    if (needStop) { const old = L.stopId; // 새 손절 먼저 → 옛 주문 취소
+      try { const r = await placeCond(W.sym, W.side, 'STOP_MARKET', W.stop, L.qty, L); await cancelAlgo(W.sym, old); note(botName[W.bot] + ' · ' + W.sym + ' 손절 ' + (L.stop ? L.stop + ' → ' : '새로 ') + r.px); L.stop = r.px; L.stopId = r.id; }
+      catch (e) { if (!old || !openIds.has(String(old))) { note(W.sym + ' ' + botName[W.bot] + ' 손절이 없고 다시 걸기도 실패(' + e.message + ') — 그 몫 정리'); await closeLeg(L, '손절 주문 실패'); L.qty = 0; L.stopped = true; continue; } else note(W.sym + ' 손절 이동 실패(기존 ' + L.stop + ' 유지): ' + e.message); } }
+    if (needTp) { const old = L.tpId; try { const r = await placeCond(W.sym, W.side, 'TAKE_PROFIT_MARKET', W.tp, L.qty, L); await cancelAlgo(W.sym, old); L.tp = r.px; L.tpId = r.id; } catch (e) { note(W.sym + ' 목표가 주문 실패: ' + e.message); } }
+    if (L.legacy) { // 예전 '전량' 조건 주문 정리 (다리별 주문이 아닌 것)
+      const mine = new Set(Object.values(st.legs).filter((x) => x.sym === W.sym).flatMap((x) => [String(x.stopId), String(x.tpId)]));
+      for (const o of algos.filter((x) => x.symbol === W.sym && !mine.has(String(x.algoId)))) await cancelAlgo(W.sym, o.algoId);
+      delete L.legacy; }
   }
+  // ④ 거래소 포지션과 다리 합계가 크게 어긋나면(수동 조작·예전 잔여) 다리 없는 수량만큼 정리
+  for (const [sym, C] of Object.entries(cur)) { const R = info[sym]; if (!R) continue; const diff = C.amt - legSum(sym);
+    if (Math.abs(diff) >= R.step && Math.abs(diff) * C.mark > R.minNotional && !Object.values(st.legs).some((L) => L.sym === sym && unknown.has(L.bot))) {
+      try { await market(sym, diff > 0 ? 'SELL' : 'BUY', floorTo(Math.abs(diff), R.step), true); note(sym + ' 봇 몫과 안 맞는 ' + r6(Math.abs(diff)) + ' 정리 (기록 맞춤)'); } catch (e) { note(sym + ' 잔여 정리 실패: ' + e.message); } } }
+  Object.keys(st.legs).forEach((k) => { const L = st.legs[k]; if ((L.stopped || L.late) && !want[k]) delete st.legs[k]; });
 
   // 오늘(한국 날짜) 시작 잔고 — 앱의 '오늘 손익'
   const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
@@ -210,7 +219,8 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
   const posNow = await B.call('GET', '/fapi/v3/positionRisk').catch(() => posArr);
   const opens = st.fills.filter((f) => f.kind === 'open' && f.slipBps != null);
   const out = { v: 1, at: new Date(now).toISOString(), base: B.base, equity: r6(eq), wallet: Number(acct.totalWalletBalance || 0), upnl: Number(acct.totalUnrealizedProfit || 0),
-    positions: (posNow || []).filter((p) => Number(p.positionAmt)).map((p) => ({ sym: p.symbol, side: Number(p.positionAmt) > 0 ? 'long' : 'short', qty: Math.abs(Number(p.positionAmt)), entry: Number(p.entryPrice), mark: Number(p.markPrice), upnl: Number(p.unRealizedProfit), liq: Number(p.liquidationPrice), stop: st.map[p.symbol] ? st.map[p.symbol].stop : null, bot: st.map[p.symbol] ? st.map[p.symbol].bot : null })),
+    positions: (posNow || []).filter((p) => Number(p.positionAmt)).map((p) => ({ sym: p.symbol, side: Number(p.positionAmt) > 0 ? 'long' : 'short', qty: Math.abs(Number(p.positionAmt)), entry: Number(p.entryPrice), mark: Number(p.markPrice), upnl: Number(p.unRealizedProfit), liq: Number(p.liquidationPrice), stop: (Object.values(st.legs).find((L) => L.sym === p.symbol && L.qty > 0 && !L.stopped) || {}).stop || null, bot: Object.values(st.legs).filter((L) => L.sym === p.symbol && L.qty > 0 && !L.stopped).map((L) => L.bot).join(',') || null,
+      legs: Object.values(st.legs).filter((L) => L.sym === p.symbol && L.qty > 0 && !L.stopped).map((L) => ({ bot: L.bot, qty: L.qty, stop: L.stop, tp: L.tp })) })),
     day: st.day, fills: st.fills.slice(-40).reverse(), actions: st.actions.slice(-30).reverse(), slip: opens.length ? Math.round(opens.reduce((s, f) => s + f.slipBps, 0) / opens.length * 10) / 10 : null, botLive: { ret: M.live.ret, n: M.live.n, positions: (M.live.positions || []).length },
     bots: BOTS.map(([id, nm]) => { const D = TG[id]; return { id, name: nm, share: Math.round(share * 100), ok: !!(D && D.live), ret: D && D.live ? D.live.ret : null, positions: D && D.live ? (D.live.positions || []).length : 0 }; }) };
   await upload(out, env, fetchImpl, log);
