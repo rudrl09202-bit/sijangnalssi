@@ -2074,7 +2074,7 @@
     S.mkLoading = true;
     const get = (f) => fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/' + f + '?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/' + f, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null);
-    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json')]).then(([a, b, c]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
+    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json'), get('pair-live.json')]).then(([a, b, c, d]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (d && d.live) S.pr = d; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
   }
   function mkEntry() {
     loadMk();
@@ -2877,6 +2877,9 @@
       const g2 = R.gen === 2;
       mk({ id: 'rs', code: 'RS', name: '류신영 봇', strat: g2 ? '거래량 확인 돌파 + 학습 필터' : '단타 후보 + 학습 필터', tf: R.tf || '15분봉', href: '#bot/rs', main: g2, equity: R.live.equity, ret: R.live.ret, curve: R.live.curve, trades: R.live.trades, positions: R.live.positions, status: R.live.status, stMap: RS_ST, since: R.inception, upd: R.generatedAt, wf: R.wf, model: R.model, decisions: R.decisions, gen1: R.gen1, gen1Live: R.gen1Live, pending: R.live.pending,
         bt: s1 ? { label: '워크포워드 시험', ret: s1.all.ret, cagr: s1.all.cagr, sharpe: s1.all.sharpe, mdd: s1.all.mdd, pf: s1.all.pf, win: s1.all.win, n: s1.all.n, pass: R.wf.pass && R.wf.pass.ok } : null }); }
+    if (S.pr) { const R = S.pr, s0 = R.wf && R.wf.study && R.wf.study[0];
+      mk({ id: 'pr', code: 'PR', name: '상대 모멘텀', strat: 'BTC·ETH 비율이 벌어지는 쪽 따라가기 (민경기 4세대 후보 · 3개월 관찰)', tf: '4시간봉', href: '#bot/pr', main: true, equity: R.live.equity, ret: R.live.ret, curve: R.live.curve, trades: R.live.trades, positions: R.live.positions, status: R.live.status, stMap: RS_ST, since: R.inception, upd: R.generatedAt, wf: R.wf, pairNow: R.now, watchUntil: R.watchUntil,
+        bt: s0 ? { label: '6년 시험', ret: s0.all.ret, cagr: s0.all.cagr, sharpe: s0.all.sharpe, mdd: s0.all.mdd, pf: s0.all.pf, win: s0.all.win, n: s0.all.n, pass: R.wf.pass && R.wf.pass.ok } : null }); }
     if (FU) { const m = FU.bt && FU.bt.metrics;
       mk({ id: 'flux', code: 'FLUX', name: 'FLUX', strat: '추세 돌파 (규칙만)', tf: '4시간봉', href: '#futures', equity: FU.live.equity, ret: FU.live.ret, curve: FU.live.curve, trades: FU.live.trades, positions: FU.live.positions || [], status: FU.live.status, stMap: FUT_ST, since: FU.inception, upd: FU.generatedAt,
         bt: m ? { label: '백테스트', cagr: m.cagr, mdd: m.mdd, pf: m.pf, win: m.winRate, n: m.trades } : null });
@@ -3094,7 +3097,21 @@
       ${Mo ? `<section class="card"><h2>무엇을 배웠나</h2><p class="muted xs">모델 ${Mo.ver}번째 · ${esc(Mo.at.slice(0, 10))} 학습 · 끝난 후보 ${nf(Mo.n)}개 (이익 ${Mo.rate}%) · 매주 다시 학습</p>${Mo.imp.slice(0, 6).map((x) => `<div class="kv"><span>${esc(x.label)}</span><b class="num">${x.v}%</b></div>`).join('')}</section>` : ''}
       ${(a.decisions || []).length ? `<section class="card"><h2>최근 판단</h2>${a.decisions.slice(0, 10).map((d) => `<div class="kv"><span>${sideTag(d.side)} ${esc(d.name)} <span class="muted xs">${kT(d.t)} · ${esc(SETUP[d.kind] || '')}</span></span><b class="sm">${d.ok ? '진입' : '건너뜀'} <span class="muted xs">${d.p == null ? '' : '점수 ' + d.p}</span></b></div>`).join('')}</section>` : ''}`;
   }
-  function valBlock(a) {
+  function prBlock(a) {
+    const W = a.wf, N = a.pairNow; if (!W) return '';
+    const S0 = W.study[0], PS = W.pass || {};
+    return `<section class="card"><div class="card-head"><h2>규칙과 지금 상태</h2><span class="act warn">관찰 중 · ${esc(a.watchUntil || '')}까지</span></div>
+      <p class="sm">이더리움÷비트코인 비율이 최근 20일 평균에서 <b>표준편차 2배</b> 넘게 벌어지면, <b>벌어지는 쪽으로</b> 따라가요(ETH 롱·BTC 숏 또는 반대). 비율이 평균으로 돌아오면(z 0) 정리, 최대 5일.</p>
+      <p class="muted xs">두 다리를 같이 잡아 시장 전체가 오르내리는 영향은 상쇄돼요. 그래서 다른 봇들과 따로 움직여요(6년 시험에서 류신영 봇과 상관 0.00).</p>
+      ${N ? `<div class="kpis k3" style="margin-top:8px">${kpi('지금 비율 z', String(N.z), '', '진입 기준 ±2')}${kpi('진입까지', N.near + '%', '', N.near >= 100 ? '조건 충족' : '아직 멀음')}${kpi('되돌림 반감기', N.hlDays + '일', '', '1~10일일 때만')}</div>` : ''}</section>
+      <section class="card"><div class="card-head"><h2>6년 시험 (결과 보고 만든 규칙)</h2><span class="act ${PS.ok ? 'live' : 'warn'}">${PS.ok ? '기준 통과' : '기준 미달'}</span></div>
+      <p class="muted xs">${esc(W.from.slice(0, 10))} ~ ${esc(W.to.slice(0, 10))} · 4시간봉 · 다음 봉 시가 체결 · 수수료·미끄러짐·펀딩비 포함</p>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>설정</th><th>연 수익</th><th>낙폭</th><th>샤프</th><th>손익비</th><th>거래</th><th>앞</th><th>뒤</th></tr></thead><tbody>
+      ${W.study.map((r, k) => `<tr${k === 0 ? ' class="hl"' : ''}><td>${esc(r.name)}</td><td class="${dirClass(r.all.cagr)}">${pct(r.all.cagr, 1)}</td><td>${pct(r.all.mdd, 0)}</td><td>${r.all.sharpe ?? '—'}</td><td>${r.all.pf ?? '—'}</td><td>${r.all.n}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 0)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 0)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="muted xs" style="margin-top:6px">주의: '용수철(되돌림)' 시험이 크게 져서 반대로 뒤집어 찾은 규칙이에요. 과거에 맞춘 것일 수 있어 <b>3개월 실시간 성적</b>으로 판단해요. 뒤 절반이 앞 절반보다 약해 효과가 줄고 있을 수도 있어요. 바이낸스 데모에는 넣지 않았어요.</p></section>`;
+  }
+  function valBlock(a) { return (a.id === 'pr' ? prBlock(a) : '') + valBlock0(a); }
+  function valBlock0(a) {
     if (a.id === 'rs') return wfBlock(a);
     const b = a.bt, x = a.st;
     if (!b) return `<section class="card"><h2>검증</h2><p class="muted sm">이 계좌는 따로 과거 시험 결과가 없어요. 실시간 기록으로만 판단해요.</p></section>`;
@@ -3163,6 +3180,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/25', '상대 모멘텀 봇 추가 (3개월 관찰)', 'BTC·ETH 비율이 표준편차 2배 넘게 벌어지면 그쪽으로 따라가는 페어 매매를 모의 계좌(1억)로 시작. 6년 시험(다음 봉 시가 체결): 연 22%·낙폭 -16%·샤프 1.25·손익비 1.98, 비용 2배도 플러스. 결과를 보고 만든 규칙이라 2027-02-25까지 실시간으로 확인 후 채택 결정. 바이낸스 데모에는 넣지 않음', 'pr'],
     ['11/25', '물리·수학 규칙 시험', '용수철(OU 되돌림) 페어: BTC·ETH 연 -20%, 28쌍 -46% → 탈락. 허스트·엔트로피 필터: 류신영 봇 샤프 1.31 → 1.09·1.24로 오히려 낮춤 → 탈락. 사후 발견: 용수철의 반대(두 코인 비율이 벌어지는 쪽 따라가기)는 BTC·ETH 연 15%·낙폭 -13%·샤프 1.06, 무작위 데이터에선 손실, 류신영 봇과 상관 0.00(반반 섞으면 낙폭 -26%→-16%). 결과를 보고 만든 규칙이라 실시간 모의로 따로 확인 필요', 'mk'],
     ['11/25', '플라이트 매매법 시험', '글의 7가지를 규칙으로 바꿔 4시간봉(2019~, 8코인)·1시간봉(18개월)에서 시험. RSI 과매수 숏·거래량 감소 반등 숏·프랙탈·VPVR 매물대·채널·급락 반등은 모두 손실. "50EMA 추세선 지지 + 거래량 증가"만 4시간봉에서 앞·뒤 모두 플러스(연 31%·낙폭 -38%·샤프 1.0, 매년 플러스)였지만 류신영 봇(샤프 1.37)보다 약하고 같이 움직여(상관 0.59) 섞어도 나아지지 않음. 시드 20%×50배는 32번 중 24번 청산으로 계좌 소멸. 수익 출금은 총수익을 조금 줄이는 대신 낙폭을 줄임', 'flight'],
     ['11/25', '류신영 봇 2세대', '단타 규칙 10가지(15분·1시간 돌파, 극단 되돌림, 거래량 폭발 되돌림, 펀딩비 과열 반대, 테이커 쏠림 등)를 다시 시험 → 모두 수수료를 못 넘음. 앞·뒤 절반 모두 플러스는 4시간봉 돌파뿐이라, "20봉 돌파 + 거래량 1.5배 확인 + 4ATR 추적 손절"로 바꾸고 학습 필터를 얹음. 2021~ 시험: 규칙 혼자 연 35.5%·샤프 1.16 → 류신영 봇 연 37.3%·샤프 1.31·낙폭 -24%. 2019~2025 손대지 않은 구간과 무작위 데이터 검사도 통과', 'rs'],
