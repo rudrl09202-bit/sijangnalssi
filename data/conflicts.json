@@ -3,7 +3,7 @@
  "updated": "2026-11-26",
  "model": "gemini-3.6-flash",
  "grounded": false,
- "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남 · 2026-11-26 검토: 출처가 최근 전투 보도가 아니거나 확인이 더 필요한 5곳(사우디-후티·미얀마·콜롬비아·나이지리아·소말리아) 뺌",
+ "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남 · 2026-11-26 검토: 출처가 최근 전투 보도가 아니거나 확인이 더 필요한 4곳(미얀마·콜롬비아·나이지리아·소말리아) 뺌 · 사우디-후티는 사람이 출처를 확인해 다시 넣음(2026-11-26)",
  "items": [
   {
    "id": "RU-UA",
@@ -61,6 +61,21 @@
    "sources": [
     "https://sudantribune.com/article294321/",
     "https://www.ohchr.org/en/press-releases/2026/11/sudan-un-report-details-deadly-civilian-impact-surge-drone-strikes"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "SA-YE",
+   "a": "SA",
+   "b": "YE",
+   "kind": "war",
+   "name": "사우디-후티 분쟁",
+   "since": "2015",
+   "summary": "사우디아라비아 주도 연합군과 예멘 후티 반군 간의 상호 미사일·드론 공격 및 보복 공습이 다시 격화하고 있습니다.",
+   "sources": [
+    "https://www.middleeasteye.net/news/yemen-warring-sides-exchange-shelling-air-strikes-saudi-oil-facilities-burn",
+    "https://houseofsaud.com/saudi-coalition-strikes-sanaa-after-houthi-drone-wounds-11-in-riyadh/"
    ],
    "first": "2026-11-26",
    "checked": "2026-11-26"
