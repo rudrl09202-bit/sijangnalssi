@@ -981,3 +981,4 @@ html.big body { zoom: 1.15; }
 .ksim-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 8px 0; font-size: 14px; }
 .ksim-row input[type=number] { width: 110px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); font: inherit; }
 .ksim-row input[type=range] { flex: 1 1 160px; accent-color: var(--warn); }
+.act.down { color: var(--down); background: var(--down-soft); }
