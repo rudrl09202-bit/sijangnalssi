@@ -53,10 +53,11 @@ function clip(h, cutoff) {
 export function cleanTicks(o) {
   const n = o.c.length;
   for (let i = 1; i < n; i++) {
-    const p = o.c[i - 1], c = o.c[i], nx = i + 1 < n ? o.c[i + 1] : null;
-    const spike = c <= 0 || (p > 0 && Math.abs(c / p - 1) > 0.6 && nx != null && Math.abs(nx / p - 1) < 0.25);
+    const p = o.c[i - 1], c = o.c[i];
+    // 미래 봉으로 급등락을 지우면 백테스트에 미래 정보가 섞인다. 실제 급변은 보존한다.
+    const spike = !Number.isFinite(c) || c <= 0;
     if (spike) { o.c[i] = p; o.o[i] = p; o.h[i] = p; o.l[i] = p; }
-    if (!(o.o[i] > 0) || Math.abs(o.o[i] / o.c[i] - 1) > 0.6) o.o[i] = p > 0 ? p : o.c[i];
+    if (!Number.isFinite(o.o[i]) || !(o.o[i] > 0)) o.o[i] = p > 0 ? p : o.c[i];
     o.h[i] = Math.max(o.h[i], o.o[i], o.c[i]); o.l[i] = Math.min(o.l[i] > 0 ? o.l[i] : Infinity, o.o[i], o.c[i]);
   }
   return o;
@@ -259,7 +260,7 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
     if (!a || !a.equity.length) return { id: b.id, code: b.code, name: b.name, role: b.role, method: b.method, edge: b.edge, empty: true };
     const full = Q.metrics(a.equity, a.trades);
     const isM = Q.metrics(sliceByDate(a.equity, null, split), a.trades.filter((x) => x.out < split));
-    const oos = Q.metrics(sliceByDate(a.equity, split, null), a.trades.filter((x) => x.out >= split));
+    const oos = Q.metrics(sliceByDate(a.equity, split, null), a.trades.filter((x) => x.in >= split && x.out >= split));
     const vs = Q.versus(a.equity, benches[benchFor(b)]);
     const mc = Q.monteCarlo(a.equity, 500);
     const liveM = L && L.equity.length > 1 ? Q.metrics(L.equity, L.trades) : null;
@@ -289,6 +290,8 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
     vault: Q.VAULT, costs: Q.COST, startCash: Q.START_CASH, bots, team, bench: benchOut, study, robustNames: robust ? robust.names : null,
     today: fresh.slice(-60).map((e) => ({ ...e, botCode: (Q.BOTS.find((b) => b.id === e.bot) || {}).code })),
     caveats: [
+      '표본 외 구간은 시간순 분할이며, 전략 선택에 이미 사용했다면 독립 검증이 아닙니다. 구간을 넘긴 거래는 표본 외 거래 통계에서 제외합니다.',
+      '시세 급변은 미래 봉으로 보정하지 않습니다. 공급자 오류 및 기업행동은 별도 점검이 필요합니다.',
       '종목 목록은 "지금" 대표 종목이라, 지난 10년 동안 사라지거나 추락한 종목이 빠져 있습니다(생존 편향) — 백테스트가 실제보다 좋게 나올 수 있습니다.',
       'CHIEF 봇의 백테스트는 과거 재무제표를 모르므로 가격·추세 점수만으로 채점했습니다(실시간 모의투자부터는 재무 포함).',
       '코인은 달러 시세 × 원/달러 환율로 계산했습니다(김치 프리미엄 제외).',
