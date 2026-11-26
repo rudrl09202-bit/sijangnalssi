@@ -2077,7 +2077,7 @@
     S.mkLoading = true;
     const get = (f) => fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/' + f + '?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/' + f, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null);
-    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json'), get('pair-live.json'), get('mg-live.json'), get('macro-live.json')]).then(([a, b, c, d, e, f]) => { if (f && f.at) S.mac = f; S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (d && d.live) S.pr = d; if (e && e.live) S.mg = e; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
+    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json'), get('pair-live.json'), get('mg-live.json'), get('macro-live.json')]).then(([a, b, c, d, e, f]) => { if (f && f.at) S.mac = f; S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (d && d.live) S.pr = d; if (e && e.live) S.mg = e; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed', 'macro'].indexOf(route()) >= 0) render(); });
   }
   function mkEntry() {
     loadMk();
@@ -3055,7 +3055,7 @@
       <div class="tile-row"><span class="muted">가동 봇</span><span class="num"><b>${A.length}개</b></span></div>
       <div class="tile-row"><span class="muted">${late ? '갱신 늦음' : '보유 포지션'}</span><span class="num"><b class="${late ? 'warn' : ''}">${late ? late + '개' : nPos + '개'}</b></span></div></a>`;
     const X = S.mac && S.mac.now, on = X ? ['A', 'B', 'C', 'D'].filter((k) => X.S[k].on).map((k) => X.S[k].label) : [];
-    const t4 = `<a class="tile" href="#bot/mg"><p class="tile-h">세계 경제 신호</p>
+    const t4 = `<a class="tile" href="#macro"><p class="tile-h">세계 경제 신호</p>
       <p class="tile-big num">${X ? X.n + '<span class="muted sm"> / 4</span>' : '—'}</p>
       <p class="xs ${X && X.blockLongs ? 'warn' : 'muted'}">${X ? (X.blockLongs ? '위험 겹침 · 새 롱 쉼' : on.length ? esc(on.join(' · ')) : '켜진 위험 신호 없음') : '불러오는 중'}</p></a>`;
     return hero + `<div class="tiles">${t1}${t2}${t3}${t4}</div>`;
@@ -3149,6 +3149,11 @@
     const age = Date.now() - Date.parse(a.upd), lim = /15분/.test(a.tf || '') ? 3600e3 : 6 * 3600e3, late = age > lim, t = (a.trades || [])[0];
     return `<p class="xs ${late ? '' : 'muted'}" style="margin:4px 0 0">${late ? '<span class="act warn">갱신 늦음</span> ' : ''}계산 ${agoTxt(age)}${t ? ' · 마지막 거래 ' + esc(kT(t.out)) + ' ' + esc(t.name || t.sym || '') + ' <span class="' + dirClass(t.pnl) + '">' + (t.pnl >= 0 ? '+' : '') + man(t.pnl) + '</span>' : ''}${(a.positions || []).length ? ' · 보유 ' + a.positions.length : ''}</p>`;
   }
+  // 세계 경제 신호 화면 (홈 네 번째 칸에서 들어옴)
+  function viewMacro() {
+    loadMk();
+    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true);
+  }
   function viewBots() {
     const A = accounts(true), live = A.filter((a) => !a.cmp), cmp = A.filter((a) => a.cmp);
     const card = (a) => { const st = stOf(a.stMap, a.status);
@@ -3167,7 +3172,7 @@
   function viewBot() {
     const id = S.ui.bot, A = accounts(true), a = A.find((x) => x.id === id);
     const head = (t, k) => `<header class="top"><div><a href="#paper" class="back">‹ 봇</a><p class="kicker">${esc(k || '')}</p><h1>${esc(t)}</h1></div>${tools()}</header>`;
-    if (!a) return head('봇') + '<section class="card empty"><p class="h-md">불러오는 중이에요</p></section>';
+    if (!a) return head(id === 'mg' ? '민경기 매매법' : '봇') + (id === 'mg' && S.mkAt ? '<section class="card empty"><p class="h-md">첫 계산을 기다리는 중이에요</p><p class="muted sm">민경기 매매법은 11/26 밤 9시 4시간봉부터 시작해서, 그 봉이 끝난 뒤 새벽 1시쯤 첫 숫자가 올라와요.</p></section>' : '<section class="card empty"><p class="h-md">불러오는 중이에요</p></section>');
     const st = stOf(a.stMap, a.status), x = a.st, tab = S.ui.botTab || 'perf';
     const top = `<section class="card dash-hero"><div class="row between"><p class="kpi-l">${esc(a.strat)} · ${esc(a.tf)}</p><span class="act ${st[1]}">${st[0]}</span></div>
       <p class="dash-big num ${dirClass(a.ret)}">${pct(a.ret, 2)}</p><p class="dash-sub num">${won(a.equity)} <span class="muted">· ${a.since ? kT(a.since) + '부터' : ''}${a.upd ? ' · 갱신 ' + agoTxt(Date.now() - Date.parse(a.upd)) : ''}</span></p>
@@ -3328,6 +3333,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '세계 경제 신호 화면', '홈 네 번째 칸을 누르면 민경기 매매법(아직 첫 계산 전이라 "불러오는 중")으로 가던 것을 세계 경제 신호 전용 화면으로. 신호 5개의 값·기준과 뉴스 10개. 민경기 매매법 화면은 첫 계산 전이면 "새벽 1시쯤 첫 숫자" 안내', 'home'],
     ['11/26', '민경기 매매법 변화 감시 (마지막 추가)', '자동 크기 조절 2가지를 6년 시험 — 낙폭 단계(−10%면 절반)는 연 35%→26%·샤프 1.56→1.36, 성적 이탈(60일 하위 5%면 절반)은 연 28%·샤프 1.39 → 모두 불합격. 대신 감시만: 낙폭 −12%·60일 수익 6년 하위 5%면 "주의", 6년 최악 수준이면 "경고", 고점 대비 −25%면 "비상 정지"(그 뒤로 따라가지 않음). 단계가 바뀌면 휴대폰 알림. 이것으로 매매법 추가는 끝 — 2/25까지 지켜봄', 'mg'],
     ['11/26', '앱 전체 점검 (휴대폰 화면 기준 32개 페이지)', '홈 시장날씨 아이콘이 "undefined"로 나오던 문제 수정 · 처음 안내 카드의 대표 봇 설명을 민경기 매매법으로 · 뉴스 제목에 &#39; 같은 기호가 그대로 보이던 문제 수정 · "0.1시간 전" → "6분 전" · 데모 주문 기록의 긴 소수점(60573.939781) 정리 · 선물 데스크의 "목표 월 10%" 진행 막대를 없앰(월 목표를 쫓으면 크기를 키우게 됨)', 'home'],
     ['11/26', '홈 첫 화면 새 디자인', '맨 위에 큰 시장날씨 카드(역풍 5개 표시) + 네 칸 요약(오늘의 지수 · 주요 거시 · 봇 상태 · 세계 경제 신호). 색은 차분하게 — 바탕은 모두 같은 색, 빨강(오름)·파랑(내림)만 의미 있게 사용. 누르면 자세한 화면으로', 'home'],
@@ -3381,8 +3387,8 @@
     }
     return head + seg + body;
   }
-  const VIEWS = { open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
-  const TAB_OF = { demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { macro: viewMacro, open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
+  const TAB_OF = { macro: 'home', demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { let h = (location.hash || '#home').slice(1); if (h.indexOf('bot/') === 0) { S.ui.bot = h.slice(4); h = 'bot'; } return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
