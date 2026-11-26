@@ -968,8 +968,16 @@ html.big body { zoom: 1.15; }
 .glb-list { margin-top: 8px; } .glb-list summary { cursor: pointer; padding: 6px 0; }
 .num.warn { color: var(--warn); }
 @media (min-width: 720px) { .glb-slot { height: 400px; } }
-.glb-badge { pointer-events: none; transform: translate(-50%, -100%); white-space: nowrap; font-family: var(--font); font-size: 11px; line-height: 1.35; padding: 4px 8px; border-radius: 8px;
+.glb-anchor { position: relative; width: 0; height: 0; pointer-events: none; }
+.glb-badge { pointer-events: none; position: absolute; left: 0; bottom: 8px; transform: translateX(-50%); white-space: nowrap; font-family: var(--font); font-size: 11px; line-height: 1.35; padding: 4px 8px; border-radius: 8px;
   background: var(--card); color: var(--ink); border: 1px solid var(--warn); box-shadow: 0 2px 8px rgba(0,0,0,.15); display: flex; flex-direction: column; }
 .glb-badge b { color: var(--warn); font-weight: 700; }
 .glb-dot.ring { background: transparent; border: 2px solid var(--warn); width: 7px; height: 7px; }
 .glb-bot { margin: 2px 0 0; } .glb-bot.warn b { color: var(--warn); }
+.glb-badge.danger { border-color: var(--up); } .glb-badge.danger b { color: var(--up); }
+.act.up { color: var(--up); background: var(--up-soft); }
+.ksim-on { border: 1.5px dashed var(--warn); }
+.ksim { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--warn-soft); }
+.ksim-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 8px 0; font-size: 14px; }
+.ksim-row input[type=number] { width: 110px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); font: inherit; }
+.ksim-row input[type=range] { flex: 1 1 160px; accent-color: var(--warn); }

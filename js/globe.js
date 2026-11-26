@@ -2,6 +2,7 @@
  *  통화 20개의 달러 대비 20거래일 변화로 나라를 칠함: +2% 이상 약세 = 주황, 나머지 추적 나라 = 연한 색, 추적 안 함 = 바탕색
  *  라이브러리는 이 화면을 처음 열 때만 jsDelivr 에서 받음 (globe.gl 2.46.2 · topojson-client 3.1.0 · world-atlas 2.0.2)
  *  세계 경제 신호 A~D 중 켜진 것은 해당 지역(미국·중국)에 주황 물결과 이름표로 표시 — 봇이 새 롱을 쉬는 이유
+ *  한국 위기 경보가 주의 이상이면 한국에도 이름표 (위험 단계는 빨강)
  *  render() 가 화면을 다시 그려도 지구본은 한 번만 만들고 자리만 옮김 (attach)
  */
 (function () {
@@ -27,7 +28,7 @@
       pick: alpha(css('--accent') || '#3182F6', 0.9), side: alpha(css('--line2') || '#E5E8EB', 0.6), stroke: alpha(css('--card') || '#FFFFFF', dark ? 0.35 : 0.8), globe: css('--sunk') || '#F2F4F6', atmo: css('--accent') || '#3182F6' };
   }
   function cap(f) { const C = colors(), x = fxBy[f.properties.iso]; if (f === picked || f === hover) return C.pick; return x ? (x.weak ? C.warn : C.tracked) : C.base; }
-  function badge(d) { const el = document.createElement('div'); el.className = 'glb-badge'; el.innerHTML = '<b>' + d.place + '</b>' + d.items.map((x) => '<span>' + x + '</span>').join(''); return el; }
+  function badge(d) { const el = document.createElement('div'), b = document.createElement('div'); el.className = 'glb-anchor'; b.className = 'glb-badge' + (d.level === 'danger' ? ' danger' : ''); b.innerHTML = '<b>' + d.place + '</b>' + d.items.map((x) => '<span>' + x + '</span>').join(''); el.appendChild(b); return el; } // 이름표는 지점 바로 위에 (땅을 가리지 않게)
   function drawSignals() {
     if (!globe) return; const k = JSON.stringify(sigs); if (k === sigKey) return; sigKey = k; const C = colors();
     globe.ringsData(sigs).ringColor(() => (t) => alpha(css('--warn') || '#E08A00', Math.max(0, 1 - t))).ringMaxRadius(7).ringPropagationSpeed(2.5).ringRepeatPeriod(1400)
