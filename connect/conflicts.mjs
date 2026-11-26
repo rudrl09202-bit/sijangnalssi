@@ -29,7 +29,10 @@ export async function askGeminiSearch(key, model, prompt, fetchImpl = fetch) {
   try { const r = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', signal: c.signal,
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }) });
     const j = await r.json(); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + ((j.error && j.error.message) || ''));
-    const cand = (j.candidates || [])[0] || {}; return { text: ((cand.content || { parts: [] }).parts || []).map((p) => p.text || '').join(''), grounded: !!(cand.groundingMetadata && (cand.groundingMetadata.groundingChunks || []).length) };
+    const cand = (j.candidates || [])[0] || {}, gm = cand.groundingMetadata || {};
+    // 검색을 실제로 했는지: 검색어·검색 결과 조각·검색 진입점 중 하나라도 있으면 검색함
+    const refs = (gm.groundingChunks || []).map((c) => c.web && { title: c.web.title || '', uri: c.web.uri || '' }).filter(Boolean);
+    return { text: ((cand.content || { parts: [] }).parts || []).map((p) => p.text || '').join(''), grounded: !!(refs.length || (gm.webSearchQueries || []).length || gm.searchEntryPoint), queries: gm.webSearchQueries || [], refs };
   } finally { clearTimeout(to); }
 }
 export function parseList(text) { const s = text.indexOf('['), e = text.lastIndexOf(']'); if (s < 0 || e < s) throw new Error('JSON 배열 없음'); return JSON.parse(text.slice(s, e + 1)); }
@@ -54,14 +57,17 @@ export async function run({ root = ROOT, now = Date.now(), env = loadEnv(), fetc
   let prev = null; try { if (existsSync(f)) prev = JSON.parse(readFileSync(f, 'utf8')); } catch (e) { prev = null; }
   const g = VOTERS.find((v) => v.id === 'gemini'), models = [model, ...((g && g.backup) || [])].filter((m, i, a) => m && a.indexOf(m) === i), tried = [];
   let res = null, used = null;
-  for (const m of models) { for (let k = 0; k < 2 && !res; k++) { try { res = await askGeminiSearch(key, m, PROMPT(d), fetchImpl); used = m; } catch (e) { tried.push(m + ': ' + e.message.slice(0, 90));
+  // 검색을 안 하고 답했으면(기억으로 쓴 답 → 링크가 지어낸 것일 수 있음) 한 번 더 물어봄
+  const ask = async (m) => { let r = await askGeminiSearch(key, m, PROMPT(d), fetchImpl); if (!r.grounded) { log(m + ': 검색 없이 답함 → 한 번 더'); const r2 = await askGeminiSearch(key, m, PROMPT(d), fetchImpl); if (r2.grounded) r = r2; } return r; };
+  for (const m of models) { for (let k = 0; k < 2 && !res; k++) { try { res = await ask(m); used = m; } catch (e) { tried.push(m + ': ' + e.message.slice(0, 90));
         if (!/HTTP (429|5\d\d)/.test(e.message)) break; if (k === 0) await new Promise((ok) => setTimeout(ok, opts.wait ?? 10000)); } } if (res) break; }
   if (!res) throw new Error('Gemini 모두 실패 — ' + tried.join(' / '));
   if (used !== model) log('기본 모델 실패 → 예비 모델 ' + used + ' 사용');
   const { text, grounded } = res;
-  if (!grounded) log('주의: 검색 근거(grounding)가 없는 답 — 사람 확인 때 출처를 꼭 열어 볼 것');
+  if (!grounded) log('⚠️ 주의: Gemini 가 구글 검색 없이 답함 — 출처 링크가 지어낸 주소일 수 있으니 꼭 열어 볼 것');
+  else log('구글 검색 ' + res.queries.length + '번 · 검색 결과 ' + res.refs.length + '개를 보고 답함: ' + res.refs.slice(0, 8).map((r) => r.title).join(', '));
   const r = clean(parseList(text), prev, d);
-  const out = { v: 1, updated: d, model: used, grounded, note: '사람이 PR 을 읽고 합친 목록만 앱에 나타남', items: r.items };
+  const out = { v: 1, updated: d, model: used, grounded, queries: res.queries.slice(0, 10), note: '사람이 PR 을 읽고 합친 목록만 앱에 나타남', items: r.items };
   const summary = `분쟁 ${r.items.length}개 · 새로 ${r.added.length}${r.added.length ? ' (' + r.added.join(', ') + ')' : ''} · 빠짐 ${r.gone.length}${r.gone.length ? ' (' + r.gone.join(', ') + ')' : ''}${r.drop.length ? ' · 버림 ' + r.drop.join(' / ') : ''}`;
   // 내용(확인 날짜 빼고)이 같으면 파일을 안 바꿈 → 매일 PR 이 생기지 않게
   const sig = (items) => JSON.stringify((items || []).map((x) => ({ ...x, checked: undefined })));
