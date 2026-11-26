@@ -1,0 +1,67 @@
+# 시장날씨 — 앱 화면을 고치면 바로 배포 (알림·모의투자는 하지 않음, 시세만 새로 받아 함께 올림)
+# 매일 배포(daily.yml)는 그대로 두고, 앱 파일(index.html·styles.css·sw.js·js/)이 바뀌어 main 에 올라오면 몇 분 안에 화면이 바뀌게 함
+name: 앱 화면 바로 배포
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'styles.css'
+      - 'sw.js'
+      - 'manifest.webmanifest'
+      - 'icons/**'
+      - 'js/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily   # 매일 배포와 겹치지 않게 같은 줄에 섬
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: 시장 데이터 받기 (앱 숫자·차트용)
+        run: node connect/market.mjs
+        continue-on-error: true
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
+      - name: 앱 파일 모으기
+        run: |
+          mkdir -p _site
+          cp -r index.html styles.css manifest.webmanifest sw.js icons js _site/
+          mkdir -p _site/data && cp data/futures-live.json data/policy-live.json _site/data/ 2>/dev/null || true
+          cp data/filings-live.json _site/data/ 2>/dev/null || true
+          rm -f _site/js/holdings-live.js
+          echo "window.SNW_CONFIG = { vapidPublicKey: '${VAPID_PUBLIC_KEY}' };" > _site/js/config.js
+        env:
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: 배포 실패 시 1분 뒤 다시
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - id: deployment2
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
