@@ -3034,10 +3034,33 @@
   const sideTag = (s) => `<span class="side ${SIDE[s][1]}">${SIDE[s][0]}</span>`;
 
   /* ---------- 홈: 대시보드 ---------- */
+  // 홈 맨 위: 시장날씨 큰 카드 + 네 칸 요약 (차분한 색 — 색은 오르면 빨강·내리면 파랑에만)
+  function homeTop() {
+    let w = null; try { w = weather(); } catch (e) { w = null; }
+    const M = S.markets || {}, btc = S.prices && S.prices['KRW-BTC'];
+    const mv = (k, d, unit) => { const m = M[k]; if (!m || m.value == null || !isFinite(m.value)) return { v: '—', c: '', cls: '' }; const c = m.chg == null || isNaN(m.chg) ? '' : sign(m.chg, m.chgUnit === 'bp' ? 0 : 2) + (m.chgUnit || ''); return { v: nf(Number(m.value), d) + (unit || ''), c, cls: dirClass(m.chg) }; };
+    const line = (label, x) => `<div class="tile-row"><span class="muted">${label}</span><span class="num"><b>${x.v}</b> <span class="xs ${x.cls}">${x.c}</span></span></div>`;
+    const hero = w ? `<a class="card wx-hero" href="#explore"><div class="wx-ic">${IC[w.icon] || IC.sun}</div><div class="wx-txt"><p class="kicker">오늘의 시장날씨</p><p class="wx-title">${esc(w.title)}</p><p class="muted sm">${esc(w.sub)}</p>
+      <div class="chips" style="margin-top:8px">${w.winds.map((x) => `<span class="chip ${x.on ? 'chip-on' : ''}">${esc(x.label)} ${x.missing ? '—' : x.on ? '역풍' : '양호'}</span>`).join('')}</div></div></a>` : '';
+    const t1 = `<a class="tile" href="#explore"><p class="tile-h">오늘의 지수</p>
+      ${line('비트코인', btc ? { v: nf(Math.round(btc.krw / 1e4)) + '만', c: sign(btc.chg24, 2) + '%', cls: dirClass(btc.chg24) } : { v: '—', c: '', cls: '' })}${line('코스피', mv('kospi', 2))}${line('나스닥', mv('nasdaq', 0))}</a>`;
+    const t2 = `<a class="tile" href="#explore"><p class="tile-h">주요 거시</p>${line('원/달러', mv('usdkrw', 1))}${line('미 10년물', mv('us10y', 2, '%'))}${line('달러지수', mv('dxy', 2))}</a>`;
+    const G = S.mg && S.mg.live, A = (() => { try { return accounts(false).filter((a) => !a.cmp); } catch (e) { return []; } })(), nPos = A.reduce((t, a) => t + (a.positions || []).length, 0);
+    const late = A.filter((a) => a.upd && Date.now() - Date.parse(a.upd) > (/15분/.test(a.tf || '') ? 3600e3 : 6 * 3600e3)).length;
+    const t3 = `<a class="tile" href="${G ? '#bot/mg' : '#paper'}"><p class="tile-h">봇 상태</p>
+      <div class="tile-row"><span class="muted">민경기 매매법</span><span class="num"><b class="${G ? dirClass(G.ret) : ''}">${G ? pct(G.ret, 2) : '—'}</b></span></div>
+      <div class="tile-row"><span class="muted">가동 봇</span><span class="num"><b>${A.length}개</b></span></div>
+      <div class="tile-row"><span class="muted">${late ? '갱신 늦음' : '보유 포지션'}</span><span class="num"><b class="${late ? 'warn' : ''}">${late ? late + '개' : nPos + '개'}</b></span></div></a>`;
+    const X = S.mac && S.mac.now, on = X ? ['A', 'B', 'C', 'D'].filter((k) => X.S[k].on).map((k) => X.S[k].label) : [];
+    const t4 = `<a class="tile" href="#bot/mg"><p class="tile-h">세계 경제 신호</p>
+      <p class="tile-big num">${X ? X.n + '<span class="muted sm"> / 4</span>' : '—'}</p>
+      <p class="xs ${X && X.blockLongs ? 'warn' : 'muted'}">${X ? (X.blockLongs ? '위험 겹침 · 새 롱 쉼' : on.length ? esc(on.join(' · ')) : '켜진 위험 신호 없음') : '불러오는 중'}</p></a>`;
+    return hero + `<div class="tiles">${t1}${t2}${t3}${t4}</div>`;
+  }
   function viewHome() {
     const A = accounts(false), live = A.filter((a) => !a.cmp);
     const head = `<header class="top"><div><p class="kicker">${esc(todayLabel())}</p><h1>자동매매</h1></div>${tools()}</header>${demoBanner()}`;
-    if (!live.length) return head + guideCard() + `<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p><p class="muted sm">잠시 뒤 자동으로 나타나요.</p></section>`;
+    if (!live.length) return head + guideCard() + homeTop() + `<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p><p class="muted sm">잠시 뒤 자동으로 나타나요.</p></section>`;
     const tot = live.reduce((s, a) => s + a.equity, 0), start = live.reduce((s, a) => s + a.start, 0), pnl = tot - start;
     const ch1s = live.filter((a) => a.st.ch1 != null), d1 = ch1s.length ? ch1s.reduce((s, a) => s + a.equity - a.equity / (1 + a.st.ch1 / 100), 0) : null;
     const pos = [].concat(...live.map((a) => (a.positions || []).map((p) => ({ ...p, who: a }))));
@@ -3060,7 +3083,7 @@
       ${nTr ? `<div class="tbl">${allTr.slice(0, 8).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${esc(t.who.name)} · ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     const ins = insights(A);
     const insCard = ins.length ? `<section class="card"><div class="card-head"><h2>오늘의 점검</h2><a href="#analysis" class="xs">자세히 ›</a></div>${ins.slice(0, 3).map((x) => `<div class="ins ${x.lv}"><p class="sm"><b>${esc(x.title)}</b></p><p class="muted xs">${esc(x.text)}</p></div>`).join('')}</section>` : '';
-    return head + guideCard() + hero + demoLine() + chart + posCard + insCard + recent + homeMarket() + macroCard(false);
+    return head + guideCard() + homeTop() + hero + demoLine() + chart + posCard + insCard + recent + homeMarket() + macroCard(false);
   }
   // 홈: 바이낸스 데모(가짜 돈) 계좌 요약 한 줄 → 누르면 #demo
   function demoLine() {
@@ -3289,6 +3312,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '홈 첫 화면 새 디자인', '맨 위에 큰 시장날씨 카드(역풍 5개 표시) + 네 칸 요약(오늘의 지수 · 주요 거시 · 봇 상태 · 세계 경제 신호). 색은 차분하게 — 바탕은 모두 같은 색, 빨강(오름)·파랑(내림)만 의미 있게 사용. 누르면 자세한 화면으로', 'home'],
     ['11/26', '화면 보완 (외부 점검 반영)', '봇 카드마다 마지막 계산 시각·마지막 거래·보유 수, 갱신이 늦으면(15분봉 1시간·4시간봉 6시간) "갱신 늦음" 표시. 시장 탭 맨 위에 시장날씨 판정 기준(역풍 5개의 값·기준선) 카드. 거시 숫자를 못 받아도 날씨 계산이 깨지지 않게(값 없음은 역풍으로 안 셈). 앱 코드에 비밀 키가 없는지 점검 — 없음(키는 서버와 GitHub 비밀값에만)', 'more'],
     ['11/26', '통합 자산 방어 (바이낸스 데모 계좌 전체)', '봇 5개를 합쳐서 봄: 오늘 계좌 −5% 넘게 잃으면 그날 새 진입 멈춤 · 진입 뒤 전체 레버리지 5배 초과면 안 함 · 롱 합계나 숏 합계가 잔고의 4배 초과면 안 함. 손절·정리는 막지 않음. 평소엔 거의 안 걸리는 사고 대비용. 작동하면 휴대폰 알림 + 데모 화면에 기록', 'demo'],
     ['11/26', '주식 모의 봇 엔진 정확도 수정', '① 금고가 막은 날(낙폭 정지·하루 손실 −3%)에도 전에 걸어 둔 지정가·불타기 매수 주문이 체결될 수 있던 문제 → 막히면 대기 매수 주문 모두 취소. ② 아침 시가에 살 수량을 그날 종가(아직 모르는 값)로 잰 자산·보유액으로 계산하던 문제 → 전날 종가 기준. ③ 업종 한도(35%)도 전날 종가 기준. 과거 성적이 조금 달라질 수 있어요(더 현실에 가깝게)', 'paper'],
