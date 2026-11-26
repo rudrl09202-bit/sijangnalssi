@@ -3,7 +3,7 @@
  "updated": "2026-11-26",
  "model": "gemini-3.6-flash",
  "grounded": false,
- "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남",
+ "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남 · 2026-11-26 검토: 출처가 최근 전투 보도가 아니거나 확인이 더 필요한 5곳(사우디-후티·미얀마·콜롬비아·나이지리아·소말리아) 뺌",
  "items": [
   {
    "id": "RU-UA",
@@ -66,21 +66,6 @@
    "checked": "2026-11-26"
   },
   {
-   "id": "SA-YE",
-   "a": "SA",
-   "b": "YE",
-   "kind": "war",
-   "name": "사우디-후티 분쟁",
-   "since": "2015",
-   "summary": "사우디아라비아 주도 연합군과 예멘 후티 반군 간의 상호 미사일·드론 공격 및 보복 공습이 다시 격화하고 있습니다.",
-   "sources": [
-    "https://www.middleeasteye.net/news/yemen-warring-sides-exchange-shelling-air-strikes-saudi-oil-facilities-burn",
-    "https://houseofsaud.com/saudi-coalition-strikes-sanaa-after-houthi-drone-wounds-11-in-riyadh/"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-26"
-  },
-  {
    "id": "CD",
    "a": "CD",
    "b": null,
@@ -96,21 +81,6 @@
    "checked": "2026-11-26"
   },
   {
-   "id": "MM",
-   "a": "MM",
-   "b": null,
-   "kind": "civil",
-   "name": "미얀마 내전",
-   "since": "2021",
-   "summary": "미얀마 군사정권과 민주진영·소수민족 무장단체 간의 공습 및 지상 충돌이 전역에서 계속되고 있습니다.",
-   "sources": [
-    "https://www.washingtonpost.com/world/2026/11/26/myanmar-icj-genocide-ruling-min-aung-hlaing/",
-    "https://www.newindianexpress.com/world/2026/Nov/26/myanmar-wont-comply-with-inappropriate-parts-of-genocide-ruling-leader"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-26"
-  },
-  {
    "id": "ET",
    "a": "ET",
    "b": null,
@@ -121,51 +91,6 @@
    "sources": [
     "https://www.washingtonpost.com/world/2026/11/25/ethiopia-tigray-amnesty-war-crimes-shelling/",
     "https://www.criticalthreats.org/analysis/ethiopia-war-security-review-november-20-2026"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-26"
-  },
-  {
-   "id": "CO",
-   "a": "CO",
-   "b": null,
-   "kind": "civil",
-   "name": "콜롬비아 내전",
-   "since": "1964",
-   "summary": "콜롬비아 정부군과 FARC 잔당 및 ELN 등 반군 세력 간의 드론 공습, 테러 및 지상 교전이 가열되고 있습니다.",
-   "sources": [
-    "https://www.washingtonpost.com/world/2026/11/25/colombia-blackout-terrorist-attack/",
-    "https://www.cbsnews.com/news/colombia-supermarket-hostage-siege-cartagena/"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-26"
-  },
-  {
-   "id": "NG",
-   "a": "NG",
-   "b": null,
-   "kind": "civil",
-   "name": "나이지리아 분쟁",
-   "since": "2009",
-   "summary": "나이지리아 북동부에서 정부군의 공습 작전과 보코하람·ISWAP 등 극단주의 무장단체 간 교전이 지속되고 있습니다.",
-   "sources": [
-    "https://www.cfr.org/global-conflict-tracker/conflict/violent-extremism-sahel",
-    "https://adf-magazine.com/2026/01/rival-terrorists-in-battle-for-control-of-lake-chad-islands/"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-26"
-  },
-  {
-   "id": "SO",
-   "a": "SO",
-   "b": null,
-   "kind": "civil",
-   "name": "소말리아 내전",
-   "since": "1991",
-   "summary": "소말리아 정부군과 알샤바브 극단주의 무장세력 간의 격퇴 작전 및 교전이 꾸준히 발생하고 있습니다.",
-   "sources": [
-    "https://www.cfr.org/global-conflict-tracker/conflict/al-shabaab-somalia",
-    "https://acleddata.com/somalia/"
    ],
    "first": "2026-11-26",
    "checked": "2026-11-26"
