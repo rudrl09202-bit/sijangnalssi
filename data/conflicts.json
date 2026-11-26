@@ -1,0 +1,174 @@
+{
+ "v": 1,
+ "updated": "2026-11-26",
+ "model": "gemini-3.6-flash",
+ "grounded": false,
+ "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남",
+ "items": [
+  {
+   "id": "RU-UA",
+   "a": "RU",
+   "b": "UA",
+   "kind": "war",
+   "name": "러시아-우크라이나 전쟁",
+   "since": "2022",
+   "summary": "러시아와 우크라이나 간 전면전이 드론·미사일 공습과 치열한 전선 지상전 형태로 격화되며 지속되고 있습니다.",
+   "sources": [
+    "https://www.cnn.com/2026/11/26/europe/putin-restraint-nuclear-kushner-intl/index.html",
+    "https://reliefweb.int/report/ukraine/ukraine-war-situation-update-7-13-november-2026"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "IL-PS",
+   "a": "IL",
+   "b": "PS",
+   "kind": "war",
+   "name": "이스라엘-하마스 전쟁",
+   "since": "2023",
+   "summary": "이스라엘군이 가자지구 내 무장세력 지휘부와 거점에 대한 표적 공습과 폭격을 연일 감행하며 교전을 이어가고 있습니다.",
+   "sources": [
+    "https://www.cnn.com/2026/11/26/middleeast/israel-gaza-strikes-ceasefire-intl/index.html",
+    "https://www.palestinechronicle.com/israel-threatens-new-gaza-offensive-to-displace-one-million-palestinians/"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "IL-LB",
+   "a": "IL",
+   "b": "LB",
+   "kind": "war",
+   "name": "이스라엘-레바논 분쟁",
+   "since": "2023",
+   "summary": "이스라엘군과 레바논 헤즈볼라 무장세력 간 레바논 남부 및 국경 지대에서 공습과 포격전이 지속 전개되고 있습니다.",
+   "sources": [
+    "https://en.mehrnews.com/news/249707/Blasts-rock-southern-Lebanon-as-Israel-s-occupation-continues",
+    "https://news.un.org/en/story/2026/11/1157982"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "SD",
+   "a": "SD",
+   "b": null,
+   "kind": "civil",
+   "name": "수단 내전",
+   "since": "2023",
+   "summary": "수단 정규군(SAF)과 신속지원군(RSF) 간 드론 공습과 지상 교전이 전국 주요 지역으로 확산되며 민간인 피해가 잇따르고 있습니다.",
+   "sources": [
+    "https://sudantribune.com/article294321/",
+    "https://www.ohchr.org/en/press-releases/2026/11/sudan-un-report-details-deadly-civilian-impact-surge-drone-strikes"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "SA-YE",
+   "a": "SA",
+   "b": "YE",
+   "kind": "war",
+   "name": "사우디-후티 분쟁",
+   "since": "2015",
+   "summary": "사우디아라비아 주도 연합군과 예멘 후티 반군 간의 상호 미사일·드론 공격 및 보복 공습이 다시 격화하고 있습니다.",
+   "sources": [
+    "https://www.middleeasteye.net/news/yemen-warring-sides-exchange-shelling-air-strikes-saudi-oil-facilities-burn",
+    "https://houseofsaud.com/saudi-coalition-strikes-sanaa-after-houthi-drone-wounds-11-in-riyadh/"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "CD",
+   "a": "CD",
+   "b": null,
+   "kind": "civil",
+   "name": "콩고민주공화국 내전",
+   "since": "2021",
+   "summary": "콩고민주공화국 동부 남키부주 등지에서 정부군과 M23/구국전선(FRN) 반군 간 드론 공습 및 지상 격전이 이어지고 있습니다.",
+   "sources": [
+    "https://mg.co.za/africa/2026-11-26-capture-of-sa-pilot-raises-concern-over-role-of-foreigners-in-drc-conflict/",
+    "https://www.criticalthreats.org/analysis/congo-war-security-review-november-18-2026"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "MM",
+   "a": "MM",
+   "b": null,
+   "kind": "civil",
+   "name": "미얀마 내전",
+   "since": "2021",
+   "summary": "미얀마 군사정권과 민주진영·소수민족 무장단체 간의 공습 및 지상 충돌이 전역에서 계속되고 있습니다.",
+   "sources": [
+    "https://www.washingtonpost.com/world/2026/11/26/myanmar-icj-genocide-ruling-min-aung-hlaing/",
+    "https://www.newindianexpress.com/world/2026/Nov/26/myanmar-wont-comply-with-inappropriate-parts-of-genocide-ruling-leader"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "ET",
+   "a": "ET",
+   "b": null,
+   "kind": "civil",
+   "name": "에티오피아 내전",
+   "since": "2020",
+   "summary": "에티오피아 정부군과 티그라이(TPLF) 및 암하라(Fano) 지역 무장세력 간의 포격과 충돌이 재발발했습니다.",
+   "sources": [
+    "https://www.washingtonpost.com/world/2026/11/25/ethiopia-tigray-amnesty-war-crimes-shelling/",
+    "https://www.criticalthreats.org/analysis/ethiopia-war-security-review-november-20-2026"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "CO",
+   "a": "CO",
+   "b": null,
+   "kind": "civil",
+   "name": "콜롬비아 내전",
+   "since": "1964",
+   "summary": "콜롬비아 정부군과 FARC 잔당 및 ELN 등 반군 세력 간의 드론 공습, 테러 및 지상 교전이 가열되고 있습니다.",
+   "sources": [
+    "https://www.washingtonpost.com/world/2026/11/25/colombia-blackout-terrorist-attack/",
+    "https://www.cbsnews.com/news/colombia-supermarket-hostage-siege-cartagena/"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "NG",
+   "a": "NG",
+   "b": null,
+   "kind": "civil",
+   "name": "나이지리아 분쟁",
+   "since": "2009",
+   "summary": "나이지리아 북동부에서 정부군의 공습 작전과 보코하람·ISWAP 등 극단주의 무장단체 간 교전이 지속되고 있습니다.",
+   "sources": [
+    "https://www.cfr.org/global-conflict-tracker/conflict/violent-extremism-sahel",
+    "https://adf-magazine.com/2026/01/rival-terrorists-in-battle-for-control-of-lake-chad-islands/"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
+   "id": "SO",
+   "a": "SO",
+   "b": null,
+   "kind": "civil",
+   "name": "소말리아 내전",
+   "since": "1991",
+   "summary": "소말리아 정부군과 알샤바브 극단주의 무장세력 간의 격퇴 작전 및 교전이 꾸준히 발생하고 있습니다.",
+   "sources": [
+    "https://www.cfr.org/global-conflict-tracker/conflict/al-shabaab-somalia",
+    "https://acleddata.com/somalia/"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  }
+ ]
+}
