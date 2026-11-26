@@ -196,7 +196,9 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
   const lastBar = st.lastBar || 0, age = st.model ? nowT - Date.parse(st.model.at) : Infinity, needTrain = retrain || !st.model || st.model.v !== RS_V || age > 7 * DAY;
   // 새 4시간봉이 없으면 다시 받을 필요 없음 (서버가 봉 끝나고 5분 뒤 올림)
   if (!data && !needTrain && existsSync(outFile) && nowT < lastBar + 2 * H4 + 10 * 60e3) {
-    const o = JSON.parse(readFileSync(outFile, 'utf8')); o.generatedAt = now.toISOString(); writeFileSync(outFile, JSON.stringify(o)); log('류신영 봇: 새 4시간봉 없음 — 그대로'); return o;
+    const o = JSON.parse(readFileSync(outFile, 'utf8')); o.generatedAt = now.toISOString(); writeFileSync(outFile, JSON.stringify(o)); log('류신영 봇: 새 4시간봉 없음 — 그대로');
+    try { await MAC.load({ dir, fetchImpl, now: nowT, log }); } catch (e) { log('세계 경제 신호 실패: ' + e.message); } // 세계 경제 신호·뉴스는 새 봉이 없어도 1시간마다 새로 받음 (앱 표시용)
+    return o;
   }
   let deriv = derivData; if (deriv === undefined) { try { const r = await fetchImpl('https://raw.githubusercontent.com/' + repo + '/deriv-data/deriv.json?t=' + Math.floor(nowT / 6e5)); deriv = r.ok ? await r.json() : null; } catch (e) { deriv = null; } }
   const series = data || await loadSeries({ fetchImpl, repo, now: nowT });
