@@ -3154,7 +3154,21 @@
     loadMk();
     return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true) + fxGlobeCard();
   }
+  // 세계 경제 신호 A~D 중 켜진 것 → 지구본 위치 (A 중국, B·C·D 미국)
+  const SIG_PLACE = { A: ['중국', 35, 104], B: ['미국', 39, -98], C: ['미국', 39, -98], D: ['미국', 39, -98] };
+  function globeSignals() {
+    const R = S.mac && S.mac.now; if (!R || !R.S) return [];
+    const by = {}; ['A', 'B', 'C', 'D'].forEach((k) => { const z = R.S[k]; if (!z || !z.on) return; const [place, lat, lng] = SIG_PLACE[k]; (by[place] = by[place] || { place, lat, lng, items: [] }).items.push(esc(z.label)); });
+    return Object.values(by);
+  }
   // 머니 글로브: 통화 20개 동시 약세 (보여 주기용 — 6년 시험 불합격이라 봇 판단에는 안 씀)
+  // 봇이 지금 새 롱을 쉬는지, 왜 그런지 한 줄
+  function botLine() {
+    const R = S.mac && S.mac.now; if (!R || !R.S) return '';
+    const on = ['A', 'B', 'C', 'D'].filter((k) => R.S[k] && R.S[k].on).map((k) => esc(R.S[k].label));
+    return R.blockLongs ? `<p class="sm glb-bot warn"><b>봇이 새 롱을 쉬는 중</b> — ${on.join(' · ')} (${R.n}/4, 2개 이상이면 쉼)</p>`
+      : `<p class="sm glb-bot"><b>봇 정상 진입</b> <span class="muted xs">경제 신호 ${R.n}/4${on.length ? ' · ' + on.join(' · ') : ''} — 2개 이상 켜지면 새 롱을 쉬어요</span></p>`;
+  }
   function fxGlobeCard() {
     const F = S.mac && S.mac.fx;
     if (!F) return `<section class="card"><h2>머니 글로브</h2><p class="muted sm">다음 갱신 때 통화 20개를 받아 와요.</p></section>`;
@@ -3162,8 +3176,9 @@
     const sgn = (v) => (v > 0 ? '+' : '') + v.toFixed(2) + '%';
     const pickLine = pk ? (sel ? `<p class="sm"><b>${esc(sel.ko)}</b> 통화가 20거래일 동안 달러 대비 <b class="num">${sgn(sel.chg)}</b> ${sel.chg >= 0 ? '약해졌어요' : '강해졌어요'}${sel.weak ? ' <span class="act warn">약세</span>' : ''}</p>` : `<p class="sm"><b>${esc(pk.name || '')}</b> <span class="muted xs">추적하는 통화 20개에 없는 나라예요</span></p>`) : '<p class="muted xs">나라를 누르면 그 나라 통화 변화가 여기에 나와요.</p>';
     return `<section class="card"><div class="card-head"><h2>머니 글로브</h2><span class="act ${F.on ? 'warn' : 'neu'}">약세 ${F.weak}/${F.have}</span></div>
+      ${botLine()}
       <div id="globe-slot" class="glb-slot"></div>
-      <div class="glb-legend xs"><span><i class="glb-dot warn"></i>달러 대비 +2% 넘게 약세</span><span><i class="glb-dot trk"></i>추적 중</span><span><i class="glb-dot base"></i>추적 안 함</span></div>
+      <div class="glb-legend xs"><span><i class="glb-dot warn"></i>달러 대비 +2% 넘게 약세</span><span><i class="glb-dot trk"></i>추적 중</span><span><i class="glb-dot base"></i>추적 안 함</span><span><i class="glb-dot ring"></i>켜진 경제 신호</span></div>
       ${pickLine}
       <details class="glb-list"><summary class="sm">통화 20개 모두 보기</summary>${rows.map((r) => `<div class="kv"><span>${esc(r.ko)}</span><b class="num ${r.weak ? 'warn' : ''}">${sgn(r.chg)}</b></div>`).join('')}</details>
       <p class="muted xs" style="margin-top:6px">20개 중 6개 이상이 동시에 약해지면 "세계 돈이 달러로 몰리는 중"으로 봐요. 6년 시험(2021~2026)에서 봇에 붙였더니 오히려 성적이 떨어져서(샤프 1.35→1.25) <b>봇 판단에는 쓰지 않고 보여 주기만</b> 해요.</p>
@@ -3448,7 +3463,7 @@
     const r = route();
     const el = document.getElementById('view');
     el.innerHTML = VIEWS[r]();
-    if (window.SNWGlobe && document.getElementById('globe-slot')) window.SNWGlobe.attach(document.getElementById('globe-slot'), S.mac && S.mac.fx, (iso, name) => { S.ui.fxPick = iso || name ? { iso, name } : null; render(); });
+    if (window.SNWGlobe && document.getElementById('globe-slot')) window.SNWGlobe.attach(document.getElementById('globe-slot'), S.mac && S.mac.fx, (iso, name) => { S.ui.fxPick = iso || name ? { iso, name } : null; render(); }, globeSignals());
     if (document.body && document.body.classList) document.body.classList.toggle('wide', r === 'hq');
     if (r === 'hq') startPatrol();
     document.querySelectorAll('.tabbar a').forEach((a) => {
