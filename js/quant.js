@@ -168,7 +168,7 @@
     // 날짜마다 거래가 있었던 자산 종류 (주말엔 코인만)
     const kindsOn = {}; Object.values(A).forEach((a) => { a.t.forEach((d) => { (kindsOn[d] = kindsOn[d] || {})[a.kind] = 1; }); });
     const has = {}; Object.values(A).forEach((a) => { has[a.kind] = 1; });
-    return { A, cal, calIdx, kindsOn, has, fx, regimeOf: opts.regimeOf || {}, sectorOf: opts.sectorOf || {}, chief: opts.chief || null };
+    return { A, cal, calIdx, kindsOn, has, fx, regimeOf: opts.regimeOf || {}, sectorOf: opts.sectorOf || {}, chief: opts.chief || null, gate: opts.gate || null };
   }
 
   const fxAt = (W, a, d) => (a.cur === 'USD' ? W.fx[d] : 1);
@@ -180,7 +180,9 @@
     return ans;
   }
   // 시장 필터: 그 자산이 속한 시장 지수가 200일선 위인가 (데이터 없으면 통과)
+  // gate(d, a): 연구용 추가 진입 조건 (research/stock-macro.mjs). 실제 봇은 gate 를 안 넘겨서 동작 그대로
   function regimeOn(W, a, d) {
+    if (W.gate && !W.gate(d, a)) return false;
     const rid = W.regimeOf[a.market] || (a.kind === 'coin' ? W.regimeOf.coin : null);
     const r = rid && W.A[rid]; if (!r) return true;
     const i = lastIdx(r, d); if (i < 200) return true;
