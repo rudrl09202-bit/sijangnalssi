@@ -3169,6 +3169,37 @@
   }
 
   /* ---------- 봇 상세 ---------- */
+  // 손익 대시보드 (받은 디자인): 오늘 · 이번 달 · 누적 손익(거래 수) · 매매일수(하루 평균) + 누적 손익 곡선(원). 색은 수익 빨강·손실 파랑
+  const wonS = (v) => (v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : v < 0 ? '-' : '') + '₩' + nf(Math.abs(Math.round(v))));
+  function pnlDash(a) {
+    const start = a.start || 1e8, D = dailyOf(a), today = kDay(Date.now()), mon = today.slice(0, 7);
+    const dToday = (D.find((r) => r.d === today) || {}).pnl || 0, dMon = D.filter((r) => r.d.slice(0, 7) === mon).reduce((t, r) => t + r.pnl, 0);
+    const cum = (a.equity != null ? a.equity : start) - start, n = (a.trades || []).length, days = new Set((a.trades || []).map((t) => kDay(tOf(t.out)))).size;
+    const cell = (l, v, sub) => `<div class="pnl-cell"><p class="pnl-l">${l}</p><p class="pnl-v num ${typeof v === 'number' ? dirClass(v) : ''}">${typeof v === 'number' ? wonS(v) : v}</p>${sub ? `<p class="pnl-s">${sub}</p>` : ''}</div>`;
+    const grid = `<section class="card pnl-grid">${cell('오늘', dToday)}${cell('이번 달', dMon)}${cell('누적 손익', cum, n + '건')}${cell('매매일수', days + '일', days ? '하루 평균 <span class="num ' + dirClass(cum) + '">' + wonS(cum / days) + '</span>' : '')}</section>`;
+    const pts = (a.curve || []).map(([t, v]) => [tOf(t), v - start]).filter((x) => isFinite(x[0]) && isFinite(x[1]));
+    if (a.upd && a.equity != null) pts.push([Date.parse(a.upd), a.equity - start]);
+    pts.sort((x, y) => x[0] - y[0]);
+    if (pts.length < 2) return grid;
+    const W = 340, H = 190, L = 58, R = 6, T = 12, B = 26, vs = pts.map((x) => x[1]), hi = Math.max(0, ...vs), lo = Math.min(0, ...vs), pad = (hi - lo) * 0.08 || 1;
+    const y0 = hi + pad, y1 = lo - pad, X = (i) => L + (W - L - R) * i / (pts.length - 1), Y = (v) => T + (H - T - B) * (y0 - v) / (y0 - y1), zy = Y(0);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' '), area = line + ` L${X(pts.length - 1).toFixed(1)} ${zy.toFixed(1)} L${L} ${zy.toFixed(1)} Z`;
+    const step = (() => { const r = (y0 - y1) / 2.5, e = Math.pow(10, Math.floor(Math.log10(r))), m = r / e; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * e; })();
+    const ticks = []; for (let v = Math.ceil(y1 / step) * step; v <= y0; v += step) ticks.push(Math.abs(v) < step / 1e6 ? 0 : v);
+    const tl = (v) => (v === 0 ? '0원' : (v > 0 ? '+' : '-') + (Math.abs(v) >= 1e8 ? (Math.abs(v) / 1e8).toFixed(1) + '억' : nf(Math.round(Math.abs(v) / 1e4)) + '만원'));
+    const xl = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * (pts.length - 1))).map((i) => { const d = new Date(pts[i][0] + 9 * 3600e3); return `<text x="${X(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="pnl-ax">${d.getUTCMonth() + 1}/${d.getUTCDate()}</text>`; }).join('');
+    const uid = 'pd' + String(a.id || 'x').replace(/\W/g, '');
+    const svg = `<svg viewBox="0 0 ${W} ${H}" class="pnl-svg" role="img" aria-label="누적 손익 곡선"><defs>
+      <clipPath id="${uid}u"><rect x="0" y="0" width="${W}" height="${zy.toFixed(1)}"/></clipPath><clipPath id="${uid}d"><rect x="0" y="${zy.toFixed(1)}" width="${W}" height="${(H - zy).toFixed(1)}"/></clipPath>
+      <linearGradient id="${uid}gu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--up)" stop-opacity=".28"/><stop offset="1" stop-color="var(--up)" stop-opacity=".02"/></linearGradient>
+      <linearGradient id="${uid}gd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--down)" stop-opacity=".02"/><stop offset="1" stop-color="var(--down)" stop-opacity=".28"/></linearGradient></defs>
+      ${ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" class="${v === 0 ? 'pnl-zero' : 'pnl-grid-l'}"/><text x="${L - 6}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" class="pnl-ax">${tl(v)}</text>`).join('')}
+      <path d="${area}" fill="url(#${uid}gu)" clip-path="url(#${uid}u)"/><path d="${area}" fill="url(#${uid}gd)" clip-path="url(#${uid}d)"/>
+      <path d="${line}" fill="none" stroke="var(--up)" stroke-width="2" stroke-linejoin="round" clip-path="url(#${uid}u)"/><path d="${line}" fill="none" stroke="var(--down)" stroke-width="2" stroke-linejoin="round" clip-path="url(#${uid}d)"/>
+      ${xl}</svg>`;
+    const mx = Math.max(...vs), mn = Math.min(...vs);
+    return grid + `<section class="card pnl-chart"><div class="pnl-head"><p class="pnl-l b">누적 손익</p><p class="num"><b class="pnl-big ${dirClass(cum)}">${wonS(cum)}</b> <span class="muted sm">· 최고 <span class="${dirClass(mx)}">${wonS(mx)}</span> · 최저 <span class="${dirClass(mn)}">${wonS(mn)}</span></span></p></div>${svg}<p class="muted xs">가상 ${start === 1e8 ? '1억' : man(start)} 기준 · 들고 있는 포지션의 평가손익 포함 · 한국 시간</p></section>`;
+  }
   function viewBot() {
     const id = S.ui.bot, A = accounts(true), a = A.find((x) => x.id === id);
     const head = (t, k) => `<header class="top"><div><a href="#paper" class="back">‹ 봇</a><p class="kicker">${esc(k || '')}</p><h1>${esc(t)}</h1></div>${tools()}</header>`;
@@ -3186,7 +3217,7 @@
         <section class="card"><h2>거래 기록 ${x.n}</h2>${x.n ? `<div class="tbl">${a.trades.slice(0, 40).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${kT(t.in)} → ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')} · ${rr(t.R || 0)}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     } else if (tab === 'ana') body = anaBlocks(a.trades, a.name);
     else body = valBlock(a) + (['mk', 'rs', 'sc1', 'sc2', 'sc3'].includes(a.id) ? execCard() : '');
-    return head(a.name, a.code + ' · 가상 1억 · 실제 돈 아님') + top + chart + seg + body + (a.href !== '#bot/' + a.id ? `<a class="lrow-mini pad" href="${a.href}">전략 화면 자세히 보기 ›</a>` : '');
+    return head(a.name, a.code + ' · 가상 1억 · 실제 돈 아님') + top + pnlDash(a) + seg + body + (a.href !== '#bot/' + a.id ? `<a class="lrow-mini pad" href="${a.href}">전략 화면 자세히 보기 ›</a>` : '');
   }
   function anaBlocks(trades, who) {
     const tr = (trades || []).filter((t) => t && t.pnl != null);
@@ -3333,6 +3364,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '봇 수익 화면 새 디자인', '봇을 누르면 맨 위에 손익 대시보드: 오늘 · 이번 달 · 누적 손익(거래 수) · 매매일수(하루 평균) 네 칸 + 누적 손익 곡선(원 단위, 0원 위는 빨강·아래는 파랑, 최고·최저 표시). 보내 준 화면을 따라 만들고 색은 앱 규칙(수익 빨강·손실 파랑)대로', 'paper'],
     ['11/26', '세계 경제 신호 화면', '홈 네 번째 칸을 누르면 민경기 매매법(아직 첫 계산 전이라 "불러오는 중")으로 가던 것을 세계 경제 신호 전용 화면으로. 신호 5개의 값·기준과 뉴스 10개. 민경기 매매법 화면은 첫 계산 전이면 "새벽 1시쯤 첫 숫자" 안내', 'home'],
     ['11/26', '민경기 매매법 변화 감시 (마지막 추가)', '자동 크기 조절 2가지를 6년 시험 — 낙폭 단계(−10%면 절반)는 연 35%→26%·샤프 1.56→1.36, 성적 이탈(60일 하위 5%면 절반)은 연 28%·샤프 1.39 → 모두 불합격. 대신 감시만: 낙폭 −12%·60일 수익 6년 하위 5%면 "주의", 6년 최악 수준이면 "경고", 고점 대비 −25%면 "비상 정지"(그 뒤로 따라가지 않음). 단계가 바뀌면 휴대폰 알림. 이것으로 매매법 추가는 끝 — 2/25까지 지켜봄', 'mg'],
     ['11/26', '앱 전체 점검 (휴대폰 화면 기준 32개 페이지)', '홈 시장날씨 아이콘이 "undefined"로 나오던 문제 수정 · 처음 안내 카드의 대표 봇 설명을 민경기 매매법으로 · 뉴스 제목에 &#39; 같은 기호가 그대로 보이던 문제 수정 · "0.1시간 전" → "6분 전" · 데모 주문 기록의 긴 소수점(60573.939781) 정리 · 선물 데스크의 "목표 월 10%" 진행 막대를 없앰(월 목표를 쫓으면 크기를 키우게 됨)', 'home'],
