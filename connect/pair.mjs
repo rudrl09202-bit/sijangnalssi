@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadEnv, push } from './paper.mjs';
+import { MG } from './mg.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..'), H4 = 4 * 3600e3, DAY = 864e5;
 const isoT = (t) => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
@@ -97,10 +98,14 @@ export async function run({ dir = process.env.SCALP_DIR || process.env.MK_DIR ||
   const positions = L.pos ? [
     { sym: P.A, name: NAME[P.A], side: L.pos.gA > 0 ? 'long' : 'short', entry: r2(L.pos.pa, 2), mark: D.ac[iL], notional: Math.round(L.pos.qA * D.ac[iL]), lev: r2(L.pos.qA * D.ac[iL] / eq, 2), upnl: Math.round(L.pos.gA * (L.pos.qA * D.ac[iL] - L.pos.nA) - L.pos.fund / 2), since: isoT(L.pos.t0), why: '비율 z ' + r2(L.pos.z0, 2) + ' — 벌어지는 쪽 따라감', barsLeft: Math.max(0, P.maxBars - 1 - (iL - L.pos.i0)) },
     { sym: P.B, name: NAME[P.B], side: L.pos.gB > 0 ? 'long' : 'short', entry: r2(L.pos.pb, 2), mark: D.bc[iL], notional: Math.round(L.pos.qB * D.bc[iL]), lev: r2(L.pos.qB * D.bc[iL] / eq, 2), upnl: Math.round(L.pos.gB * (L.pos.qB * D.bc[iL] - L.pos.nB) - L.pos.fund / 2), since: isoT(L.pos.t0), why: '반대쪽 다리 (시장 방향 상쇄)', barsLeft: Math.max(0, P.maxBars - 1 - (iL - L.pos.i0)) }] : [];
+  // 민경기 매매법용: 같은 규칙, 레버리지만 1.25배 · 민경기 매매법 시작 시점부터
+  const PM = { ...P, lev: P.lev * MG.k }, LM = simulate(D, Z, PM, deriv, { tA: MG.start }), eqM = LM.equity.filter(([t]) => t >= MG.start), mEq = Math.round(eqM.length ? eqM.at(-1)[1] : P.start);
+  const posM = LM.pos ? [['A', P.A, 'ac', 'gA', 'qA', 'nA', 'pa'], ['B', P.B, 'bc', 'gB', 'qB', 'nB', 'pb']].map(([, sym, cK, gK, qK, nK, pK]) => ({ sym, name: NAME[sym], side: LM.pos[gK] > 0 ? 'long' : 'short', entry: r2(LM.pos[pK], 2), mark: D[cK][iL], notional: Math.round(LM.pos[qK] * D[cK][iL]), lev: r2(LM.pos[qK] * D[cK][iL] / mEq, 2), upnl: Math.round(LM.pos[gK] * (LM.pos[qK] * D[cK][iL] - LM.pos[nK]) - LM.pos.fund / 2), since: isoT(LM.pos.t0), why: '상대 모멘텀 (ETH↔BTC)' })) : [];
   const thin = (e, n = 400) => { const k = Math.max(1, Math.ceil(e.length / n)); return e.filter((x, i) => i % k === 0 || i === e.length - 1).map(([t, v]) => [isoT(t), Math.round(v)]); };
   const out = { v: 1, generatedAt: now.toISOString(), lastBar: isoT(last), inception: isoT(st.inception), tf: '4시간봉', watchUntil: '2027-02-25', cfg: P,
     now: zNow ? { z: r2(zNow.z, 2), beta: r2(zNow.beta, 3), hlDays: r2(zNow.hl / 6, 1), near: r2(Math.abs(zNow.z) / P.zIn * 100, 0) } : null,
-    wf: st.wf, live: { equity: eq, start: P.start, ret: r2((eq / P.start - 1) * 100, 2), trades: trL.slice(-200).reverse(), n: trL.length, curve: thin(eqL.length ? eqL : [[last, P.start]]), positions, pending: L.pend ? [L.pend] : [], status: 'ok' } };
+    wf: st.wf, live: { equity: eq, start: P.start, ret: r2((eq / P.start - 1) * 100, 2), trades: trL.slice(-200).reverse(), n: trL.length, curve: thin(eqL.length ? eqL : [[last, P.start]]), positions, pending: L.pend ? [L.pend] : [], status: 'ok' },
+    mg: { k: MG.k, lev: PM.lev, start: P.start, equity: mEq, ret: r2((mEq / P.start - 1) * 100, 2), curve: thin(eqM.length ? eqM : [[MG.start, P.start]]), trades: LM.trades.filter((z) => Date.parse(z.in.replace(' ', 'T') + 'Z') >= MG.start).slice(-200).reverse(), positions: posM } };
   writeFileSync(outF, JSON.stringify(out));
   log('상대 모멘텀: 모의 ' + out.live.ret + '% · 거래 ' + out.live.n + ' · ' + (L.pos ? '포지션 있음' : '대기') + ' · 지금 z ' + (out.now ? out.now.z : '—'));
   if (sendPush && fresh.length) await push(env, { title: '상대 모멘텀 ' + fresh.length + '건', body: fresh.slice(-3).map((e) => (e.kind === 'open' ? (e.g > 0 ? 'ETH 롱 · BTC 숏' : 'ETH 숏 · BTC 롱') + ' 진입 (z ' + r2(e.z, 1) + ')' : '정리 ' + (e.pnl >= 0 ? '+' : '') + Math.round(e.pnl / 1e4) + '만 · ' + e.why)).join('\n'), url: './index.html#bot/pr', tag: 'snw-pair' }, log);

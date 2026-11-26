@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadEnv, push, cleanTicks } from './paper.mjs';
 import { trainGBM, predict, MK_COINS } from './mk.mjs';
+import { MG } from './mg.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
 const H4 = 4 * 3600e3, DAY = 864e5;
@@ -225,6 +226,8 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
     return r;
   };
   const L = simulate(W, P, deriv, { judge, tA: st.inception });
+  // 민경기 매매법용: 같은 판단으로 크기만 1.25배 (거래당 위험·레버리지 한도) · 민경기 매매법 시작 시점부터
+  const PM = { ...P, riskPct: P.riskPct * MG.k, maxLev: P.maxLev * MG.k }, LM = simulate(W, PM, deriv, { judge, tA: MG.start });
   const eqL = L.equity.filter(([t]) => t >= st.inception), trL = L.trades.filter((z) => Date.parse(z.in.replace(' ', 'T') + 'Z') >= st.inception);
   const fresh = L.events.filter((e) => e.t > lastBar && e.t >= st.inception);
   // 저장 크기: 판단 기록은 최근 400개 · 시작 전 것은 버림
@@ -234,6 +237,8 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
 
   // ── 3) 앱용
   const eq = Math.round(eqL.length ? eqL.at(-1)[1] : P.start), mark = (s) => series[s].c[series[s].c.length - 1];
+  const posOf = (LL, eqx) => Object.entries(LL.pos).map(([s, p]) => { const m = mark(s), u = p.g * (m - p.e) * p.q - p.fund, j = W.X[s].m.get(last); return { sym: s, name: NAME[s] || s, side: p.side, kind: 'vbrk', entry: r2(p.e, 6), mark: m, lev: r2(m * p.q / eqx, 2), notional: Math.round(m * p.q), upnl: Math.round(u), stop: r2(p.stop, 6), trail: p.trail, tp: null, why: p.why, since: isoT(p.t0), barsLeft: Math.max(0, P.maxBars - 1 - (j - p.j0)) }; });
+  const eqM = LM.equity.filter(([t]) => t >= MG.start), mEq = Math.round(eqM.length ? eqM.at(-1)[1] : P.start);
   const out = {
     v: 2, gen: 2, generatedAt: now.toISOString(), lastBar: isoT(last), inception: isoT(st.inception), tf: '4시간봉',
     cfg: { riskPct: P.riskPct, maxPos: P.maxPos, maxLev: P.maxLev, N: P.N, volx: P.volx, stopAtr: P.stopAtr, trailAtr: P.trail, maxBars: P.maxBars, skipQ: P.skipQ },
@@ -241,7 +246,8 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
     live: { equity: eq, start: P.start, ret: r2((eq / P.start - 1) * 100, 2), trades: trL.slice(-300).reverse(), n: trL.length, curve: thin(eqL.length ? eqL : [[last, P.start]]), status: !M ? 'learning' : passOk ? 'ok' : 'pause',
       positions: Object.entries(L.pos).map(([s, p]) => { const m = mark(s), u = p.g * (m - p.e) * p.q - p.fund, j = W.X[s].m.get(last); return { sym: s, name: NAME[s] || s, side: p.side, kind: 'vbrk', entry: r2(p.e, 6), mark: m, lev: r2(m * p.q / eq, 2), notional: Math.round(m * p.q), upnl: Math.round(u), stop: r2(p.stop, 6), trail: p.trail, tp: null, why: p.why, since: isoT(p.t0), barsLeft: Math.max(0, P.maxBars - 1 - (j - p.j0)) }; }),
       pending: L.pend.map((o) => ({ sym: o.s, name: NAME[o.s] || o.s, side: o.side, why: o.why })) },
-    decisions: st.decisions.slice(-20).reverse()
+    decisions: st.decisions.slice(-20).reverse(),
+    mg: { k: MG.k, riskPct: PM.riskPct, maxLev: PM.maxLev, start: P.start, equity: mEq, ret: r2((mEq / P.start - 1) * 100, 2), curve: thin(eqM.length ? eqM : [[MG.start, P.start]]), trades: LM.trades.filter((z) => Date.parse(z.in.replace(' ', 'T') + 'Z') >= MG.start).slice(-200).reverse(), positions: posOf(LM, mEq) }
   };
   writeFileSync(outFile, JSON.stringify(out));
   log('류신영 봇: 모의 ' + out.live.ret + '% · 거래 ' + out.live.n + ' · 포지션 ' + out.live.positions.length + ' · 대기 ' + out.live.pending.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
@@ -256,4 +262,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   .finally(async () => {
     const dir = process.env.SCALP_DIR || process.env.MK_DIR || join(ROOT, 'data');
     if (!process.env.PAIR_SEPARATE) { try { const PR = await import('./pair.mjs'); await PR.run({ dir }); } catch (e) { console.log('✗ 상대 모멘텀: ' + e.message); } } // 상대 모멘텀(민경기 4세대 후보) — 루프 본문이 바뀌기 전까지 여기서
+    if (!process.env.MG_SEPARATE) { try { const G = await import('./mg.mjs'); await G.run({ dir }); } catch (e) { console.log('✗ 민경기 매매법: ' + e.message); } } // 민경기 매매법(류신영 50 + 상대 모멘텀 50, 1.25배)
     if (!process.env.WATCH_SEPARATE) { try { const W = await import('./watch.mjs'); await W.run({ dir }); } catch (e) { console.log('✗ 감시자: ' + e.message); } } });

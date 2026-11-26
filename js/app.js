@@ -2077,7 +2077,7 @@
     S.mkLoading = true;
     const get = (f) => fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/' + f + '?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/' + f, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null);
-    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json'), get('pair-live.json')]).then(([a, b, c, d]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (d && d.live) S.pr = d; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
+    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json'), get('pair-live.json'), get('mg-live.json')]).then(([a, b, c, d, e]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (d && d.live) S.pr = d; if (e && e.live) S.mg = e; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
   }
   function mkEntry() {
     loadMk();
@@ -2904,6 +2904,9 @@
       const g2 = R.gen === 2;
       mk({ id: 'rs', code: 'RS', name: '류신영 봇', strat: g2 ? '거래량 확인 돌파 + 학습 필터' : '단타 후보 + 학습 필터', tf: R.tf || '15분봉', href: '#bot/rs', main: g2, equity: R.live.equity, ret: R.live.ret, curve: R.live.curve, trades: R.live.trades, positions: R.live.positions, status: R.live.status, stMap: RS_ST, since: R.inception, upd: R.generatedAt, wf: R.wf, model: R.model, decisions: R.decisions, gen1: R.gen1, gen1Live: R.gen1Live, pending: R.live.pending,
         bt: s1 ? { label: '워크포워드 시험', ret: s1.all.ret, cagr: s1.all.cagr, sharpe: s1.all.sharpe, mdd: s1.all.mdd, pf: s1.all.pf, win: s1.all.win, n: s1.all.n, pass: R.wf.pass && R.wf.pass.ok } : null }); }
+    if (S.mg) { const G = S.mg, L = G.live;
+      mk({ id: 'mg', code: 'MG', name: '민경기 매매법', strat: '류신영 봇 50% + 상대 모멘텀 50% · 크기 1.25배 (낙폭 −25% 기준 · 3개월 관찰)', tf: '4시간봉', href: '#bot/mg', main: true, equity: L.equity, ret: L.ret, curve: L.curve, trades: L.trades, positions: L.positions, status: L.status, stMap: RS_ST, since: G.inception, upd: G.generatedAt, mg: G,
+        bt: G.bt ? { label: G.bt.label, cagr: G.bt.cagr, mdd: G.bt.mdd, n: null, win: null, pf: null } : null }); }
     if (S.pr) { const R = S.pr, s0 = R.wf && R.wf.study && R.wf.study[0];
       mk({ id: 'pr', code: 'PR', name: '상대 모멘텀', strat: 'BTC·ETH 비율이 벌어지는 쪽 따라가기 (민경기 4세대 후보 · 3개월 관찰)', tf: '4시간봉', href: '#bot/pr', main: true, equity: R.live.equity, ret: R.live.ret, curve: R.live.curve, trades: R.live.trades, positions: R.live.positions, status: R.live.status, stMap: RS_ST, since: R.inception, upd: R.generatedAt, wf: R.wf, pairNow: R.now, watchUntil: R.watchUntil,
         bt: s0 ? { label: '6년 시험', ret: s0.all.ret, cagr: s0.all.cagr, sharpe: s0.all.sharpe, mdd: s0.all.mdd, pf: s0.all.pf, win: s0.all.win, n: s0.all.n, pass: R.wf.pass && R.wf.pass.ok } : null }); }
@@ -3164,7 +3167,18 @@
       ${W.study.map((r, k) => `<tr${k === 0 ? ' class="hl"' : ''}><td>${esc(r.name)}</td><td class="${dirClass(r.all.cagr)}">${pct(r.all.cagr, 1)}</td><td>${pct(r.all.mdd, 0)}</td><td>${r.all.sharpe ?? '—'}</td><td>${r.all.pf ?? '—'}</td><td>${r.all.n}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 0)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 0)}</td></tr>`).join('')}</tbody></table></div>
       <p class="muted xs" style="margin-top:6px">주의: '용수철(되돌림)' 시험이 크게 져서 반대로 뒤집어 찾은 규칙이에요. 과거에 맞춘 것일 수 있어 <b>3개월 실시간 성적</b>으로 판단해요. 뒤 절반이 앞 절반보다 약해 효과가 줄고 있을 수도 있어요. 바이낸스 데모에는 넣지 않았어요.</p></section>`;
   }
-  function valBlock(a) { return (a.id === 'pr' ? prBlock(a) : '') + valBlock0(a); }
+  function valBlock(a) { return (a.id === 'pr' ? prBlock(a) : a.id === 'mg' ? mgBlock(a) : '') + valBlock0(a); }
+  function mgBlock(a) {
+    const G = a.mg; if (!G) return ''; const P = G.parts || {}, B = G.bt || {};
+    return `<section class="card"><h2>어떻게 섞었나</h2>
+      <div class="kv"><span>류신영 봇 (거래당 위험 ${G.cfg && G.cfg.rsRisk ? G.cfg.rsRisk + '%' : '0.94%'})</span><b class="num ${dirClass(P.rs && P.rs.ret)}">${P.rs ? pct(P.rs.ret, 2) : '—'}</b></div>
+      <div class="kv"><span>상대 모멘텀 (레버리지 ${G.cfg && G.cfg.prLev ? G.cfg.prLev + '배' : '1.25배'})</span><b class="num ${dirClass(P.pr && P.pr.ret)}">${P.pr ? pct(P.pr.ret, 2) : '—'}</b></div>
+      <p class="muted xs" style="margin-top:6px">두 봇이 각자 1.25배 크기로 매매한 결과를 4시간마다 반반으로 다시 맞춰 합쳐요. 위 숫자는 각 봇 몫의 수익률이에요.</p>
+      <div class="kv" style="margin-top:8px"><span>6년 시험</span><b class="num">연 ${pct(B.cagr, 1)} · 낙폭 ${pct(B.mdd, 1)} · 샤프 ${B.sharpe ?? '—'}</b></div>
+      <div class="kv"><span>낙폭 −25% 넘을 확률 (1000번 섞기)</span><b class="num">${B.pBad ?? '—'}%</b></div>
+      <div class="kv"><span>앞 절반 · 뒤 절반 (연 수익/낙폭)</span><b class="num">${esc(B.h1 || '—')} · ${esc(B.h2 || '—')}</b></div>
+      <p class="muted xs" style="margin-top:6px">${esc(G.watchUntil || '2027-02-25')} 판정: 상대 모멘텀이 실제로도 제 몫을 하면 크기를 1.375로 올릴지 정해요. 그 전엔 크기를 바꾸지 않아요. 실제 돈·바이낸스 데모에는 연결하지 않았어요.</p></section>`;
+  }
   function valBlock0(a) {
     if (a.id === 'rs') return wfBlock(a);
     const b = a.bt, x = a.st;
@@ -3234,6 +3248,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '민경기 매매법 모의 계좌 시작', '류신영 봇 50% + 상대 모멘텀 50%, 두 쪽 모두 크기 1.25배(류신영 거래당 위험 0.94%·레버리지 한도 3.75배, 상대 모멘텀 1.25배). 6년 시험: 연 34%·낙폭 −19%·샤프 1.53, 기록을 1000번 섞었을 때 낙폭 −25% 넘을 확률 4%. 류신영 혼자(지금 크기)는 같은 확률이 61%. 11/26 21시 봉부터 계산, 2027-02-25 판정', 'mg'],
     ['11/26', '날짜별 손익 표시', '봇 화면에 "날짜별 손익 · 봇 전체" 표, 봇마다 상세 화면에 날짜별 손익(손익·수익률·끝난 거래), 바이낸스 데모 화면에 날짜별 손익(계좌 전체 + 봇 5개 몫, USDT) 추가. 한국 날짜 기준, 평가손익 포함. 데모 날짜별 기록은 11/26부터 쌓여요', 'demo'],
     ['11/26', '세력 흔적 매매 3가지 시험 → 모두 탈락', '손절 털기 되받기(4시간봉 −0.11R·15분봉 −0.33R, 수수료 0이어도 무작위보다 나쁨), 강제청산 폭포 되받기(4시간봉 −0.23R·15분봉 −0.74R), 펀딩비 쏠림 필터(류신영 봇 샤프 1.29 → 1.12·1.23으로 낮춤). 큰 거래량 돌파는 되돌리기보다 이어지는 경우가 많았음 → 따라가는 류신영 봇 유지', 'rs'],
     ['11/25', '상대 모멘텀 봇 추가 (3개월 관찰)', 'BTC·ETH 비율이 표준편차 2배 넘게 벌어지면 그쪽으로 따라가는 페어 매매를 모의 계좌(1억)로 시작. 6년 시험(다음 봉 시가 체결): 연 22%·낙폭 -16%·샤프 1.25·손익비 1.98, 비용 2배도 플러스. 결과를 보고 만든 규칙이라 2027-02-25까지 실시간으로 확인 후 채택 결정. 바이낸스 데모에는 넣지 않음', 'pr'],
