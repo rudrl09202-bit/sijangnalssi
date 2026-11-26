@@ -1629,6 +1629,31 @@
       <span class="muted xs num">10년 연 ${m ? pct(m.cagr) : '—'}</span>
       <span class="muted xs">보유 ${b.live ? b.live.positions.length : 0} · 대기 주문 ${b.live ? b.live.orders.length : 0}</span></button>`;
   }
+  // PRO: existing paper results only. No order execution or readiness promotion.
+  function proValidation(P, bots) {
+    const valid = (v) => typeof v === 'number' && Number.isFinite(v);
+    const rows = bots.map(b => {
+      const L = b.live || {}, O = (b.bt || {}).oos || {}, M = L.metrics || {};
+      const checks = [
+        valid(L.days) && L.days >= 60,
+        valid(M.pf) && M.pf >= 1.3,
+        valid(O.cagr) && O.cagr > 0,
+        valid(O.sharpe) && O.sharpe >= 0.8,
+        valid(M.mdd) && Math.abs(M.mdd) <= 15
+      ];
+      return { b, L, O, M, passed: checks.filter(Boolean).length };
+    }).sort((a,b) => b.passed - a.passed || a.b.code.localeCompare(b.b.code));
+    const ts = Date.parse(P.generatedAt || '');
+    const age = Number.isFinite(ts) ? (Date.now() - ts) / 3600000 : null;
+    const freshness = age === null || age < -1 ? '생성 시각 확인 불가' : age > 72 ? '갱신 지연 · 확인 필요' : '생성 후 ' + Math.max(0, Math.floor(age)) + '시간';
+    const show = (v, suffix='') => valid(v) ? nf(v, 2) + suffix : '—';
+    return `<section class="card pro-validation"><div class="row between"><div><p class="kicker">PRO / STRATEGY LAB</p><h2>전략 검증 센터</h2></div><span class="chip">모의투자</span></div>
+      <p class="muted xs">결과 생성: ${esc(P.generatedAt || '미확인')} · ${esc(freshness)}. 생성 시각은 실시간 시세를 보장하지 않습니다.</p>
+      <div class="grid2">${mini('검토 대상', rows.length + '개', '퇴출 봇 제외')}${mini('예비 기준 충족', rows.filter(x=>x.passed===5).length + '개', '실전 승인 아님')}</div>
+      <div class="lb-scroll"><table class="pro-vtable"><thead><tr><th>전략</th><th>표본 외 CAGR</th><th>표본 외 샤프</th><th>모의 MDD</th><th>예비 점검</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.b.code)}</td><td>${show(x.O.cagr,'%')}</td><td>${show(x.O.sharpe)}</td><td>${show(x.M.mdd,'%')}</td><td>${x.passed}/5</td></tr>`).join('')}</tbody></table></div>
+      <p class="muted xs">예비 기준: 모의 60일, PF 1.3 이상, 표본 외 CAGR 양수, 표본 외 샤프 0.8 이상, 모의 MDD 절댓값 15% 이하. 누락값은 미충족. 임시 검토 기준이며 최적화 또는 독립 검증을 거친 기준이 아닙니다.</p>
+      <p class="muted xs">표본 외 결과도 전략 선정에 사용했다면 독립 검증이 아닙니다. 실제 주문 기능과 연결하지 않습니다.</p></section>`;
+  }
   function viewPaper() {
     const P = paperData();
     const head = `<header class="top"><div><p class="kicker">가상 1억 원씩 · 24시간 자동 · 실제 돈 아님</p><h1>투자봇</h1></div><div class="tools"><a class="icon-btn" href="#hq" title="본부" aria-label="본부 보기">${SV('<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>')}</a></div></header>`;
@@ -1666,7 +1691,7 @@
       <p class="muted xs">비용: 국내 수수료 0.015%+매도세 0.20%, 미국 수수료·환전 각 0.1%, 코인 0.1%, 슬리피지 0.05~0.1%. 신호는 종가, 체결은 다음 거래일 시가.</p></section>`;
     const cav = `<section class="card note"><p class="b">솔직한 한계</p>${(P.caveats || []).map((c) => `<p class="muted xs">· ${esc(c)}</p>`).join('')}
       <p class="muted xs">· 실제 돈으로 넘어가는 건 아래 "실전 전환 조건"을 모두 통과한 봇만, 아주 작은 금액부터.</p></section>`;
-    return head.replace('<h1>투자봇</h1>', '<h1>자동매매</h1>') + '<h2 class="sec">코인 선물 AI 자동매매</h2>' + mkEntry() + futuresEntry() + scalpEntry() + '<h2 class="sec">주식 봇 (모의)</h2>' + summary + filingsCard() + feed + office + detail + vault + cav;
+    return head.replace('<h1>투자봇</h1>', '<h1>자동매매</h1>') + '<h2 class="sec">코인 선물 AI 자동매매</h2>' + mkEntry() + futuresEntry() + scalpEntry() + '<h2 class="sec">주식 봇 (모의)</h2>' + summary + proValidation(P, bots) + filingsCard() + feed + office + detail + vault + cav;
   }
   function paperTeam(P, bots) {
     const T = P.team;
