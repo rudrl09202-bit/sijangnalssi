@@ -5,12 +5,14 @@
  *    (참고) E 공포지수 VIX 30 이상 — 시험에서 우연과 구분이 안 돼 판단에는 안 씀
  *  민경기 매매법: A~D 중 2개 이상 켜지면 류신영 몫의 새 롱 진입을 건너뜀 (6년 시험 research/macro-filter.mjs: 샤프 1.31→1.36, 무작위 200번 중 0번이 따라옴)
  *  뉴스는 보여 주기용 (과거 기록으로 시험할 수 없어서 매매 판단에는 쓰지 않음)
+ *  (보여 주기) 통화 20개 동시 약세 G — 머니 글로브 지구본용. 6년 시험 불합격(research/fx-breadth.mjs)이라 매매 판단에는 안 씀. 12시간마다만 받음
  *  결과: <dir>/macro-live.json · 받기에 실패하면 3일 안의 이전 값, 그것도 없으면 신호 없음(진입 막지 않음)
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { chart } from './market.mjs';
 import { parseRss } from './news.mjs';
+import { FX, breadthAt } from './fxbreadth.mjs';
 const DAY = 864e5;
 export const MSYM = { usdcny: 'CNY=X', dxy: 'DX-Y.NYB', us10y: '^TNX', nasdaq: '^IXIC', vix: '^VIX' };
 const NEWS = [
@@ -43,8 +45,19 @@ export async function load({ dir, fetchImpl = fetch, now = Date.now(), log = () 
     parseRss(await r.text(), n.src).filter((x) => !x.t || now - x.t < 36 * 3600e3).slice(0, 5).forEach((x) => news.push(x)); } catch (e) { errors.push('뉴스 ' + n.src + ': ' + e.message); } }));
   const seen = new Set(), uniq = news.filter((x) => { const k = x.title.slice(0, 30); if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, 12);
   const out = { v: 1, at: new Date(now).toISOString(), series, news: uniq.length ? uniq : (prev && prev.news) || [], errors };
+  out.fxSeries = await loadFx(prev, now, fetchImpl, errors);
+  const FM = prepare({ series: out.fxSeries || {} }); out.fx = FM ? { ...breadthAt(FM, now + DAY), at: (prev && prev.fxSeries === out.fxSeries && prev.fx && prev.fx.at) || out.at, use: 'display' } : null;
   const R = riskAt(prepare(out), now + DAY); out.now = R;
   writeFileSync(f, JSON.stringify(out)); log('세계 경제 신호: 위험 ' + (R ? R.n : '—') + '개 켜짐' + (R && R.blockLongs ? ' → 민경기 매매법 새 롱 쉼' : '') + ' · 뉴스 ' + out.news.length + '개' + (errors.length ? ' · 실패 ' + errors.length : ''));
   return out;
+}
+// 통화 20개 일봉(최근 40개) — 12시간 안에 받은 게 있으면 그대로
+async function loadFx(prev, now, fetchImpl, errors) {
+  const fresh = prev && prev.fxSeries && prev.fx && now - Date.parse(prev.fx.at) < 12 * 3600e3; if (fresh) return prev.fxSeries;
+  const S = {}; let bad = 0;
+  for (const f of FX) { try { const r = await chart(f.sym, fetchImpl, '3mo'); const k = r.c.map((x, i) => (x > 0 ? i : -1)).filter((i) => i >= 0).slice(-40); S['fx_' + f.id] = { t: k.map((i) => day(r.t[i])), c: k.map((i) => Number(r.c[i].toPrecision(6))) }; }
+    catch (e) { bad++; if (prev && prev.fxSeries && prev.fxSeries['fx_' + f.id]) S['fx_' + f.id] = prev.fxSeries['fx_' + f.id]; } }
+  if (bad) errors.push('통화 ' + bad + '개 실패');
+  return Object.keys(S).length ? S : (prev && prev.fxSeries) || null;
 }
 export function prepare(o) { if (!o || !o.series) return null; const M = {}; for (const [k, d] of Object.entries(o.series)) M[k] = { T: d.t.map((x) => Date.parse(x + 'T00:00:00Z')), c: d.c }; return Object.keys(M).length ? M : null; }
