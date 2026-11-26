@@ -1,6 +1,11 @@
 {
   "_설명": "휴대폰 알림 범위. mode 를 \"all\" 로 바꾸면 모든 알림(봇 진입·청산, 매수 후보 등)이 다시 와요. \"important\" 는 keep 에 있는 중요한 알림만 보내요.",
   "mode": "important",
-  "keep": ["snw-watch", "snw-guard", "snw-mgwatch"],
+  "keep": [
+    "snw-watch",
+    "snw-guard",
+    "snw-mgwatch",
+    "snw-top10"
+  ],
   "since": "2026-11-26"
 }
