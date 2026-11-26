@@ -104,7 +104,7 @@ export function simulate(W, P, deriv, { judge = null, tA = -Infinity, tB = Infin
     // 1) 대기 주문: 이 봉 시가 진입
     for (const o of pend) {
       if (pos[o.s] || Object.keys(pos).length >= P.maxPos) continue; const x = X[o.s], j = x.m.get(t); if (j == null) continue;
-      const eq = eqAt(prevT), e = x.d.o[j] * (1 + o.g * P.slipIn), Rd = x.atr[o.j] * P.stopAtr; let q = eq * P.riskPct / 100 / Rd;
+      const eq = eqAt(prevT), e = x.d.o[j] * (1 + o.g * P.slipIn), Rd = x.atr[o.j] * P.stopAtr; let q = eq * P.riskPct / 100 / Rd * (o.size || 1); // size: 연구용 크기 배수 (judge 가 돌려줄 때만, 실제 봇은 안 씀)
       const used = Object.values(pos).reduce((a, p) => a + p.e * p.q, 0); q = Math.min(q, Math.max(0, (eq * P.maxLev - used) / e)); if (q * e < eq * 0.01) continue;
       const fee0 = e * q * P.taker; cash -= fee0; fees += fee0;
       pos[o.s] = { side: o.side, g: o.g, e, q, stop: e - o.g * Rd, best: e, t0: t, j0: j, risk: Rd * q, fee0, fund: 0, last: e, eq0: eq, why: o.why, trail: false };
@@ -126,8 +126,8 @@ export function simulate(W, P, deriv, { judge = null, tA = -Infinity, tB = Infin
       const cand = [];
       for (const s of W.syms) { if (pos[s]) continue; const x = X[s], j = x.m.get(t); if (j == null) continue; const c = signalAt(W, P, s, j); if (!c) continue;
         let why = (c.side === 'long' ? '20봉 고점 돌파' : '20봉 저점 이탈') + ' · 거래량 ' + r2(c.vol, 1) + '배';
-        if (judge) { const r = judge(s, t, c, j); if (!r.ok) continue; if (r.why) why += ' · ' + r.why; }
-        cand.push({ s, g: c.g, side: c.side, j, vol: c.vol, why }); }
+        let size = 1; if (judge) { const r = judge(s, t, c, j); if (!r.ok) continue; if (r.why) why += ' · ' + r.why; if (r.size) size = r.size; }
+        cand.push({ s, g: c.g, side: c.side, j, vol: c.vol, why, size }); }
       pend = cand.sort((a, b) => b.vol - a.vol);
     }
     equity.push([t, eqAt(t)]); prevT = t;
