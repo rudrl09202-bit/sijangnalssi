@@ -3152,7 +3152,22 @@
   // 세계 경제 신호 화면 (홈 네 번째 칸에서 들어옴)
   function viewMacro() {
     loadMk();
-    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true);
+    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true) + fxGlobeCard();
+  }
+  // 머니 글로브: 통화 20개 동시 약세 (보여 주기용 — 6년 시험 불합격이라 봇 판단에는 안 씀)
+  function fxGlobeCard() {
+    const F = S.mac && S.mac.fx;
+    if (!F) return `<section class="card"><h2>머니 글로브</h2><p class="muted sm">다음 갱신 때 통화 20개를 받아 와요.</p></section>`;
+    const rows = F.rows.slice().sort((a, b) => b.chg - a.chg), pk = S.ui.fxPick, sel = pk && rows.find((r) => r.iso === pk.iso);
+    const sgn = (v) => (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+    const pickLine = pk ? (sel ? `<p class="sm"><b>${esc(sel.ko)}</b> 통화가 20거래일 동안 달러 대비 <b class="num">${sgn(sel.chg)}</b> ${sel.chg >= 0 ? '약해졌어요' : '강해졌어요'}${sel.weak ? ' <span class="act warn">약세</span>' : ''}</p>` : `<p class="sm"><b>${esc(pk.name || '')}</b> <span class="muted xs">추적하는 통화 20개에 없는 나라예요</span></p>`) : '<p class="muted xs">나라를 누르면 그 나라 통화 변화가 여기에 나와요.</p>';
+    return `<section class="card"><div class="card-head"><h2>머니 글로브</h2><span class="act ${F.on ? 'warn' : 'neu'}">약세 ${F.weak}/${F.have}</span></div>
+      <div id="globe-slot" class="glb-slot"></div>
+      <div class="glb-legend xs"><span><i class="glb-dot warn"></i>달러 대비 +2% 넘게 약세</span><span><i class="glb-dot trk"></i>추적 중</span><span><i class="glb-dot base"></i>추적 안 함</span></div>
+      ${pickLine}
+      <details class="glb-list"><summary class="sm">통화 20개 모두 보기</summary>${rows.map((r) => `<div class="kv"><span>${esc(r.ko)}</span><b class="num ${r.weak ? 'warn' : ''}">${sgn(r.chg)}</b></div>`).join('')}</details>
+      <p class="muted xs" style="margin-top:6px">20개 중 6개 이상이 동시에 약해지면 "세계 돈이 달러로 몰리는 중"으로 봐요. 6년 시험(2021~2026)에서 봇에 붙였더니 오히려 성적이 떨어져서(샤프 1.35→1.25) <b>봇 판단에는 쓰지 않고 보여 주기만</b> 해요.</p>
+      <p class="muted xs">${kT(F.at)} 기준 · 야후 일봉 · 12시간마다 갱신</p></section>`;
   }
   function viewBots() {
     const A = accounts(true), live = A.filter((a) => !a.cmp), cmp = A.filter((a) => a.cmp);
@@ -3433,6 +3448,7 @@
     const r = route();
     const el = document.getElementById('view');
     el.innerHTML = VIEWS[r]();
+    if (window.SNWGlobe && document.getElementById('globe-slot')) window.SNWGlobe.attach(document.getElementById('globe-slot'), S.mac && S.mac.fx, (iso, name) => { S.ui.fxPick = iso || name ? { iso, name } : null; render(); });
     if (document.body && document.body.classList) document.body.classList.toggle('wide', r === 'hq');
     if (r === 'hq') startPatrol();
     document.querySelectorAll('.tabbar a').forEach((a) => {
