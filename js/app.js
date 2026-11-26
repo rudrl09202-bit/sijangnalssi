@@ -284,6 +284,7 @@
       </section>
       ${todo}
       ${alerts}
+      ${top10Entry()}
       ${homePaper()}
       <a class="card link-card hq-entry" href="#hq"><div class="card-head"><div><p class="kicker">본부</p><p class="b">봇 직원들이 일을 제대로 하는지 BOSS가 점검해요</p></div>${CHEV}</div></a>
       <h2 class="sec">주요 지표</h2>
@@ -1947,6 +1948,52 @@
       ${tr ? `<h3 class="sm b" style="margin:10px 0 4px">최근 바꾼 것</h3>${tr}` : ''}
       <p class="muted xs">캐리 전략은 평소엔 조금씩 벌다가 위기 때 한꺼번에 크게 잃는 성질이 있어요. 진짜 돈·주문과는 연결되어 있지 않아요. ${kT(X.at)} 갱신</p></section>`;
   }
+  /* ---------- 오늘의 추천 TOP 10 (connect/top10.mjs → data/top10-live.json, ORBIT 규칙) ---------- */
+  function loadTop10() {
+    if (S.t10Loading || (S.t10 && Date.now() - S.t10At < 10 * 60e3)) return; S.t10Loading = true;
+    const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/top10-live.json?t=' + Math.floor(Date.now() / 60e3);
+    fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/top10-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null)
+      .then((j) => { S.t10Loading = false; S.t10At = Date.now(); if (j && j.list) { S.t10 = j; if (['top10', 'explore', 'home'].indexOf(route()) >= 0) render(); } });
+  }
+  function top10Entry() {
+    loadTop10(); const T = S.t10; if (!T) return '';
+    const buys = T.list.filter((x) => x.buy).length;
+    return `<a class="card" href="#top10" style="display:block"><div class="card-head"><h2>오늘의 추천 TOP 10</h2><span class="act ${buys ? 'up' : 'neu'}">${buys ? '매수 후보 ' + buys : '관찰만'}</span></div>
+      <p class="sm">${T.list.slice(0, 3).map((x) => esc(x.name)).join(' · ')}${T.list.length > 3 ? ' 외 ' + (T.list.length - 3) + '개' : ''}</p><p class="muted xs">${esc(T.date)} 종가 · 나스닥·S&P 500·코스피·코스닥 ›</p></a>`;
+  }
+  function viewTop10() {
+    loadTop10(); const T = S.t10, head = `<header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">나스닥 · S&P 500 · 코스피 · 코스닥 · 매일</p><h1>오늘의 추천 TOP 10</h1></div>${tools()}</header>`;
+    if (!T) return head + `<section class="card"><p class="muted sm">${S.t10Loading ? '불러오는 중이에요' : '평일 아침·오후 자동 실행 뒤에 나와요.'}</p></section>`;
+    const buys = T.list.filter((x) => x.buy), P = T.plan || {}, gap = Object.entries(T.regimeGap || {}).map(([k, v]) => `${esc(k)} <b class="num ${v < 0 ? 'down' : 'up'}">${v > 0 ? '+' : ''}${nf(v, 1)}%</b>`).join(' · ');
+    const verdict = buys.length ? `<p class="h-md">매수 후보 ${buys.length}개</p><p class="sm">규칙상 비중: 주식 ${nf(P.stocks, 0)}%${P.gold ? ' · 금 ' + nf(P.gold, 0) + '%' : ''} · 나머지 현금</p>`
+      : `<p class="h-md">오늘은 매수 추천 없음</p><p class="sm">시장 지수가 200일선 아래라 규칙상 주식을 사지 않아요 → ${T.gold && T.gold.above ? '금 보유' : '현금으로 기다림'}${T.gold ? ` <span class="muted xs">(금 200일선 대비 ${T.gold.gap > 0 ? '+' : ''}${nf(T.gold.gap, 1)}%)</span>` : ''}</p><p class="xs muted">아래는 시장이 회복되면 규칙상 가장 먼저 살 "관찰 TOP 10"이에요.</p>`;
+    const sg = (v, d) => (v == null ? '—' : (v > 0 ? '+' : '') + nf(v, d == null ? 1 : d) + '%');
+    const ck = (ok, txt) => `<span class="act ${ok ? 'up' : 'neu'}" style="margin:2px 4px 2px 0">${ok ? '✓' : '✗'} ${txt}</span>`;
+    const bar = (v) => `<span class="t10-bar"><i style="width:${Math.max(2, Math.min(100, v || 0))}%"></i></span>`;
+    const px = (x) => (x.cur === 'USD' ? '$' + nf(x.price, 2) : nf(x.price, 0) + '원');
+    const card = (x) => `<section class="card t10"><div class="row between"><div><p class="b"><span class="num t10-rank">${x.rank}</span> ${esc(x.name)} <span class="muted xs">${esc(x.id)} · ${esc(x.market)}</span></p><p class="muted xs num">${px(x)} · 1달 <span class="${dirClass(x.ret1m)}">${sg(x.ret1m)}</span> · 3달 <span class="${dirClass(x.ret3m)}">${sg(x.ret3m)}</span></p></div><span class="act ${x.buy ? 'up' : 'neu'}">${x.buy ? '매수 후보' : '관찰'}</span></div>
+      <h3 class="xs b t10-h">순위 점수 <span class="muted">· 10년 시험 통과한 규칙</span></h3>
+      <div class="kv"><span>12-1 모멘텀 <span class="muted xs">12개월 수익, 최근 1달 제외</span></span><b class="num">${sg(x.mom)} <span class="muted xs">상위 ${100 - x.momPct}%</span></b></div>
+      <p>${ck(x.checks.abs, '모멘텀 플러스')}${ck(x.checks.ma200, '200일선 위 ' + sg(x.ma200))}${ck(x.checks.market, '시장 필터')}</p>
+      <h3 class="xs b t10-h">보조 점수 <span class="muted">· 10년 검증에서 맞는 방향(약함)</span></h3>
+      <div class="kv"><span>상대강도 RS <span class="muted xs">0~99</span></span><b class="num">${x.rs ?? '—'} ${bar(x.rs)}</b></div>
+      <div class="kv"><span>추세 템플릿 통과</span><b class="num">${x.tmpl ? x.tmpl.pass + '/' + x.tmpl.total : '—'} ${x.tmpl ? bar(x.tmpl.pass / x.tmpl.total * 100) : ''}</b></div>
+      <h3 class="xs b t10-h">위험 · 계획</h3>
+      <div class="kv"><span>52주 고점 대비</span><b class="num ${dirClass(x.hi52)}">${sg(x.hi52)}</b></div>
+      <div class="kv"><span>60일 변동성 <span class="muted xs">연율</span></span><b class="num">${nf(x.vol, 0)}%</b></div>
+      <div class="kv"><span>규칙상 비중 <span class="muted xs">변동성 반비례, 최대 15%</span></span><b class="num">${x.weight != null ? nf(x.weight, 1) + '%' : '— (관찰)'}</b></div>
+      <div class="kv"><span>비상 손절 <span class="muted xs">산 값 −25%</span></span><b class="num">${px({ ...x, price: x.stop })}</b></div>
+      ${x.app ? `<details class="t10-more"><summary class="xs">참고 점수 (검증 약함·안 됨)</summary><div class="kv"><span>앱 종합 점수 <span class="muted xs">검증 약함</span></span><b class="num">${x.app.total ?? '—'}</b></div>${[['value', '가치'], ['growth', '성장'], ['quality', '퀄리티']].map(([k, n]) => `<div class="kv"><span>${n} <span class="muted xs">과거 재무 자료가 없어 검증 못 함</span></span><b class="num">${x.app[k] ?? '자료 없음'}</b></div>`).join('')}<div class="kv"><span>모멘텀 축 · 위험 축 <span class="muted xs">위험 축은 검증에서 반대 방향</span></span><b class="num">${x.app.momentum ?? '—'} · ${x.app.risk ?? '—'}</b></div></details>` : ''}</section>`;
+    const B = T.bt || {};
+    return head + `<section class="card"><p class="kicker">오늘의 판단 · ${esc(T.date)} 종가</p>${verdict}<p class="xs" style="margin-top:6px">시장 필터 지수 200일선 대비: ${gap}</p>
+      ${T.added && T.added.length ? `<p class="xs">새로 들어옴: ${T.added.map(esc).join(', ')}</p>` : ''}${T.dropped && T.dropped.length ? `<p class="xs muted">빠짐: ${T.dropped.map(esc).join(', ')}</p>` : ''}</section>
+      ${T.list.map(card).join('')}
+      <section class="card"><h2>어떻게 고르나</h2>
+      <p class="sm">모멘텀 순환 봇(ORBIT)의 규칙 그대로예요: 대표 종목 ${T.universe}개 중 ① 12-1 모멘텀이 플러스이고 200일선 위인 종목을 ② 모멘텀 큰 순서로. ③ 그 시장 지수(나스닥·S&P → S&P 500, 코스피·코스닥 → 코스피)가 200일선 아래면 사지 않아요.</p>
+      <div class="kv" style="margin-top:8px"><span>10년 시험 (${esc(B.from)}~${esc(B.to)})</span><b class="num">연 ${pct(B.cagr, 1)} · 낙폭 ${pct(B.mdd, 1)} · 샤프 ${B.sharpe}</b></div>
+      <div class="kv"><span>표본 안 · 밖 샤프</span><b class="num">${B.inS} · ${B.outS}</b></div>
+      <p class="muted xs">점수 검증(10년·17,751건): 상대강도·추세 템플릿·모멘텀은 맞는 방향이지만 약하고, 앱 종합 점수는 더 약하며, 위험 축은 반대였어요. 그래서 순위는 모멘텀 규칙으로만 정하고 나머지는 참고로 보여 줘요. 대표 종목 목록이 지금 기준이라 과거 성적이 조금 부풀었을 수 있어요. 투자 권유가 아니라 규칙이 고른 목록이에요.</p></section>`;
+  }
   function loadPolicy() {
     if (S.polLoading || (S.pol && Date.now() - S.polAt < 10 * 60e3)) return;
     S.polLoading = true;
@@ -2322,6 +2369,7 @@
       <div class="kpis k3">${kpi('비트코인', btc ? nf(Math.round(btc.krw / 1e4)) + '만' : '—', '', btc ? `<span class="${dirClass(btc.chg24)}">${sign(btc.chg24, 2)}%</span> 24시간` : '')}${kpi('장세 (15분봉)', RG && RG.label ? esc(RG.label.split('·')[0].trim()) : '—', '', RG && RG.label && RG.label.split('·')[1] ? esc(RG.label.split('·')[1].trim()) : '')}${kpi('공포·탐욕', fng != null ? String(fng) : '—', '', fng == null ? '' : fng <= 25 ? '극단적 공포' : fng >= 75 ? '극단적 탐욕' : fng < 45 ? '공포' : fng > 55 ? '탐욕' : '보통')}</div>
       ${S.sc && (S.sc.news || []).length ? `<details class="pro-inline"><summary>코인 뉴스 ${S.sc.news.length}건 (최근 12시간)</summary>${S.sc.news.slice(0, 8).map((n) => `<p class="xs news-line">${esc(unent(n.title))} <span class="muted">${esc(n.src || '')} · ${agoH(n.ago)}</span></p>`).join('')}</details>` : ''}</section>`;
     return `<header class="top"><div><p class="kicker">코인 선물 · 금리 · 주식</p><h1>시장</h1></div>${tools()}</header>
+      ${top10Entry()}
       ${weatherCard()}
       ${crypto}
       ${derivCard()}
@@ -3512,8 +3560,8 @@
     }
     return head + seg + body;
   }
-  const VIEWS = { macro: viewMacro, open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
-  const TAB_OF = { macro: 'home', demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { top10: viewTop10, macro: viewMacro, open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
+  const TAB_OF = { top10: 'explore', macro: 'home', demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { let h = (location.hash || '#home').slice(1); if (h.indexOf('bot/') === 0) { S.ui.bot = h.slice(4); h = 'bot'; } return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
