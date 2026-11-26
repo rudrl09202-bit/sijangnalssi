@@ -3063,7 +3063,7 @@
   function viewHome() {
     const A = accounts(false), live = A.filter((a) => !a.cmp);
     const head = `<header class="top"><div><p class="kicker">${esc(todayLabel())}</p><h1>자동매매</h1></div>${tools()}</header>${demoBanner()}`;
-    if (!live.length) return head + guideCard() + homeTop() + `<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p><p class="muted sm">잠시 뒤 자동으로 나타나요.</p></section>`;
+    if (!live.length) return head + homeTop() + `<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p><p class="muted sm">잠시 뒤 자동으로 나타나요.</p></section>`;
     const tot = live.reduce((s, a) => s + a.equity, 0), start = live.reduce((s, a) => s + a.start, 0), pnl = tot - start;
     const ch1s = live.filter((a) => a.st.ch1 != null), d1 = ch1s.length ? ch1s.reduce((s, a) => s + a.equity - a.equity / (1 + a.st.ch1 / 100), 0) : null;
     const pos = [].concat(...live.map((a) => (a.positions || []).map((p) => ({ ...p, who: a }))));
@@ -3086,7 +3086,7 @@
       ${nTr ? `<div class="tbl">${allTr.slice(0, 8).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${esc(t.who.name)} · ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     const ins = insights(A);
     const insCard = ins.length ? `<section class="card"><div class="card-head"><h2>오늘의 점검</h2><a href="#analysis" class="xs">자세히 ›</a></div>${ins.slice(0, 3).map((x) => `<div class="ins ${x.lv}"><p class="sm"><b>${esc(x.title)}</b></p><p class="muted xs">${esc(x.text)}</p></div>`).join('')}</section>` : '';
-    return head + guideCard() + homeTop() + hero + demoLine() + chart + posCard + insCard + recent + homeMarket() + macroCard(false);
+    return head + homeTop() + posCard; // 홈은 간단하게: 시장날씨 · 네 칸 요약 · 진행 중인 포지션만 (나머지는 봇·분석·시장 탭에)
   }
   // 홈: 바이낸스 데모(가짜 돈) 계좌 요약 한 줄 → 누르면 #demo
   function demoLine() {
@@ -3364,6 +3364,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '홈 정리', '홈에는 시장날씨 · 네 칸 요약(지수·거시·봇 상태·세계 경제 신호) · 진행 중인 포지션만. 봇별 가상 자산·수익률 차트·끝난 거래·점검은 봇·분석 탭에서', 'home'],
     ['11/26', '봇 수익 화면 새 디자인', '봇을 누르면 맨 위에 손익 대시보드: 오늘 · 이번 달 · 누적 손익(거래 수) · 매매일수(하루 평균) 네 칸 + 누적 손익 곡선(원 단위, 0원 위는 빨강·아래는 파랑, 최고·최저 표시). 보내 준 화면을 따라 만들고 색은 앱 규칙(수익 빨강·손실 파랑)대로', 'paper'],
     ['11/26', '세계 경제 신호 화면', '홈 네 번째 칸을 누르면 민경기 매매법(아직 첫 계산 전이라 "불러오는 중")으로 가던 것을 세계 경제 신호 전용 화면으로. 신호 5개의 값·기준과 뉴스 10개. 민경기 매매법 화면은 첫 계산 전이면 "새벽 1시쯤 첫 숫자" 안내', 'home'],
     ['11/26', '민경기 매매법 변화 감시 (마지막 추가)', '자동 크기 조절 2가지를 6년 시험 — 낙폭 단계(−10%면 절반)는 연 35%→26%·샤프 1.56→1.36, 성적 이탈(60일 하위 5%면 절반)은 연 28%·샤프 1.39 → 모두 불합격. 대신 감시만: 낙폭 −12%·60일 수익 6년 하위 5%면 "주의", 6년 최악 수준이면 "경고", 고점 대비 −25%면 "비상 정지"(그 뒤로 따라가지 않음). 단계가 바뀌면 휴대폰 알림. 이것으로 매매법 추가는 끝 — 2/25까지 지켜봄', 'mg'],
