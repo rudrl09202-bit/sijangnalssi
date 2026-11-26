@@ -931,9 +931,12 @@ html.big body { zoom: 1.15; }
 .wx-txt { min-width: 0; }
 .wx-title { font-size: 26px; font-weight: 700; letter-spacing: -0.6px; margin: 2px 0 4px; }
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.tile { background: var(--card); border-radius: var(--r); padding: 16px 16px 14px; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px; min-height: 118px; }
+.tile { background: var(--card); border-radius: var(--r); padding: 14px 12px 12px; min-width: 0; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px; min-height: 118px; }
 .tile-h { font-size: 14px; font-weight: 600; color: var(--ink2); margin: 0 0 2px; }
-.tile-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 13.5px; }
+.tile-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 13px; flex-wrap: nowrap; }
+.tile-row > span:first-child { white-space: nowrap; flex: 0 0 auto; }
+.tile-row > span.num { white-space: nowrap; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tile-row .xs { font-size: 11.5px; }
 .tile-row b { font-weight: 600; }
 .tile-big { font-size: 30px; font-weight: 700; letter-spacing: -0.6px; margin: 2px 0; }
 @media (max-width: 360px) { .tiles { grid-template-columns: 1fr; } .wx-ic { width: 60px; height: 60px; } }

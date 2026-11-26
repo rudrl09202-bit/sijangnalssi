@@ -3041,13 +3041,13 @@
   function homeTop() {
     let w = null; try { w = weather(); } catch (e) { w = null; }
     const M = S.markets || {}, btc = S.prices && S.prices['KRW-BTC'];
-    const mv = (k, d, unit) => { const m = M[k]; if (!m || m.value == null || !isFinite(m.value)) return { v: '—', c: '', cls: '' }; const c = m.chg == null || isNaN(m.chg) ? '' : sign(m.chg, m.chgUnit === 'bp' ? 0 : 2) + (m.chgUnit || ''); return { v: nf(Number(m.value), d) + (unit || ''), c, cls: dirClass(m.chg) }; };
+    const mv = (k, d, unit) => { const m = M[k]; if (!m || m.value == null || !isFinite(m.value)) return { v: '—', c: '', cls: '' }; const c = m.chg == null || isNaN(m.chg) ? '' : sign(m.chg, m.chgUnit === 'bp' ? 0 : 1) + (m.chgUnit || ''); return { v: nf(Number(m.value), d) + (unit || ''), c, cls: dirClass(m.chg) }; };
     const line = (label, x) => `<div class="tile-row"><span class="muted">${label}</span><span class="num"><b>${x.v}</b> <span class="xs ${x.cls}">${x.c}</span></span></div>`;
     const hero = w ? `<a class="card wx-hero" href="#explore"><div class="wx-ic">${ICON[w.icon] || ICON.sun}</div><div class="wx-txt"><p class="kicker">오늘의 시장날씨</p><p class="wx-title">${esc(w.title)}</p><p class="muted sm">${esc(w.sub)}</p>
       <div class="chips" style="margin-top:8px">${w.winds.map((x) => `<span class="chip ${x.on ? 'chip-on' : ''}">${esc(x.label)} ${x.missing ? '—' : x.on ? '역풍' : '양호'}</span>`).join('')}</div></div></a>` : '';
     const t1 = `<a class="tile" href="#explore"><p class="tile-h">오늘의 지수</p>
-      ${line('비트코인', btc ? { v: nf(Math.round(btc.krw / 1e4)) + '만', c: sign(btc.chg24, 2) + '%', cls: dirClass(btc.chg24) } : { v: '—', c: '', cls: '' })}${line('코스피', mv('kospi', 2))}${line('나스닥', mv('nasdaq', 0))}</a>`;
-    const t2 = `<a class="tile" href="#explore"><p class="tile-h">주요 거시</p>${line('원/달러', mv('usdkrw', 1))}${line('미 10년물', mv('us10y', 2, '%'))}${line('달러지수', mv('dxy', 2))}</a>`;
+      ${line('비트코인', btc ? { v: nf(Math.round(btc.krw / 1e4)) + '만', c: sign(btc.chg24, 1) + '%', cls: dirClass(btc.chg24) } : { v: '—', c: '', cls: '' })}${line('코스피', mv('kospi', 0))}${line('나스닥', mv('nasdaq', 0))}</a>`;
+    const t2 = `<a class="tile" href="#explore"><p class="tile-h">주요 거시</p>${line('원/달러', mv('usdkrw', 0))}${line('미 10년', mv('us10y', 2, '%'))}${line('달러지수', mv('dxy', 1))}</a>`;
     const G = S.mg && S.mg.live, A = (() => { try { return accounts(false).filter((a) => !a.cmp); } catch (e) { return []; } })(), nPos = A.reduce((t, a) => t + (a.positions || []).length, 0);
     const late = A.filter((a) => a.upd && Date.now() - Date.parse(a.upd) > (/15분/.test(a.tf || '') ? 3600e3 : 6 * 3600e3)).length;
     const t3 = `<a class="tile" href="${G ? '#bot/mg' : '#paper'}"><p class="tile-h">봇 상태</p>
