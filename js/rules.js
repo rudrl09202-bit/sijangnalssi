@@ -18,12 +18,15 @@
   };
 
   function marketWeather(m, fng) {
+    // 값이 없으면(받기 실패·휴장) 그 바람은 '모름'으로 두고 역풍으로 세지 않음 — 화면이 깨지지 않게
+    const v = (k) => (m && m[k] && isFinite(m[k].value) ? Number(m[k].value) : null), f2 = (x) => (x == null ? '—' : x.toFixed(2));
+    const u = v('us10y'), d = v('dxy'), b = v('brent'), x = v('vix'), g = isFinite(fng) && fng != null ? Number(fng) : null;
     const winds = [
-      { key: 'us10y', label: '금리', on: m.us10y.value >= WEATHER_LIMITS.us10y, text: '미 10년물 ' + m.us10y.value.toFixed(2) + '%' },
-      { key: 'dxy', label: '달러', on: m.dxy.value >= WEATHER_LIMITS.dxy, text: '달러지수 ' + m.dxy.value.toFixed(2) },
-      { key: 'brent', label: '유가', on: m.brent.value >= WEATHER_LIMITS.brent, text: '브렌트 $' + m.brent.value.toFixed(2) },
-      { key: 'vix', label: '변동성', on: m.vix.value >= WEATHER_LIMITS.vix, text: 'VIX ' + m.vix.value.toFixed(2) },
-      { key: 'fng', label: '심리', on: fng <= WEATHER_LIMITS.fng, text: '공포탐욕 ' + fng }
+      { key: 'us10y', label: '금리', on: u != null && u >= WEATHER_LIMITS.us10y, text: '미 10년물 ' + f2(u) + '%', th: WEATHER_LIMITS.us10y + '% 이상이면 역풍', missing: u == null },
+      { key: 'dxy', label: '달러', on: d != null && d >= WEATHER_LIMITS.dxy, text: '달러지수 ' + f2(d), th: WEATHER_LIMITS.dxy + ' 이상이면 역풍', missing: d == null },
+      { key: 'brent', label: '유가', on: b != null && b >= WEATHER_LIMITS.brent, text: '브렌트 $' + f2(b), th: '$' + WEATHER_LIMITS.brent + ' 이상이면 역풍', missing: b == null },
+      { key: 'vix', label: '변동성', on: x != null && x >= WEATHER_LIMITS.vix, text: 'VIX ' + f2(x), th: WEATHER_LIMITS.vix + ' 이상이면 역풍', missing: x == null },
+      { key: 'fng', label: '심리', on: g != null && g <= WEATHER_LIMITS.fng, text: '공포탐욕 ' + (g == null ? '—' : g), th: WEATHER_LIMITS.fng + ' 이하(공포)면 역풍', missing: g == null }
     ];
     const n = winds.filter((w) => w.on).length;
     const table = [

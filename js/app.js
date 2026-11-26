@@ -2284,6 +2284,15 @@
       <p class="sm" style="margin-top:8px">${hot.length ? '롱 과열: <b>' + hot.map((r) => esc(r.name)).join(', ') + '</b> — 급락(롱 청산)에 주의해요. ' : ''}${cold.length ? '숏 과열: <b>' + cold.map((r) => esc(r.name)).join(', ') + '</b> — 급반등(숏 청산)이 나올 수 있어요.' : ''}${!hot.length && !cold.length ? '지금은 한쪽으로 크게 쏠린 코인이 없어요.' : ''}</p>
       <p class="muted xs">민경기 봇은 이 데이터도 학습 재료로 써요.</p></section>`;
   }
+  // 시장날씨: 어떤 숫자로 정했는지 기준을 같이 보여 줌
+  function weatherCard() {
+    let w; try { w = weather(); } catch (e) { return ''; }
+    const miss = w.winds.filter((x) => x.missing).length;
+    return `<section class="card"><div class="card-head"><h2>오늘의 시장날씨 · ${esc(w.title)}</h2><span class="act ${w.count >= 3 ? 'warn' : 'neu'}">역풍 ${w.count}/5</span></div>
+      <p class="muted sm">${esc(w.sub)}</p>
+      ${w.winds.map((x) => `<div class="kv"><span>${esc(x.label)} <span class="muted xs">${esc(x.th)}</span></span><b class="num">${esc(x.text)} ${x.missing ? '<span class="muted xs">값 없음</span>' : x.on ? '<span class="act warn">역풍</span>' : '<span class="muted xs">양호</span>'}</b></div>`).join('')}
+      <p class="muted xs" style="margin-top:6px">역풍 0개 맑음 → 1개 대체로 맑음 → 2개 구름 조금 → 3개 흐림 → 4개 소나기 주의 → 5개 폭풍우. 규칙은 js/rules.js 에 고정돼 있어요${miss ? ' · 값을 못 받은 ' + miss + '개는 역풍으로 세지 않았어요' : ''}. 기준: ${esc((typeof ML !== 'undefined' && ML && ML.asOf) ? ML.asOf : '최근 받은 시세')}</p></section>`;
+  }
   function viewExplore() {
     const fng = S.fng, RG = S.sc && S.sc.regime, btc = S.prices['KRW-BTC'];
     loadScalp();
@@ -2291,6 +2300,7 @@
       <div class="kpis k3">${kpi('비트코인', btc ? nf(Math.round(btc.krw / 1e4)) + '만' : '—', '', btc ? `<span class="${dirClass(btc.chg24)}">${sign(btc.chg24, 2)}%</span> 24시간` : '')}${kpi('장세 (15분봉)', RG && RG.label ? esc(RG.label.split('·')[0].trim()) : '—', '', RG && RG.label && RG.label.split('·')[1] ? esc(RG.label.split('·')[1].trim()) : '')}${kpi('공포·탐욕', fng != null ? String(fng) : '—', '', fng == null ? '' : fng <= 25 ? '극단적 공포' : fng >= 75 ? '극단적 탐욕' : fng < 45 ? '공포' : fng > 55 ? '탐욕' : '보통')}</div>
       ${S.sc && (S.sc.news || []).length ? `<details class="pro-inline"><summary>코인 뉴스 ${S.sc.news.length}건 (최근 12시간)</summary>${S.sc.news.slice(0, 8).map((n) => `<p class="xs news-line">${esc(n.title)} <span class="muted">${esc(n.src || '')} · ${n.ago}시간 전</span></p>`).join('')}</details>` : ''}</section>`;
     return `<header class="top"><div><p class="kicker">코인 선물 · 금리 · 주식</p><h1>시장</h1></div>${tools()}</header>
+      ${weatherCard()}
       ${crypto}
       ${derivCard()}
       ${policyCard()}
@@ -3107,11 +3117,18 @@
     return `<div class="chips-row">${[['all', '전체']].concat(A.map((a) => [a.id, a.name.replace('단타 · ', '단타 ')])).map(([k, l]) => `<button class="chipb${cur === k ? ' on' : ''}" data-act="pick-bot" data-k="${key}" data-v="${k}">${esc(l)}</button>`).join('')}</div>`;
   }
   /* ---------- 봇 목록 ---------- */
+  // 봇 카드: 마지막 계산 시각 · 늦으면 경고 · 마지막 거래 (15분봉은 1시간, 4시간봉·1시간봉은 6시간 넘게 갱신이 없으면 '늦음')
+  function freshLine(a) {
+    if (!a.upd) return '';
+    const age = Date.now() - Date.parse(a.upd), lim = /15분/.test(a.tf || '') ? 3600e3 : 6 * 3600e3, late = age > lim, t = (a.trades || [])[0];
+    return `<p class="xs ${late ? '' : 'muted'}" style="margin:4px 0 0">${late ? '<span class="act warn">갱신 늦음</span> ' : ''}계산 ${agoTxt(age)}${t ? ' · 마지막 거래 ' + esc(kT(t.out)) + ' ' + esc(t.name || t.sym || '') + ' <span class="' + dirClass(t.pnl) + '">' + (t.pnl >= 0 ? '+' : '') + man(t.pnl) + '</span>' : ''}${(a.positions || []).length ? ' · 보유 ' + a.positions.length : ''}</p>`;
+  }
   function viewBots() {
     const A = accounts(true), live = A.filter((a) => !a.cmp), cmp = A.filter((a) => a.cmp);
     const card = (a) => { const st = stOf(a.stMap, a.status);
       return `<a class="card bot-card${a.main ? ' main' : ''}" href="#bot/${a.id}"><div class="row between"><div><p class="b">${esc(a.name)} ${a.main ? '<span class="tag">대표</span>' : ''}</p><p class="muted xs">${esc(a.strat)} · ${esc(a.tf)}</p></div><span class="act ${st[1]}">${st[0]}</span></div>
         <div class="bot-mid"><div><p class="num bot-ret ${dirClass(a.ret)}">${pct(a.ret, 2)}</p><p class="muted xs num">${won(a.equity)}</p></div>${spark(a.curve, 110, 36)}</div>
+        ${freshLine(a)}
         <div class="bot-stats"><span>거래 <b class="num">${a.st.n}</b></span><span>승률 <b class="num">${a.st.win == null ? '—' : Math.round(a.st.win) + '%'}</b></span><span>손익비 <b class="num">${fmtPF(a.st.pf)}</b></span><span>낙폭 <b class="num">${a.st.mdd == null ? '—' : pct(a.st.mdd, 1)}</b></span><span>포지션 <b class="num">${a.positions.length}</b></span></div></a>`; };
     return `<header class="top"><div><p class="kicker">코인 선물 · 가상 1억씩 · 24시간 자동</p><h1>봇</h1></div>${tools()}</header>
       ${live.length ? live.map(card).join('') : '<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p></section>'}
@@ -3272,6 +3289,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '화면 보완 (외부 점검 반영)', '봇 카드마다 마지막 계산 시각·마지막 거래·보유 수, 갱신이 늦으면(15분봉 1시간·4시간봉 6시간) "갱신 늦음" 표시. 시장 탭 맨 위에 시장날씨 판정 기준(역풍 5개의 값·기준선) 카드. 거시 숫자를 못 받아도 날씨 계산이 깨지지 않게(값 없음은 역풍으로 안 셈). 앱 코드에 비밀 키가 없는지 점검 — 없음(키는 서버와 GitHub 비밀값에만)', 'more'],
     ['11/26', '통합 자산 방어 (바이낸스 데모 계좌 전체)', '봇 5개를 합쳐서 봄: 오늘 계좌 −5% 넘게 잃으면 그날 새 진입 멈춤 · 진입 뒤 전체 레버리지 5배 초과면 안 함 · 롱 합계나 숏 합계가 잔고의 4배 초과면 안 함. 손절·정리는 막지 않음. 평소엔 거의 안 걸리는 사고 대비용. 작동하면 휴대폰 알림 + 데모 화면에 기록', 'demo'],
     ['11/26', '주식 모의 봇 엔진 정확도 수정', '① 금고가 막은 날(낙폭 정지·하루 손실 −3%)에도 전에 걸어 둔 지정가·불타기 매수 주문이 체결될 수 있던 문제 → 막히면 대기 매수 주문 모두 취소. ② 아침 시가에 살 수량을 그날 종가(아직 모르는 값)로 잰 자산·보유액으로 계산하던 문제 → 전날 종가 기준. ③ 업종 한도(35%)도 전날 종가 기준. 과거 성적이 조금 달라질 수 있어요(더 현실에 가깝게)', 'paper'],
     ['11/26', '세계 경제 신호 추가 (미·중 패권)', '위안화 급약세·달러 급등·미국 10년 금리 급등·나스닥 약세장·VIX를 6년 시험. 하나씩은 모두 불합격이거나 우연과 구분 안 됨, "2개 이상 동시"만 합격(류신영 샤프 1.31→1.36, 무작위 200번 중 0번). 민경기 매매법(시작 전)에 넣음: 2개 이상이면 류신영 몫의 새 롱 쉼 → 6년 연 35%·샤프 1.56. 류신영 봇 자체는 그대로(비교용). 홈·민경기 매매법 화면에 신호와 미·중·연준·환율 뉴스 표시(뉴스는 판단에 안 씀)', 'mg'],
