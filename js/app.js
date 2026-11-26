@@ -2104,7 +2104,18 @@
       <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>봇</th><th>데모</th><th>같은 기간 모의</th><th>거래·승률</th><th>진행 중</th></tr></thead><tbody>
       ${X.bots.map((b) => { const d = b.demo, ps = paperSince(b.id); return `<tr><td>${esc(b.name)}</td><td class="${dirClass(d.ret)}">${pct(d.ret, 2)}<br><span class="xs">${(d.realized + d.unreal >= 0 ? '+' : '') + nf(d.realized + d.unreal, 1)}$</span></td><td class="${ps == null ? '' : dirClass(ps)}">${ps == null ? '—' : pct(ps, 2)}</td><td>${d.n}번${d.win != null ? ' · ' + d.win + '%' : ''}</td><td>${d.open ? d.open + '개 · ' + (d.unreal >= 0 ? '+' : '') + nf(d.unreal, 1) + '$' : '—'}</td></tr>`; }).join('')}
       </tbody></table></div>
+      ${demoDaily(X)}
       <p class="muted xs">데모 = 실제 체결가·수수료(추정 0.05%) 반영. 모의와 차이가 크면 늦은 진입·미끄러짐·건너뛴 거래 때문이에요.</p>`;
+  }
+  // 데모: 서버가 하루 마지막 값을 날짜별로 저장 (봇 몫 누적 손익 = 실현 + 평가). 그날 손익 = 오늘 누적 − 전날 누적
+  function demoDaily(X) {
+    const D = (X.daily || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1)); if (!D.length || !X.bots) return '';
+    const rows = D.map((r, i) => { const p = D[i - 1]; return { d: r.date, acct: r.eq - (p ? p.eq : r.start), base: p ? p.eq : r.start, bots: Object.fromEntries(X.bots.map((b) => [b.id, (r.bots[b.id] || 0) - (p && p.bots[b.id] != null ? p.bots[b.id] : 0)])) }; }).reverse();
+    const cell = (v) => `<td class="${dirClass(Math.round(v * 10))}">${(v >= 0 ? '+' : '') + nf(v, 1)}$</td>`;
+    return `<h3 class="sm b" style="margin:12px 0 4px">날짜별 손익 <span class="muted xs">USDT · 한국 날짜</span></h3>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>날짜</th><th>계좌 전체</th>${X.bots.map((b) => `<th>${esc(b.name.replace(/ 봇$/, '').replace('단타 · ', '').replace('단타 ', ''))}</th>`).join('')}</tr></thead><tbody>
+      ${rows.slice(0, 60).map((r) => `<tr><td>${dLbl(r.d)}</td><td class="${dirClass(Math.round(r.acct * 10))}">${(r.acct >= 0 ? '+' : '') + nf(r.acct, 1)}$<br><span class="xs">${pct(r.base ? r.acct / r.base * 100 : null, 2)}</span></td>${X.bots.map((b) => cell(r.bots[b.id])).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="muted xs">봇 칸 = 그날 봇 몫의 손익(실현 + 평가). 계좌 전체에는 봇 기록 시작 전 포지션 정리분이 섞일 수 있어요 · 기록은 11/26부터 쌓여요</p>`;
   }
   function execCard() {
     loadExec();
@@ -2930,6 +2941,31 @@
     const g = {}; tr.forEach((t) => { const k = keyFn(t); if (k == null) return; const x = g[k] || (g[k] = { k, label: labelFn ? labelFn(k) : k, n: 0, w: 0, R: 0, pnl: 0 }); x.n++; if (t.pnl > 0) x.w++; x.R += t.R || 0; x.pnl += t.pnl; });
     return Object.values(g).map((x) => ({ ...x, win: x.w / x.n * 100, avgR: x.R / x.n })).sort((a, b) => b.n - a.n);
   }
+  // 날짜별 손익 (한국 날짜 기준): 그날 마지막 자산 − 전날 마지막 자산 (첫날은 시작 금액 대비). 평가손익 포함
+  const kDay = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10);
+  function dailyOf(a) {
+    const cv = (a.curve || []).map(([t, v]) => [tOf(t), v]).filter((x) => isFinite(x[0]) && x[1] != null);
+    if (a.upd && a.equity != null) cv.push([Date.parse(a.upd), a.equity]);
+    const last = new Map(); cv.sort((x, y) => x[0] - y[0]).forEach(([t, v]) => last.set(kDay(t), v));
+    const tr = {}; (a.trades || []).forEach((t) => { if (!t || t.pnl == null) return; const k = kDay(tOf(t.out)); const z = tr[k] || (tr[k] = { n: 0, w: 0 }); z.n++; if (t.pnl > 0) z.w++; });
+    let prev = a.start || (cv[0] && cv[0][1]); const out = [];
+    [...last.keys()].sort().forEach((d) => { const v = last.get(d), pnl = v - prev; out.push({ d, eq: v, pnl, pct: prev ? pnl / prev * 100 : null, n: tr[d] ? tr[d].n : 0, w: tr[d] ? tr[d].w : 0 }); prev = v; });
+    return out.reverse();
+  }
+  const dLbl = (d) => { const x = new Date(d + 'T00:00:00Z'); return (x.getUTCMonth() + 1) + '/' + x.getUTCDate() + ' (' + '일월화수목금토'[x.getUTCDay()] + ')'; };
+  function dailyCard(a) {
+    const D = dailyOf(a); if (!D.length) return '';
+    return `<section class="card"><h2>날짜별 손익</h2><div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>날짜</th><th>손익</th><th>수익률</th><th>끝난 거래</th></tr></thead><tbody>
+      ${D.slice(0, 60).map((r) => `<tr><td>${dLbl(r.d)}</td><td class="${dirClass(r.pnl)}">${(r.pnl >= 0 ? '+' : '') + man(r.pnl)}</td><td class="${dirClass(r.pct)}">${pct(r.pct, 2)}</td><td>${r.n ? r.n + '번 · ' + r.w + '승' : '—'}</td></tr>`).join('')}</tbody></table></div>
+      <p class="muted xs">한국 날짜 기준 · 그날 마지막 자산 − 전날 마지막 자산 (들고 있는 포지션의 평가손익 포함) · 오늘은 지금까지</p></section>`;
+  }
+  function dailyAll(list) {
+    const per = list.map((a) => ({ a, m: new Map(dailyOf(a).map((r) => [r.d, r])) })), days = [...new Set(per.flatMap((p) => [...p.m.keys()]))].sort().reverse();
+    if (!days.length) return '';
+    return `<section class="card"><h2>날짜별 손익 · 봇 전체</h2><div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>날짜</th>${per.map((p) => `<th>${esc(p.a.name.replace(/ 봇$/, ''))}</th>`).join('')}</tr></thead><tbody>
+      ${days.slice(0, 60).map((d) => `<tr><td>${dLbl(d)}</td>${per.map((p) => { const r = p.m.get(d); return r ? `<td class="${dirClass(r.pnl)}">${pct(r.pct, 2)}<br><span class="xs">${(r.pnl >= 0 ? '+' : '') + man(r.pnl)}</span></td>` : '<td class="muted">—</td>'; }).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="muted xs">봇마다 가상 1억 · 한국 날짜 기준 · 평가손익 포함 · 오늘은 지금까지 · 옆으로 밀면 더 보여요</p></section>`;
+  }
   const fmtPF = (v) => (v == null ? '—' : v === Infinity ? '∞' : v.toFixed(2));
   const holdTxt = (h) => (h == null ? '—' : h < 1 ? Math.round(h * 60) + '분' : h < 48 ? h.toFixed(1) + '시간' : (h / 24).toFixed(1) + '일');
   // 작은 선 그래프
@@ -3064,6 +3100,7 @@
         <div class="bot-stats"><span>거래 <b class="num">${a.st.n}</b></span><span>승률 <b class="num">${a.st.win == null ? '—' : Math.round(a.st.win) + '%'}</b></span><span>손익비 <b class="num">${fmtPF(a.st.pf)}</b></span><span>낙폭 <b class="num">${a.st.mdd == null ? '—' : pct(a.st.mdd, 1)}</b></span><span>포지션 <b class="num">${a.positions.length}</b></span></div></a>`; };
     return `<header class="top"><div><p class="kicker">코인 선물 · 가상 1억씩 · 24시간 자동</p><h1>봇</h1></div>${tools()}</header>
       ${live.length ? live.map(card).join('') : '<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p></section>'}
+      ${live.length ? dailyAll(live) : ''}
       ${cmp.length ? `<h2 class="sec">비교용 계좌</h2><p class="muted xs pad">새 방법이 정말 나은지 보려고 같이 돌리는 기준 계좌예요.</p>${cmp.map(card).join('')}` : ''}
       <h2 class="sec">주식 봇 (모의)</h2>${homePaper().replace('href="#paper"', 'href="#stocks"')}`;
   }
@@ -3082,6 +3119,7 @@
     let body = '';
     if (tab === 'perf') {
       body = `<section class="card"><h2>포지션 ${a.positions.length}</h2>${a.positions.length ? `<div class="tbl">${a.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.name)}</b> <span class="muted xs">${p.lev != null ? p.lev + '배' : ''}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)} · ${p.be || (p.stop != null && Math.abs(p.stop / p.entry - 1) < 1e-6) ? '본전 손절' : p.trail ? '추적 손절' : '손절'} ${usd(p.stop)}${p.tp ? ' · 목표 ' + usd(p.tp) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${man(p.upnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">지금은 포지션이 없어요.</p>'}</section>
+        ${dailyCard(a)}
         <section class="card"><h2>거래 기록 ${x.n}</h2>${x.n ? `<div class="tbl">${a.trades.slice(0, 40).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${kT(t.in)} → ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')} · ${rr(t.R || 0)}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     } else if (tab === 'ana') body = anaBlocks(a.trades, a.name);
     else body = valBlock(a) + (['mk', 'rs', 'sc1', 'sc2', 'sc3'].includes(a.id) ? execCard() : '');
@@ -3196,6 +3234,8 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '날짜별 손익 표시', '봇 화면에 "날짜별 손익 · 봇 전체" 표, 봇마다 상세 화면에 날짜별 손익(손익·수익률·끝난 거래), 바이낸스 데모 화면에 날짜별 손익(계좌 전체 + 봇 5개 몫, USDT) 추가. 한국 날짜 기준, 평가손익 포함. 데모 날짜별 기록은 11/26부터 쌓여요', 'demo'],
+    ['11/26', '세력 흔적 매매 3가지 시험 → 모두 탈락', '손절 털기 되받기(4시간봉 −0.11R·15분봉 −0.33R, 수수료 0이어도 무작위보다 나쁨), 강제청산 폭포 되받기(4시간봉 −0.23R·15분봉 −0.74R), 펀딩비 쏠림 필터(류신영 봇 샤프 1.29 → 1.12·1.23으로 낮춤). 큰 거래량 돌파는 되돌리기보다 이어지는 경우가 많았음 → 따라가는 류신영 봇 유지', 'rs'],
     ['11/25', '상대 모멘텀 봇 추가 (3개월 관찰)', 'BTC·ETH 비율이 표준편차 2배 넘게 벌어지면 그쪽으로 따라가는 페어 매매를 모의 계좌(1억)로 시작. 6년 시험(다음 봉 시가 체결): 연 22%·낙폭 -16%·샤프 1.25·손익비 1.98, 비용 2배도 플러스. 결과를 보고 만든 규칙이라 2027-02-25까지 실시간으로 확인 후 채택 결정. 바이낸스 데모에는 넣지 않음', 'pr'],
     ['11/25', '물리·수학 규칙 시험', '용수철(OU 되돌림) 페어: BTC·ETH 연 -20%, 28쌍 -46% → 탈락. 허스트·엔트로피 필터: 류신영 봇 샤프 1.31 → 1.09·1.24로 오히려 낮춤 → 탈락. 사후 발견: 용수철의 반대(두 코인 비율이 벌어지는 쪽 따라가기)는 BTC·ETH 연 15%·낙폭 -13%·샤프 1.06, 무작위 데이터에선 손실, 류신영 봇과 상관 0.00(반반 섞으면 낙폭 -26%→-16%). 결과를 보고 만든 규칙이라 실시간 모의로 따로 확인 필요', 'mk'],
     ['11/25', '플라이트 매매법 시험', '글의 7가지를 규칙으로 바꿔 4시간봉(2019~, 8코인)·1시간봉(18개월)에서 시험. RSI 과매수 숏·거래량 감소 반등 숏·프랙탈·VPVR 매물대·채널·급락 반등은 모두 손실. "50EMA 추세선 지지 + 거래량 증가"만 4시간봉에서 앞·뒤 모두 플러스(연 31%·낙폭 -38%·샤프 1.0, 매년 플러스)였지만 류신영 봇(샤프 1.37)보다 약하고 같이 움직여(상관 0.59) 섞어도 나아지지 않음. 시드 20%×50배는 32번 중 24번 청산으로 계좌 소멸. 수익 출금은 총수익을 조금 줄이는 대신 낙폭을 줄임', 'flight'],

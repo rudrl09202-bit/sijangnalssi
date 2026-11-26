@@ -235,6 +235,10 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
       const unreal = open.reduce((a, L) => { const C = cur[L.sym]; return a + (C ? (L.side === 'long' ? 1 : -1) * (C.mark - L.entry) * L.qty : 0); }, 0), base = st.botStats.base;
       return { id, name: nm, share: Math.round(share * 100), ok: !!(D && D.live), ret: D && D.live ? D.live.ret : null, positions: D && D.live ? (D.live.positions || []).length : 0,
         demo: { base, realized: S0.realized, unreal: r6(unreal), fees: S0.fees, n: S0.n, win: S0.n ? Math.round(S0.win / S0.n * 100) : null, open: open.length, ret: base ? Math.round((S0.realized + unreal) / base * 10000) / 100 : null } }; }) };
+  // 날짜별 손익용: 한국 날짜마다 마지막 값 저장 (계좌 잔고 · 봇 몫 누적 손익 = 실현 + 평가)
+  { const snap = { date: today, start: st.day.start, eq: r6(eq), bots: Object.fromEntries(out.bots.map((b) => [b.id, r6(b.demo.realized + b.demo.unreal)])) };
+    st.daily = (st.daily || []).filter((r) => r.date !== today).concat([snap]).slice(-400); out.daily = st.daily.slice(-120);
+    try { writeFileSync(SFILE, JSON.stringify(st)); } catch (e) { /* 다음에 */ } }
   await upload(out, env, fetchImpl, log);
   log('바이낸스 데모: 잔고 ' + r6(eq) + ' USDT · 포지션 ' + out.positions.length + ' · 이번에 한 일 ' + acts.length + '건');
   return out;
