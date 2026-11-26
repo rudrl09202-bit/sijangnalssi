@@ -924,3 +924,54 @@ html.big body { zoom: 1.15; }
 .demo-line { display: block; color: inherit; text-decoration: none; }
 .refresh-btn { background: none; border: 0; padding: 4px 0 4px 8px; margin: -4px 0; color: inherit; font: inherit; cursor: pointer; }
 .refresh-btn:active { opacity: .5; }
+
+
+/* PRO terminal: semantic colors preserved (KR convention: red up / blue down). */
+:root {
+ --bg:#f0f2f5; --card:#fff; --sunk:#f5f6f8; --ink:#182437; --ink2:#34445a; --muted:#64748b; --line:#e5e9ef; --line2:#cdd5e0;
+ --accent:#82601c; --accent-soft:#f7efdc; --bar1:#a78036; --bar2:#c6ad78; --bar3:#cbd5e1; --r:16px;
+ --shadow:0 4px 18px rgba(19,32,52,.045);
+}
+html[data-theme="dark"] {
+ --bg:#0a101b; --card:#121c2b; --sunk:#0e1724; --ink:#edf1f7; --ink2:#c2cddd; --muted:#98a8bd; --line:#233145; --line2:#35455c;
+ --accent:#e6c27a; --accent-soft:#30291d; --up:#ff7180; --up-soft:#39212b; --down:#79b2ff; --down-soft:#192c48; --warn:#f2b85e; --warn-soft:#362b1d;
+ --bar1:#e6c27a; --bar2:#90784f; --bar3:#34455e; --shadow:0 8px 28px rgba(0,0,0,.16);
+}
+body { background:var(--bg); }
+.view { gap:16px; min-width:0; }
+.top { align-items:center; padding-bottom:12px; border-bottom:1px solid var(--line); }
+.top h1 { font-weight:800; letter-spacing:-.045em; }
+.kicker { font-size:13px; letter-spacing:.015em; }
+.card { border:1px solid var(--line); box-shadow:var(--shadow); }
+.card.note { border:0; box-shadow:none; }
+.card h2 { font-weight:750; letter-spacing:-.035em; }
+.kpi,.mini,.result { border:1px solid var(--line); border-radius:12px; }
+.kpi-v,.hero-num,.bot-ret,.acc-eq { font-variant-numeric:tabular-nums; letter-spacing:-.035em; }
+.hero-num { font-size:clamp(28px,5vw,44px); }
+.bot-card.main { box-shadow:0 0 0 1px var(--accent) inset,var(--shadow); }
+.bot-card .tag { background:var(--accent-soft); color:var(--accent); }
+.btn,.icon-btn,.chipb,.seg button { transition:background-color .16s,border-color .16s,color .16s; }
+.btn.primary { color:#fff; }
+html[data-theme="dark"] .btn.primary { color:#19140c; }
+:where(a,button,input,select,textarea):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.tabbar { background:var(--card); border-top:1px solid var(--line2); }
+.tabbar a,html[data-theme="dark"] .tabbar a { color:var(--muted); border-radius:10px; }
+.tabbar a.on,html[data-theme="dark"] .tabbar a.on { color:var(--accent); background:var(--accent-soft); }
+@media (min-width:960px) {
+ .app,body.wide .app { max-width:1440px; padding-left:224px; }
+ .view { padding:28px 32px 48px; gap:20px; }
+ .tabbar,body.wide .tabbar { position:fixed; inset:0 auto 0 max(0px,calc((100vw - 1440px)/2)); width:208px; max-width:none; margin:0; display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:24px 12px; border:0; border-right:1px solid var(--line); }
+ .tabbar::before { content:"시장날씨 PRO"; display:block; color:var(--accent); font-size:20px; font-weight:800; letter-spacing:-.04em; padding:12px 10px 30px; }
+ .tabbar a { flex-direction:row; justify-content:flex-start; gap:12px; padding:0 14px; font-size:15px; }
+ .tabbar a svg { width:21px; height:21px; flex:none; }
+ .top { padding-top:0; }
+ .hq-grid { gap:18px; }
+ .card { padding:24px; }
+}
+@media(max-width:959px) {
+ .tabbar { padding-inline:8px; gap:3px; }
+ .tabbar a { min-height:52px; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .btn,.icon-btn,.chipb,.seg button { transition:none; }
+}
