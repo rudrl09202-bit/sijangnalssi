@@ -202,7 +202,10 @@ function positionsView(W, acc, d) {
   }).sort((x, y) => y.val - x.val);
 }
 
+// 알림 범위 (connect/notify.json): mode 'important' 면 keep 에 있는 알림(서버 멈춤·통합 방어·민경기 매매법 감시)만 보냄
+export function pushAllowed(tag) { try { const c = JSON.parse(readFileSync(new URL('./notify.json', import.meta.url), 'utf8')); return c.mode !== 'important' || (c.keep || []).includes(tag); } catch (e) { return true; } }
 export async function push(env, payload, log) {
+  if (payload && !pushAllowed(payload.tag)) { if (log) log('알림 안 보냄 (중요 알림만 받는 중): ' + (payload.title || '')); return { skipped: true }; }
   const tg = await telegram(env, payload, log);
   let subs; try { subs = JSON.parse(env.PUSH_SUBSCRIPTIONS || '[]'); } catch (e) { return tg; }
   const list = Array.isArray(subs) ? subs : [subs];

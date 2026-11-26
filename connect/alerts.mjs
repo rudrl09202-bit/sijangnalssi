@@ -110,7 +110,9 @@ export async function run({ fetchImpl = fetch, sendImpl, env = loadEnv(), now = 
   const cands = pickCandidates(all, state, now);
   log('분석 ' + all.length + '종목 · 매수 후보 ' + cands.length + '개 · 시장날씨 ' + weather.title);
   let sent = 0, failed = 0;
-  if (cands.length) {
+  let quiet = false; try { const c = JSON.parse(readFileSync(new URL('./notify.json', import.meta.url), 'utf8')); quiet = c.mode === 'important' && !(c.keep || []).includes('snw-buy'); } catch (e) { /* 설정 없음 → 보냄 */ }
+  if (quiet && cands.length) log('매수 후보 알림 안 보냄 (중요 알림만 받는 중)');
+  if (cands.length && !quiet) {
     const subs = (() => { try { return JSON.parse(env.PUSH_SUBSCRIPTIONS || '[]'); } catch (e) { log('PUSH_SUBSCRIPTIONS 형식 오류'); return []; } })();
     const list = Array.isArray(subs) ? subs : [subs];
     if (list.length && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
