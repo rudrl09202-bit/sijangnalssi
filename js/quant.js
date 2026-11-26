@@ -242,6 +242,8 @@
     }
     // 2) 대기 주문
     for (const o of acc.orders) {
+      // 손실 차단 중에는 이전에 남아 있던 신규 매수 주문도 취소한다.
+      if (o.side === 'buy' && (acc.paused || acc.dayBlock)) continue;
       const a = W.A[o.id], i = a && a.idx[d];
       if (i == null) { keep.push(o); continue; }
       const c = costOf(a);
@@ -281,7 +283,12 @@
 
   // 주문 크기: 위험 기준(riskKrw) 또는 비중 기준(weight), 금고 한도로 자름
   function sizeQty(W, acc, a, d, px, o) {
-    const eq = equityOf(W, acc, d), fx = fxAt(W, a, d);
+    // 시가/장중 체결 크기에 당일 종가 평가액을 사용하지 않는다.
+    const eq = acc.cash + Object.entries(acc.pos).reduce((sum, [id, p]) => {
+      const asset = W.A[id], i = lastIdx(asset, d);
+      const j = i >= 0 && asset.t[i] === d ? i - 1 : i;
+      return sum + p.qty * (j >= 0 ? asset.c[j] : p.avg) * fxAt(W, asset, d);
+    }, 0), fx = fxAt(W, a, d);
     let krw;
     if (o.weight != null) krw = eq * o.weight;
     else if (o.riskKrw != null && o.stopDist > 0) krw = (o.riskKrw / (o.stopDist * fx)) * px * fx;
@@ -291,7 +298,7 @@
     const held = acc.pos[a.id] ? acc.pos[a.id].qty * px * fx : 0;
     const capPos = eq * (o.maxPct || VAULT.maxPosPct) / 100 - held;
     const sec = W.sectorOf[a.id] || a.sec;
-    const capSec = sec && a.kind === 'stock' ? eq * VAULT.maxSectorPct / 100 - sectorExposure(W, acc, d, sec) : Infinity;
+    const capSec = sec && a.kind === 'stock' ? eq * VAULT.maxSectorPct / 100 - Object.entries(acc.pos).reduce((sum, [id, p]) => { const asset = W.A[id]; if ((W.sectorOf[id] || asset.sec) !== sec) return sum; const i = lastIdx(asset, d), j = i >= 0 && asset.t[i] === d ? i - 1 : i; return sum + p.qty * (j >= 0 ? asset.c[j] : p.avg) * fxAt(W, asset, d); }, 0) : Infinity;
     const capCash = acc.cash - eq * VAULT.minCashPct / 100;
     krw = Math.min(krw, capPos, capSec, capCash);
     if (krw < eq * 0.003) return 0; // 너무 작은 주문은 안 냄
@@ -336,6 +343,7 @@
     acc.equity.push([d, Math.round(eq)]);
     acc.lastEq = eq; acc.lastDate = d;
     const canEnter = !acc.paused && !acc.dayBlock;
+    if (!canEnter) acc.orders = acc.orders.filter(o => o.side !== 'buy');
     STRAT[bot.id](W, acc, bot, d, eq, canEnter, ctx || {});
     acc.prevDay = d;
   }
