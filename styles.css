@@ -982,3 +982,5 @@ html.big body { zoom: 1.15; }
 .ksim-row input[type=number] { width: 110px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); font: inherit; }
 .ksim-row input[type=range] { flex: 1 1 160px; accent-color: var(--warn); }
 .act.down { color: var(--down); background: var(--down-soft); }
+.cf-row { padding: 8px 0; border-top: 1px solid var(--line); } .cf-row:first-of-type { border-top: 0; }
+.cf-row p { margin: 2px 0; } .cf-row a { color: var(--accent); text-decoration: none; }

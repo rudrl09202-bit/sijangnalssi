@@ -3174,7 +3174,7 @@
   // 세계 경제 신호 화면 (홈 네 번째 칸에서 들어옴)
   function viewMacro() {
     loadMk();
-    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true) + fxGlobeCard() + koreaCard();
+    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true) + fxGlobeCard() + koreaCard() + conflictCard();
   }
   // 세계 경제 신호 A~D 중 켜진 것 → 지구본 위치 (A 중국, B·C·D 미국)
   const SIG_PLACE = { A: ['중국', 35, 104], B: ['미국', 39, -98], C: ['미국', 39, -98], D: ['미국', 39, -98] };
@@ -3184,6 +3184,21 @@
     const K = S.mac && S.mac.korea;
     if (K && K.stage >= 1) by['한국'] = { place: '한국', lat: 36.5, lng: 127.8, items: ['위기 경보 ' + esc(K.stageName) + ' (' + K.n + '/3)'], level: K.stage >= 3 ? 'danger' : 'warn' };
     return Object.values(by);
+  }
+  // 분쟁 지도: data/conflicts.json (Gemini 제안 → 사람이 PR 을 합친 것만)
+  function loadConflicts() {
+    if (S.cfLoading || (S.cf && Date.now() - S.cfAt < 30 * 60e3)) return; S.cfLoading = true;
+    const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/conflicts.json?t=' + Math.floor(Date.now() / 60e3);
+    fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/conflicts.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null)
+      .then((j) => { S.cfLoading = false; S.cfAt = Date.now(); S.cf = j && j.items ? j : { items: [] }; if (route() === 'macro') render(); });
+  }
+  function conflictCard() {
+    loadConflicts(); const C = S.cf, KIND = { war: '나라 사이 전쟁', civil: '내전·무장 충돌', border: '국경 충돌' };
+    const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return '링크'; } };
+    if (!C || !C.items.length) return `<section class="card"><h2>분쟁 지도</h2><p class="muted sm">${C ? '아직 확인된 분쟁 목록이 없어요.' : '불러오는 중이에요.'}</p><p class="muted xs">매일 아침 Gemini가 구글 검색으로 찾은 목록을 GitHub에 "분쟁 목록 확인 요청" PR로 올려요. 출처를 확인하고 합치면 여기와 지구본에 나타나요.</p></section>`;
+    const rows = C.items.map((x) => `<div class="cf-row"><p class="sm"><b>${esc(x.name || x.id)}</b> <span class="muted xs">${esc(KIND[x.kind] || '')}${x.since ? ' · ' + esc(x.since) + '~' : ''}</span></p>${x.summary ? `<p class="xs">${esc(x.summary)}</p>` : ''}<p class="xs">${(x.sources || []).map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(host(u))}</a>`).join(' · ')}</p></div>`).join('');
+    return `<section class="card"><div class="card-head"><h2>분쟁 지도</h2><span class="act up">${C.items.length}곳</span></div>${rows}
+      <p class="muted xs" style="margin-top:6px">지구본의 빨간 곡선은 나라 사이 분쟁, 빨간 물결은 내전이에요. Gemini가 구글 검색으로 제안하고 <b>사람이 출처를 확인해 합친 목록만</b> 보여 줘요. 봇 판단에는 쓰지 않아요. 확인 ${esc(C.updated || '')}</p></section>`;
   }
   // 한국 위기 경보 판 (기획서 7장 기준, 보여 주기용) + 시뮬레이션
   function koreaSim(K, sim) { const sig = K.sig.map((z) => ({ ...z }));
@@ -3510,7 +3525,7 @@
     const r = route();
     const el = document.getElementById('view');
     el.innerHTML = VIEWS[r]();
-    if (window.SNWGlobe && document.getElementById('globe-slot')) window.SNWGlobe.attach(document.getElementById('globe-slot'), S.mac && S.mac.fx, (iso, name) => { S.ui.fxPick = iso || name ? { iso, name } : null; render(); }, globeSignals());
+    if (window.SNWGlobe && document.getElementById('globe-slot')) window.SNWGlobe.attach(document.getElementById('globe-slot'), S.mac && S.mac.fx, (iso, name) => { S.ui.fxPick = iso || name ? { iso, name } : null; render(); }, globeSignals(), (S.cf && S.cf.items) || []);
     if (document.body && document.body.classList) document.body.classList.toggle('wide', r === 'hq');
     if (r === 'hq') startPatrol();
     document.querySelectorAll('.tabbar a').forEach((a) => {
