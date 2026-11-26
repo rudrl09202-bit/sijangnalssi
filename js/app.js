@@ -2117,6 +2117,17 @@
       ${rows.slice(0, 60).map((r) => `<tr><td>${dLbl(r.d)}</td><td class="${dirClass(Math.round(r.acct * 10))}">${(r.acct >= 0 ? '+' : '') + nf(r.acct, 1)}$<br><span class="xs">${pct(r.base ? r.acct / r.base * 100 : null, 2)}</span></td>${X.bots.map((b) => cell(r.bots[b.id])).join('')}</tr>`).join('')}</tbody></table></div>
       <p class="muted xs">봇 칸 = 그날 봇 몫의 손익(실현 + 평가). 계좌 전체에는 봇 기록 시작 전 포지션 정리분이 섞일 수 있어요 · 기록은 11/26부터 쌓여요</p>`;
   }
+  // 통합 자산 방어 (계좌 전체): 지금 수치와 기준, 작동 기록
+  function guardLine(X) {
+    const G = X.guard; if (!G) return '';
+    const L = G.limits || {}, NM = { mk3: '민경기', rs: '류신영', sc1: '조심형', sc2: '적극형', sc3: 'AI 다수결' };
+    return `<h3 class="sm b" style="margin:12px 0 4px">통합 자산 방어 <span class="act ${G.dayBlocked ? 'warn' : 'neu'}">${G.dayBlocked ? '오늘 새 진입 멈춤' : '정상'}</span></h3>
+      <div class="kv"><span>오늘 계좌 손익 <span class="muted xs">기준 ${L.dayLoss}%</span></span><b class="num ${dirClass(G.dayPct)}">${pct(G.dayPct, 2)}</b></div>
+      <div class="kv"><span>전체 레버리지 <span class="muted xs">기준 ${L.maxLev}배</span></span><b class="num">${G.lev == null ? '—' : G.lev + '배'}</b></div>
+      <div class="kv"><span>롱 합계 · 숏 합계 <span class="muted xs">기준 각 ${L.maxSide}배</span></span><b class="num">${G.long ?? '—'}배 · ${G.short ?? '—'}배</b></div>
+      ${(G.events || []).length ? (G.events || []).slice(0, 5).map((e) => `<p class="xs news-line"><span class="muted num">${kT(e.t)}</span> ${esc(NM[e.bot] || e.bot)} ${esc(e.sym.replace('USDT', ''))} 진입 막음 — ${esc(e.why)}</p>`).join('') : '<p class="muted xs">아직 작동한 적 없어요.</p>'}
+      <p class="muted xs">기준을 넘으면 새 진입만 막고, 들고 있는 포지션의 손절·정리는 그대로 해요. 막힌 진입은 봇 모의 성적과 데모 차이의 원인이 돼요.</p>`;
+  }
   function execCard() {
     loadExec();
     const X = S.ex;
@@ -2125,6 +2136,7 @@
     return `<section class="card"><div class="card-head"><h2>바이낸스 데모 계좌</h2><span class="act ${age > 3 * 3600e3 ? 'warn' : 'live'}">${age > 3 * 3600e3 ? '갱신 늦음' : '연결됨'}</span></div>
       <div class="kpis k3">${kpi('잔고 (가짜 돈)', nf(X.equity, 0) + ' USDT', '', '평가 ' + (X.upnl >= 0 ? '+' : '') + nf(X.upnl, 1))}${kpi('포지션', String(X.positions.length), '', X.bots ? '봇 ' + X.bots.filter((b) => b.ok).reduce((t, b) => t + b.positions, 0) + '개' : '봇 ' + X.botLive.positions + '개')}${kpi('체결 차이', X.slip == null ? '—' : X.slip + 'bp', X.slip > 10 ? 'down' : '', '봇 진입가 대비')}</div>
       ${X.positions.length ? `<div class="tbl" style="margin-top:8px">${X.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.sym.replace('USDT', ''))}</b> <span class="muted xs">${p.qty}${p.bot ? ' · ' + String(p.bot).split(',').map((b) => ({ mk3: '민경기', rs: '류신영', sc1: '조심형', sc2: '적극형', sc3: 'AI 다수결' }[b] || b)).join('+') : ''}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)}${p.stop ? ' · 거래소 손절 ' + usd(p.stop) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${nf(p.upnl, 1)}$</span></div>`).join('')}</div>` : ''}
+      ${guardLine(X)}
       ${demoBots(X)}
       ${X.actions.length ? `<details class="pro-inline"><summary>최근 주문 기록</summary>${X.actions.slice(0, 12).map((a) => `<p class="xs news-line"><span class="muted num">${kT(a.t)}</span> ${esc(a.m)}</p>`).join('')}</details>` : ''}
       <p class="muted xs">${kT(X.at)} 확인 · 매시 5·20·35·50분 · 실제 돈 아님 (바이낸스 데모 트레이딩)${X.bots ? ' · 봇 ' + X.bots.length + '개(' + X.bots.map((b) => b.name).join('·') + ')가 잔고를 ' + X.bots.length + '등분, 같은 코인·같은 방향이면 몫을 합쳐 한 포지션(손절은 봇마다 따로)' : ''}</p></section>`;
@@ -3260,6 +3272,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '통합 자산 방어 (바이낸스 데모 계좌 전체)', '봇 5개를 합쳐서 봄: 오늘 계좌 −5% 넘게 잃으면 그날 새 진입 멈춤 · 진입 뒤 전체 레버리지 5배 초과면 안 함 · 롱 합계나 숏 합계가 잔고의 4배 초과면 안 함. 손절·정리는 막지 않음. 평소엔 거의 안 걸리는 사고 대비용. 작동하면 휴대폰 알림 + 데모 화면에 기록', 'demo'],
     ['11/26', '주식 모의 봇 엔진 정확도 수정', '① 금고가 막은 날(낙폭 정지·하루 손실 −3%)에도 전에 걸어 둔 지정가·불타기 매수 주문이 체결될 수 있던 문제 → 막히면 대기 매수 주문 모두 취소. ② 아침 시가에 살 수량을 그날 종가(아직 모르는 값)로 잰 자산·보유액으로 계산하던 문제 → 전날 종가 기준. ③ 업종 한도(35%)도 전날 종가 기준. 과거 성적이 조금 달라질 수 있어요(더 현실에 가깝게)', 'paper'],
     ['11/26', '세계 경제 신호 추가 (미·중 패권)', '위안화 급약세·달러 급등·미국 10년 금리 급등·나스닥 약세장·VIX를 6년 시험. 하나씩은 모두 불합격이거나 우연과 구분 안 됨, "2개 이상 동시"만 합격(류신영 샤프 1.31→1.36, 무작위 200번 중 0번). 민경기 매매법(시작 전)에 넣음: 2개 이상이면 류신영 몫의 새 롱 쉼 → 6년 연 35%·샤프 1.56. 류신영 봇 자체는 그대로(비교용). 홈·민경기 매매법 화면에 신호와 미·중·연준·환율 뉴스 표시(뉴스는 판단에 안 씀)', 'mg'],
     ['11/26', '민경기 매매법 모의 계좌 시작', '류신영 봇 50% + 상대 모멘텀 50%, 두 쪽 모두 크기 1.25배(류신영 거래당 위험 0.94%·레버리지 한도 3.75배, 상대 모멘텀 1.25배). 6년 시험: 연 34%·낙폭 −19%·샤프 1.53, 기록을 1000번 섞었을 때 낙폭 −25% 넘을 확률 4%. 류신영 혼자(지금 크기)는 같은 확률이 61%. 11/26 21시 봉부터 계산, 2027-02-25 판정', 'mg'],

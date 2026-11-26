@@ -98,8 +98,8 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
   const want = {}; // key = bot|SYM
   BOTS.forEach(([id]) => { const D = TG[id]; if (!D || !D.live) return; (D.live.positions || []).forEach((p) => { const sym = p.sym + 'USDT'; want[id + '|' + sym] = { key: id + '|' + sym, bot: id, sym, side: p.side, lev: p.lev * share, stop: p.stop, tp: p.tp || null, entry: p.entry, since: id + '|' + p.since }; }); });
   const unknown = new Set(BOTS.filter(([id]) => !TG[id] || !TG[id].live).map(([id]) => id));
-  const isMeta = (k) => /^(skip|stale|hold|condqty)\|/.test(k);
-  Object.keys(st.map).forEach((k) => { if ((k.startsWith('skip|') && now - st.map[k].at > 30 * 864e5) || (k.startsWith('hold|') && now - (st.map[k].at || 0) > 864e5)) delete st.map[k]; });
+  const isMeta = (k) => /^(skip|stale|hold|condqty|guard)\|/.test(k);
+  Object.keys(st.map).forEach((k) => { if (((k.startsWith('skip|') || k.startsWith('guard|')) && now - st.map[k].at > 30 * 864e5) || (k.startsWith('hold|') && now - (st.map[k].at || 0) > 864e5)) delete st.map[k]; });
   st.legs = st.legs || {};
   // 예전 방식(코인당 한 봇) 기록 → 다리로 옮김. 기존 '전량 손절' 주문은 아래에서 수량 손절로 바뀜
   Object.keys(st.map).filter((k) => !isMeta(k)).forEach((sym) => { const m = st.map[sym]; if (m && m.bot && !st.legs[m.bot + '|' + sym]) st.legs[m.bot + '|' + sym] = { bot: m.bot, sym, side: m.side, since: m.since, qty: m.qty || null, stop: null, stopId: m.algoId || null, tpId: m.tpId || null, late: m.late, stopped: m.stopped, legacy: true }; delete st.map[sym]; });
@@ -162,6 +162,17 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
   for (const [k, L] of Object.entries(st.legs)) { const W = want[k];
     if (unknown.has(L.bot)) continue;
     if (!W || W.since !== L.since) { if (L.qty > 0 && !L.stopped && !L.late) { if (!(await closeLeg(L, '봇에서 정리됨'))) continue; } delete st.legs[k]; } }
+  // 통합 자산 방어 (계좌 전체): 새 진입만 막음 — 손절·정리는 그대로. 평소엔 거의 안 걸리는 느슨한 기준(사고 대비)
+  //  · 오늘(한국 날짜) 계좌가 −5% 넘게 잃었으면 그날 남은 시간 새 진입 멈춤
+  //  · 진입 뒤 전체 레버리지(포지션 금액 합 ÷ 잔고)가 5배를 넘으면 그 진입 안 함
+  //  · 진입 뒤 한 방향(롱 합 또는 숏 합)이 잔고의 4배를 넘으면 그 진입 안 함
+  const GUARD = { dayLoss: Number(env.EXEC_GUARD_DAYLOSS || -5), maxLev: Number(env.EXEC_GUARD_LEV || 5), maxSide: Number(env.EXEC_GUARD_SIDE || 4) };
+  const todayK = new Date(now + 9 * 3600e3).toISOString().slice(0, 10), dayStart = st.day && st.day.date === todayK ? st.day.start : eq, dayPct = dayStart ? (eq / dayStart - 1) * 100 : 0;
+  const expo = () => { let gross = 0, lng = 0, sht = 0; for (const C of Object.values(cur)) { const v = Math.abs(C.amt) * (C.mark || C.entry || 0); gross += v; if (C.amt > 0) lng += v; else sht += v; } return { gross, lng, sht }; };
+  st.guard = st.guard || { events: [] };
+  const guardHit = (W, addUsd) => { const X = expo(), why = dayPct <= GUARD.dayLoss ? '오늘 계좌 ' + dayPct.toFixed(1) + '% (기준 ' + GUARD.dayLoss + '%)' : eq > 0 && (X.gross + addUsd) / eq > GUARD.maxLev ? '진입하면 전체 레버리지 ' + ((X.gross + addUsd) / eq).toFixed(1) + '배 (기준 ' + GUARD.maxLev + '배)' : eq > 0 && ((W.side === 'long' ? X.lng : X.sht) + addUsd) / eq > GUARD.maxSide ? '진입하면 ' + (W.side === 'long' ? '롱' : '숏') + ' 합계 ' + (((W.side === 'long' ? X.lng : X.sht) + addUsd) / eq).toFixed(1) + '배 (기준 ' + GUARD.maxSide + '배)' : null;
+    if (why) { const k = 'guard|' + W.since; if (!st.map[k]) { st.map[k] = { at: now }; note('통합 자산 방어: ' + botName[W.bot] + ' · ' + W.sym + ' 새 진입 막음 — ' + why); st.guard.events = st.guard.events.concat([{ t: new Date(now).toISOString(), bot: W.bot, sym: W.sym, side: W.side, why }]).slice(-30); } }
+    return why; };
   // ③ 새 다리 진입 / 기존 다리 손절·목표가 맞추기
   for (const W of Object.values(want)) {
     const R = info[W.sym]; if (!R) { if (!st.map['skip|' + W.since]) { st.map['skip|' + W.since] = { at: now }; note(W.sym + ': 바이낸스 선물에 없는 종목 — 건너뜀'); } continue; }
@@ -180,6 +191,7 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
         const qty = floorTo(W.lev * eq / mk, R.step);
         if (st.map['condqty|warn'] && Object.values(st.legs).some((x) => x.sym === W.sym && x.qty > 0 && !x.stopped)) { const k = 'skip|' + W.since; if (!st.map[k]) { st.map[k] = { at: now }; note(W.sym + ' ' + botName[W.bot] + ': 이 거래소는 봇별 손절을 못 걸어 같은 코인에 두 번째 봇은 건너뜀'); } continue; }
         if (qty < R.minQty || qty * mk < R.minNotional) { const k = 'skip|' + W.since; if (!st.map[k]) { st.map[k] = { at: now }; note(W.sym + ' ' + botName[W.bot] + ' 진입 건너뜀: 데모 잔고 대비 너무 작음 (' + r6(qty * mk) + ' USDT)'); } continue; }
+        if (guardHit(W, qty * mk)) continue;
         let bk = null; try { bk = await book(W.sym); } catch (e) { /* 호가 조회 실패 — 그냥 진행 */ }
         const hold = st.map['hold|' + W.since] || { n: 0 };
         if (bk && bk.bp != null && bk.bp > MAX_SPREAD_BP && hold.n < 4) { hold.n++; hold.at = now; st.map['hold|' + W.since] = hold; note(W.sym + ' 진입 보류: 호가 차이 ' + bk.bp.toFixed(1) + 'bp (기준 ' + MAX_SPREAD_BP + 'bp) — 다음 확인 때 다시 (' + hold.n + '/4)'); continue; }
@@ -230,6 +242,7 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
       legs: Object.values(st.legs).filter((L) => L.sym === p.symbol && L.qty > 0 && !L.stopped).map((L) => ({ bot: L.bot, qty: L.qty, stop: L.stop, tp: L.tp })) })),
     day: st.day, fills: st.fills.slice(-40).reverse(), actions: st.actions.slice(-30).reverse(), slip: opens.length ? Math.round(opens.reduce((s, f) => s + f.slipBps, 0) / opens.length * 10) / 10 : null, botLive: { ret: M.live.ret, n: M.live.n, positions: (M.live.positions || []).length },
     botSince: st.botStats.since,
+    guard: (() => { const X = expo(); return { limits: GUARD, dayPct: Math.round(dayPct * 100) / 100, lev: eq ? Math.round(X.gross / eq * 100) / 100 : null, long: eq ? Math.round(X.lng / eq * 100) / 100 : null, short: eq ? Math.round(X.sht / eq * 100) / 100 : null, dayBlocked: dayPct <= GUARD.dayLoss, events: st.guard.events.slice(-20).reverse() }; })(),
     bots: BOTS.map(([id, nm]) => { const D = TG[id], S0 = st.botStats.bots[id] || { realized: 0, fees: 0, n: 0, win: 0 };
       const open = Object.values(st.legs).filter((L) => L.bot === id && L.qty > 0 && !L.stopped && L.entry);
       const unreal = open.reduce((a, L) => { const C = cur[L.sym]; return a + (C ? (L.side === 'long' ? 1 : -1) * (C.mark - L.entry) * L.qty : 0); }, 0), base = st.botStats.base;
