@@ -975,3 +975,15 @@ html[data-theme="dark"] .btn.primary { color:#19140c; }
 @media(prefers-reduced-motion:reduce) {
  .btn,.icon-btn,.chipb,.seg button { transition:none; }
 }
+
+/* Strategy lab: responsive, readable numeric comparison */
+.pro-validation { border-top:2px solid var(--accent); }
+.pro-validation .lb-scroll { overflow-x:auto; max-width:100%; }
+.pro-vtable { width:100%; min-width:540px; border-collapse:collapse; font-variant-numeric:tabular-nums; font-size:14px; }
+.pro-vtable th,.pro-vtable td { padding:12px 10px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+.pro-vtable th { font-size:12px; color:var(--muted); font-weight:600; background:var(--sunk); }
+.pro-vtable th:first-child,.pro-vtable td:first-child { text-align:left; }
+.pro-vtable td:first-child { font-weight:700; }
+.pro-vtable tbody tr:last-child td { border-bottom:0; }
+.pro-vtable tbody tr:hover { background:var(--sunk); }
+@media(max-width:420px) { .pro-validation { padding:16px; } .pro-vtable th,.pro-vtable td { padding:10px 8px; } }
