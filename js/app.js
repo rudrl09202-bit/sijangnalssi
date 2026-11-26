@@ -2094,6 +2094,18 @@
     fetch('https://raw.githubusercontent.com/' + futRepo() + '/deriv-data/exec-live.json?t=' + Math.floor(Date.now() / 6e4), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
       .then((j) => { S.exLoading = false; S.exAt = Date.now(); if (j && j.at) { S.ex = j; if (['mk', 'bot', 'home', 'demo'].indexOf(route()) >= 0) render(); } });
   }
+  // 봇별 데모 성적 vs 같은 기간 모의 계좌 성적 (데모 몫 = 잔고 ÷ 봇 수)
+  function demoBots(X) {
+    if (!X.bots || !X.bots[0] || !X.bots[0].demo) return '';
+    const since = X.botSince ? Date.parse(X.botSince) : null, A = (() => { try { return accounts(true); } catch (e) { return []; } })(), MAP = { mk3: 'mk', rs: 'rs', sc1: 'sc1', sc2: 'sc2', sc3: 'sc3' };
+    const paperSince = (id) => { const a = A.find((x) => x.id === MAP[id]); if (!a || !a.curve || !a.curve.length || !since) return null; const tOf2 = (s) => Date.parse(String(s).replace(' ', 'T') + (String(s).length <= 16 ? ':00Z' : ''));
+      let v0 = null; for (const [t, v] of a.curve) { const tt = tOf2(t); if (tt <= since) v0 = v; else break; } if (v0 == null) v0 = a.curve[0][1]; return v0 ? (a.equity / v0 - 1) * 100 : null; };
+    return `<h3 class="sm b" style="margin:12px 0 4px">봇별 데모 성적 <span class="muted xs">${esc(kT(X.botSince))}부터 · 봇마다 ${nf(X.bots[0].demo.base, 0)} USDT 몫</span></h3>
+      <div class="ftbl-wrap"><table class="ftbl num"><thead><tr><th>봇</th><th>데모</th><th>같은 기간 모의</th><th>거래·승률</th><th>진행 중</th></tr></thead><tbody>
+      ${X.bots.map((b) => { const d = b.demo, ps = paperSince(b.id); return `<tr><td>${esc(b.name)}</td><td class="${dirClass(d.ret)}">${pct(d.ret, 2)}<br><span class="xs">${(d.realized + d.unreal >= 0 ? '+' : '') + nf(d.realized + d.unreal, 1)}$</span></td><td class="${ps == null ? '' : dirClass(ps)}">${ps == null ? '—' : pct(ps, 2)}</td><td>${d.n}번${d.win != null ? ' · ' + d.win + '%' : ''}</td><td>${d.open ? d.open + '개 · ' + (d.unreal >= 0 ? '+' : '') + nf(d.unreal, 1) + '$' : '—'}</td></tr>`; }).join('')}
+      </tbody></table></div>
+      <p class="muted xs">데모 = 실제 체결가·수수료(추정 0.05%) 반영. 모의와 차이가 크면 늦은 진입·미끄러짐·건너뛴 거래 때문이에요.</p>`;
+  }
   function execCard() {
     loadExec();
     const X = S.ex;
@@ -2102,6 +2114,7 @@
     return `<section class="card"><div class="card-head"><h2>바이낸스 데모 계좌</h2><span class="act ${age > 3 * 3600e3 ? 'warn' : 'live'}">${age > 3 * 3600e3 ? '갱신 늦음' : '연결됨'}</span></div>
       <div class="kpis k3">${kpi('잔고 (가짜 돈)', nf(X.equity, 0) + ' USDT', '', '평가 ' + (X.upnl >= 0 ? '+' : '') + nf(X.upnl, 1))}${kpi('포지션', String(X.positions.length), '', X.bots ? '봇 ' + X.bots.filter((b) => b.ok).reduce((t, b) => t + b.positions, 0) + '개' : '봇 ' + X.botLive.positions + '개')}${kpi('체결 차이', X.slip == null ? '—' : X.slip + 'bp', X.slip > 10 ? 'down' : '', '봇 진입가 대비')}</div>
       ${X.positions.length ? `<div class="tbl" style="margin-top:8px">${X.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.sym.replace('USDT', ''))}</b> <span class="muted xs">${p.qty}${p.bot ? ' · ' + String(p.bot).split(',').map((b) => ({ mk3: '민경기', rs: '류신영', sc1: '조심형', sc2: '적극형', sc3: 'AI 다수결' }[b] || b)).join('+') : ''}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)}${p.stop ? ' · 거래소 손절 ' + usd(p.stop) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${nf(p.upnl, 1)}$</span></div>`).join('')}</div>` : ''}
+      ${demoBots(X)}
       ${X.actions.length ? `<details class="pro-inline"><summary>최근 주문 기록</summary>${X.actions.slice(0, 12).map((a) => `<p class="xs news-line"><span class="muted num">${kT(a.t)}</span> ${esc(a.m)}</p>`).join('')}</details>` : ''}
       <p class="muted xs">${kT(X.at)} 확인 · 매시 5·20·35·50분 · 실제 돈 아님 (바이낸스 데모 트레이딩)${X.bots ? ' · 봇 ' + X.bots.length + '개(' + X.bots.map((b) => b.name).join('·') + ')가 잔고를 ' + X.bots.length + '등분, 같은 코인·같은 방향이면 몫을 합쳐 한 포지션(손절은 봇마다 따로)' : ''}</p></section>`;
   }

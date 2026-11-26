@@ -139,18 +139,25 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
 
   const LATE_BP = Number(env.EXEC_LATE_BP || 30), openIds = new Set(algos.map((x) => String(x.algoId)));
   const legSum = (sym) => Object.values(st.legs).filter((L) => L.sym === sym && L.qty > 0 && !L.stopped).reduce((a, L) => a + (L.side === 'long' ? 1 : -1) * L.qty, 0);
+  // 봇별 데모 성적 (이 기능을 켠 때부터 집계): 실현손익 = (청산가 − 진입가) × 수량 − 수수료(진입·청산 각 0.05% 추정)
+  st.botStats = st.botStats || { since: new Date(now).toISOString(), base: r6(eq * share), bots: {} };
+  const book2 = (L, exitPx, qty, how) => { if (!L.entry || !exitPx || !qty) return; const g = L.side === 'long' ? 1 : -1, gross = g * (exitPx - L.entry) * qty, fee = (L.entry + exitPx) * qty * 0.0005, pnl = gross - fee;
+    const B0 = st.botStats.bots[L.bot] = st.botStats.bots[L.bot] || { realized: 0, fees: 0, n: 0, win: 0 }; B0.realized = r6(B0.realized + pnl); B0.fees = r6(B0.fees + fee); B0.n++; if (pnl > 0) B0.win++;
+    st.fills.push({ t: new Date(now).toISOString(), sym: L.sym, bot: L.bot, kind: 'close', side: L.side, qty, price: exitPx, pnl: r6(pnl), how }); };
+  // 거래소에서 체결된 조건 주문의 실제 체결가 (못 찾으면 걸어 둔 가격)
+  const condFill = async (sym, id, fallback) => { try { const a = await B.call('GET', '/fapi/v1/algoOrder', { algoId: id }); const oid = a.actualOrderId || a.orderId; if (oid) { const o = await B.call('GET', '/fapi/v1/order', { symbol: sym, orderId: oid }); if (Number(o.avgPrice)) return Number(o.avgPrice); } if (Number(a.actualPrice)) return Number(a.actualPrice); } catch (e) { /* 조회 실패 */ } return fallback; };
   const closeLeg = async (L, why) => { // 그 봇 몫만 시장가로 닫고 그 봇의 조건 주문 취소
     const C = cur[L.sym], R = info[L.sym]; await cancelAlgo(L.sym, L.stopId); await cancelAlgo(L.sym, L.tpId);
     const have = C && (C.amt > 0 ? 'long' : 'short') === L.side ? Math.abs(C.amt) : 0, q = floorTo(Math.min(L.qty || have, have), R.step);
     if (q > 0) { try { const o = await market(L.sym, L.side === 'long' ? 'SELL' : 'BUY', q, true), px = Number(o.avgPrice) || (C && C.mark);
-        st.fills.push({ t: new Date(now).toISOString(), sym: L.sym, bot: L.bot, kind: 'close', side: L.side, qty: q, price: px, pnl: C ? r6((L.side === 'long' ? 1 : -1) * (px - (L.entry || C.entry)) * q) : null });
+        if (!L.entry && C) L.entry = C.entry; book2(L, px, q, '시장가 정리');
         cur[L.sym] = C ? Object.assign(C, { amt: C.amt - (L.side === 'long' ? q : -q) }) : C; if (cur[L.sym] && Math.abs(cur[L.sym].amt) < R.step / 2) delete cur[L.sym];
         note(botName[L.bot] + ' · ' + L.sym + ' ' + (L.side === 'long' ? '롱' : '숏') + ' ' + q + ' 정리 @' + px + ' (' + why + ')'); } catch (e) { note(L.sym + ' ' + botName[L.bot] + ' 몫 정리 실패: ' + e.message); return false; } }
     return true; };
   // ① 거래소에서 먼저 체결된 다리 찾기: 그 봇의 손절·목표가 주문이 사라졌으면 체결된 것 → 남은 짝 주문 취소, 같은 포지션엔 다시 안 들어감
   for (const L of Object.values(st.legs)) { if (L.stopped || L.late || !L.qty || L.legacy) continue;
     const sGone = L.stopId && !openIds.has(String(L.stopId)), tGone = L.tpId && !openIds.has(String(L.tpId));
-    if (sGone || tGone) { L.stopped = true; await cancelAlgo(L.sym, sGone ? L.tpId : L.stopId); note(botName[L.bot] + ' · ' + L.sym + ' 데모에서 ' + (sGone ? '손절' : '목표가') + ' 주문이 먼저 체결됨 — 이 포지션엔 다시 들어가지 않음'); L.qty = 0; } }
+    if (sGone || tGone) { L.stopped = true; await cancelAlgo(L.sym, sGone ? L.tpId : L.stopId); book2(L, await condFill(L.sym, sGone ? L.stopId : L.tpId, sGone ? L.stop : L.tp), L.qty, sGone ? '거래소 손절' : '거래소 목표가'); note(botName[L.bot] + ' · ' + L.sym + ' 데모에서 ' + (sGone ? '손절' : '목표가') + ' 주문이 먼저 체결됨 — 이 포지션엔 다시 들어가지 않음'); L.qty = 0; } }
   // ② 봇에서 끝난 다리 정리 (그 봇 결과를 못 읽었으면 건드리지 않음)
   for (const [k, L] of Object.entries(st.legs)) { const W = want[k];
     if (unknown.has(L.bot)) continue;
@@ -222,7 +229,12 @@ async function runOnce({ env = {}, fetchImpl = fetch, log = console.log, now = D
     positions: (posNow || []).filter((p) => Number(p.positionAmt)).map((p) => ({ sym: p.symbol, side: Number(p.positionAmt) > 0 ? 'long' : 'short', qty: Math.abs(Number(p.positionAmt)), entry: Number(p.entryPrice), mark: Number(p.markPrice), upnl: Number(p.unRealizedProfit), liq: Number(p.liquidationPrice), stop: (Object.values(st.legs).find((L) => L.sym === p.symbol && L.qty > 0 && !L.stopped) || {}).stop || null, bot: Object.values(st.legs).filter((L) => L.sym === p.symbol && L.qty > 0 && !L.stopped).map((L) => L.bot).join(',') || null,
       legs: Object.values(st.legs).filter((L) => L.sym === p.symbol && L.qty > 0 && !L.stopped).map((L) => ({ bot: L.bot, qty: L.qty, stop: L.stop, tp: L.tp })) })),
     day: st.day, fills: st.fills.slice(-40).reverse(), actions: st.actions.slice(-30).reverse(), slip: opens.length ? Math.round(opens.reduce((s, f) => s + f.slipBps, 0) / opens.length * 10) / 10 : null, botLive: { ret: M.live.ret, n: M.live.n, positions: (M.live.positions || []).length },
-    bots: BOTS.map(([id, nm]) => { const D = TG[id]; return { id, name: nm, share: Math.round(share * 100), ok: !!(D && D.live), ret: D && D.live ? D.live.ret : null, positions: D && D.live ? (D.live.positions || []).length : 0 }; }) };
+    botSince: st.botStats.since,
+    bots: BOTS.map(([id, nm]) => { const D = TG[id], S0 = st.botStats.bots[id] || { realized: 0, fees: 0, n: 0, win: 0 };
+      const open = Object.values(st.legs).filter((L) => L.bot === id && L.qty > 0 && !L.stopped && L.entry);
+      const unreal = open.reduce((a, L) => { const C = cur[L.sym]; return a + (C ? (L.side === 'long' ? 1 : -1) * (C.mark - L.entry) * L.qty : 0); }, 0), base = st.botStats.base;
+      return { id, name: nm, share: Math.round(share * 100), ok: !!(D && D.live), ret: D && D.live ? D.live.ret : null, positions: D && D.live ? (D.live.positions || []).length : 0,
+        demo: { base, realized: S0.realized, unreal: r6(unreal), fees: S0.fees, n: S0.n, win: S0.n ? Math.round(S0.win / S0.n * 100) : null, open: open.length, ret: base ? Math.round((S0.realized + unreal) / base * 10000) / 100 : null } }; }) };
   await upload(out, env, fetchImpl, log);
   log('바이낸스 데모: 잔고 ' + r6(eq) + ' USDT · 포지션 ' + out.positions.length + ' · 이번에 한 일 ' + acts.length + '건');
   return out;
