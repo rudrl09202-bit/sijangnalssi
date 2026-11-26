@@ -3152,14 +3152,38 @@
   // 세계 경제 신호 화면 (홈 네 번째 칸에서 들어옴)
   function viewMacro() {
     loadMk();
-    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true) + fxGlobeCard();
+    return `<header class="top"><div><a href="#home" class="back">‹ 홈</a><p class="kicker">미·중 패권 · 달러 · 금리 · 나스닥</p><h1>세계 경제 신호</h1></div>${tools()}</header>` + macroCard(true) + fxGlobeCard() + koreaCard();
   }
   // 세계 경제 신호 A~D 중 켜진 것 → 지구본 위치 (A 중국, B·C·D 미국)
   const SIG_PLACE = { A: ['중국', 35, 104], B: ['미국', 39, -98], C: ['미국', 39, -98], D: ['미국', 39, -98] };
   function globeSignals() {
     const R = S.mac && S.mac.now; if (!R || !R.S) return [];
     const by = {}; ['A', 'B', 'C', 'D'].forEach((k) => { const z = R.S[k]; if (!z || !z.on) return; const [place, lat, lng] = SIG_PLACE[k]; (by[place] = by[place] || { place, lat, lng, items: [] }).items.push(esc(z.label)); });
+    const K = S.mac && S.mac.korea;
+    if (K && K.stage >= 1) by['한국'] = { place: '한국', lat: 36.5, lng: 127.8, items: ['위기 경보 ' + esc(K.stageName) + ' (' + K.n + '/3)'], level: K.stage >= 3 ? 'danger' : 'warn' };
     return Object.values(by);
+  }
+  // 한국 위기 경보 판 (기획서 7장 기준, 보여 주기용) + 시뮬레이션
+  function koreaSim(K, sim) { const sig = K.sig.map((z) => ({ ...z }));
+    const x = sig.find((z) => z.id === 'X'), r = sig.find((z) => z.id === 'R');
+    if (x && K.fx) { x.val = +((sim.rate / K.fx.ago - 1) * 100).toFixed(2); x.on = x.val >= 15; }
+    if (r && K.reserves) { r.val = +(K.reserves.usdBn * (1 - sim.cut / 100) / K.reserves.importsBn).toFixed(2); r.on = r.val < 3; }
+    const n = sig.filter((z) => z.on).length; return { sig, n, stageName: ['정상', '주의', '경고', '위험'][Math.min(n, 3)] }; }
+  function koreaCard() {
+    const K = S.mac && S.mac.korea;
+    if (!K || !K.sig) return `<section class="card"><h2>한국 위기 경보</h2><p class="muted sm">다음 갱신 때 받아 와요.</p></section>`;
+    const sim = S.ui.ksim, V = sim ? koreaSim(K, sim) : K, cls = (n) => (n >= 3 ? 'up' : n >= 1 ? 'warn' : 'neu');
+    const fmt = (z) => (z.val == null ? '<span class="muted xs">자료 없음</span>' : (z.id === 'X' && z.val > 0 ? '+' : '') + nf(z.val, 2) + (z.unit === '%' ? '%' : ' ' + z.unit));
+    const rows = V.sig.map((z) => `<div class="kv"><span>${esc(z.label)} <span class="muted xs">기준 ${esc(z.th)}${!sim && z.date ? ' · ' + esc(z.date) : ''}</span></span><b class="num">${fmt(z)} ${z.val == null ? '' : z.on ? '<span class="act warn">켜짐</span>' : '<span class="muted xs">꺼짐</span>'}</b></div>`).join('');
+    const simBox = sim ? `<div class="ksim"><p class="sm b">시뮬레이션 <span class="muted xs">실제 상황 아님</span></p>
+        <label class="ksim-row"><span>원/달러 환율 <span class="muted xs">지금 ${nf(K.fx.now, 1)}원 · 3개월 전 ${nf(K.fx.ago, 1)}원</span></span><input type="number" step="10" min="500" max="5000" data-ksim="rate" value="${sim.rate}"> 원</label>
+        <label class="ksim-row"><span>외환보유액 줄어듦 <b class="num">${sim.cut}%</b></span><input type="range" min="0" max="80" step="5" data-ksim="cut" value="${sim.cut}"></label>
+        <button class="btn sm-btn" data-act="ksim-off">시뮬레이션 끄기</button></div>`
+      : (K.fx && K.reserves ? `<button class="btn sm-btn" data-act="ksim-on" style="margin-top:8px">시뮬레이션: "환율이 ○○원이면?"</button>` : '');
+    return `<section class="card${sim ? ' ksim-on' : ''}"><div class="card-head"><h2>한국 위기 경보${sim ? ' <span class="tag">시뮬레이션</span>' : ''}</h2><span class="act ${cls(V.n)}">${esc(V.stageName)} ${V.n}/3</span></div>
+      ${rows}${simBox}
+      <p class="muted xs" style="margin-top:6px">켜진 신호가 많을수록 단계가 올라가요 (0 정상 · 1 주의 · 2 경고 · 3 위험). <b>예측이 아니라 위험 신호</b>예요. 봇 판단에는 쓰지 않아요. 단기외채 비율은 다음 단계에서 붙여요.</p>
+      ${!sim ? `<p class="muted xs">${kT(K.at)} 기준 · 12시간마다 갱신 · 출처: ${K.sig.map((z) => esc(z.src)).join(', ')}${K.errors && K.errors.length ? ' · ' + esc(K.errors.join(' · ')) : ''}</p>` : ''}</section>`;
   }
   // 머니 글로브: 통화 20개 동시 약세 (보여 주기용 — 6년 시험 불합격이라 봇 판단에는 안 씀)
   // 봇이 지금 새 롱을 쉬는지, 왜 그런지 한 줄
@@ -3475,7 +3499,7 @@
   window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
 
   /* ---------- 사용자 동작 ---------- */
-  document.addEventListener('change', (e) => { if (e.target.id === 'extra-cash') { S.extraCash = Math.max(0, Number(e.target.value) || 0); store.set('snw.extraCash', S.extraCash); render(); } });
+  document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.ksim && S.ui.ksim) { const k = e.target.dataset.ksim, x = Number(e.target.value); if (isFinite(x)) { S.ui.ksim[k] = k === 'rate' ? Math.max(500, Math.min(5000, x)) : Math.max(0, Math.min(80, x)); render(); } return; } if (e.target.id === 'extra-cash') { S.extraCash = Math.max(0, Number(e.target.value) || 0); store.set('snw.extraCash', S.extraCash); render(); } });
   document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[role=button][data-act]')) { e.preventDefault(); e.target.click(); } });
   document.addEventListener('input', (e) => {
     const f = e.target.form;
@@ -3489,6 +3513,8 @@
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act, v = b.dataset.v, id = b.dataset.id;
+    if (act === 'ksim-on') { const K = S.mac && S.mac.korea; if (K && K.fx) { S.ui.ksim = { rate: Math.round(K.fx.now), cut: 0 }; render(); } return; }
+    if (act === 'ksim-off') { S.ui.ksim = null; render(); return; }
     if (act === 'basis') { S.ui.compareBasis = v; render(); }
     else if (act === 'phase') { S.ui.phase = Number(v); render(); }
     else if (act === 'coin') { S.ui.coin = v; render(); ensureCloses(v); }
