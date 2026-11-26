@@ -2077,7 +2077,7 @@
     S.mkLoading = true;
     const get = (f) => fetch('https://raw.githubusercontent.com/' + futRepo() + '/bot-data/' + f + '?t=' + Math.floor(Date.now() / 60e3), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/' + f, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null);
-    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json'), get('pair-live.json'), get('mg-live.json')]).then(([a, b, c, d, e]) => { S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (d && d.live) S.pr = d; if (e && e.live) S.mg = e; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
+    Promise.all([get('mk3-live.json'), get('mk-live.json'), get('rs-live.json'), get('pair-live.json'), get('mg-live.json'), get('macro-live.json')]).then(([a, b, c, d, e, f]) => { if (f && f.at) S.mac = f; S.mkLoading = false; S.mkAt = Date.now(); if (a && a.live) S.mk3 = a; if (b && b.live) S.mk = b; if (c && c.live) S.rs = c; if (d && d.live) S.pr = d; if (e && e.live) S.mg = e; if (['mk', 'paper', 'home', 'bot', 'analysis', 'hq', 'open', 'closed'].indexOf(route()) >= 0) render(); });
   }
   function mkEntry() {
     loadMk();
@@ -3038,7 +3038,7 @@
       ${nTr ? `<div class="tbl">${allTr.slice(0, 8).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${esc(t.who.name)} · ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     const ins = insights(A);
     const insCard = ins.length ? `<section class="card"><div class="card-head"><h2>오늘의 점검</h2><a href="#analysis" class="xs">자세히 ›</a></div>${ins.slice(0, 3).map((x) => `<div class="ins ${x.lv}"><p class="sm"><b>${esc(x.title)}</b></p><p class="muted xs">${esc(x.text)}</p></div>`).join('')}</section>` : '';
-    return head + guideCard() + hero + demoLine() + chart + posCard + insCard + recent + homeMarket();
+    return head + guideCard() + hero + demoLine() + chart + posCard + insCard + recent + homeMarket() + macroCard(false);
   }
   // 홈: 바이낸스 데모(가짜 돈) 계좌 요약 한 줄 → 누르면 #demo
   function demoLine() {
@@ -3167,7 +3167,19 @@
       ${W.study.map((r, k) => `<tr${k === 0 ? ' class="hl"' : ''}><td>${esc(r.name)}</td><td class="${dirClass(r.all.cagr)}">${pct(r.all.cagr, 1)}</td><td>${pct(r.all.mdd, 0)}</td><td>${r.all.sharpe ?? '—'}</td><td>${r.all.pf ?? '—'}</td><td>${r.all.n}</td><td class="${dirClass(r.h1.ret)}">${pct(r.h1.ret, 0)}</td><td class="${dirClass(r.h2.ret)}">${pct(r.h2.ret, 0)}</td></tr>`).join('')}</tbody></table></div>
       <p class="muted xs" style="margin-top:6px">주의: '용수철(되돌림)' 시험이 크게 져서 반대로 뒤집어 찾은 규칙이에요. 과거에 맞춘 것일 수 있어 <b>3개월 실시간 성적</b>으로 판단해요. 뒤 절반이 앞 절반보다 약해 효과가 줄고 있을 수도 있어요. 바이낸스 데모에는 넣지 않았어요.</p></section>`;
   }
-  function valBlock(a) { return (a.id === 'pr' ? prBlock(a) : a.id === 'mg' ? mgBlock(a) : '') + valBlock0(a); }
+  function valBlock(a) { return (a.id === 'pr' ? prBlock(a) : a.id === 'mg' ? mgBlock(a) + macroCard(true) : '') + valBlock0(a); }
+  // 세계 경제 신호 (미·중 패권·금융 긴장의 흔적) + 세계 경제 뉴스
+  function macroCard(full) {
+    const X = S.mac; if (!X || !X.now) return full ? `<section class="card"><h2>세계 경제 신호</h2><p class="muted sm">다음 갱신 때 받아 와요.</p></section>` : '';
+    const R = X.now, S2 = R.S, f2 = (v, u) => (v == null ? '—' : (v > 0 && u !== '' ? '+' : '') + Number(v).toFixed(2) + (u ? u.split(' ')[0] : ''));
+    const rows = ['A', 'B', 'C', 'D', 'E'].map((k) => { const z = S2[k]; return `<div class="kv"><span>${esc(z.label)} <span class="muted xs">기준 ${esc(z.th)}</span></span><b class="num">${f2(z.val, z.unit)} ${z.on ? '<span class="act warn">켜짐</span>' : '<span class="muted xs">꺼짐</span>'}</b></div>`; }).join('');
+    const news = (X.news || []).slice(0, full ? 10 : 3).map((n) => `<p class="sm news-line"><span class="muted xs">${esc(n.src)}</span> ${esc(n.title)}${n.t ? ` <span class="muted xs">${Math.max(1, Math.round((Date.now() - n.t) / 36e5))}시간 전</span>` : ''}</p>`).join('');
+    return `<section class="card"><div class="card-head"><h2>세계 경제 신호</h2><span class="act ${R.blockLongs ? 'warn' : 'neu'}">위험 ${R.n}/4${R.blockLongs ? ' · 롱 쉼' : ''}</span></div>
+      ${full ? rows : `<p class="sm">${['A', 'B', 'C', 'D'].filter((k) => S2[k].on).map((k) => esc(S2[k].label)).join(' · ') || '켜진 위험 신호 없음'}</p>`}
+      <p class="muted xs" style="margin-top:6px">위안화·달러·미국 금리·나스닥 중 2개 이상 켜지면 민경기 매매법이 새 롱을 쉬어요 (6년 시험으로 고른 규칙, 전날 마감 기준).${full ? ' VIX는 시험에서 우연과 구분이 안 돼 참고만 해요.' : ''}</p>
+      ${news ? `<h3 class="sm b" style="margin:10px 0 4px">세계 경제 뉴스</h3>${news}<p class="muted xs">뉴스는 보여 주기용이에요. 과거 기록으로 시험할 수 없어서 매매 판단에는 쓰지 않아요.</p>` : ''}
+      <p class="muted xs">${kT(X.at)} 갱신</p></section>`;
+  }
   function mgBlock(a) {
     const G = a.mg; if (!G) return ''; const P = G.parts || {}, B = G.bt || {};
     return `<section class="card"><h2>어떻게 섞었나</h2>
@@ -3248,6 +3260,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '세계 경제 신호 추가 (미·중 패권)', '위안화 급약세·달러 급등·미국 10년 금리 급등·나스닥 약세장·VIX를 6년 시험. 하나씩은 모두 불합격이거나 우연과 구분 안 됨, "2개 이상 동시"만 합격(류신영 샤프 1.31→1.36, 무작위 200번 중 0번). 민경기 매매법(시작 전)에 넣음: 2개 이상이면 류신영 몫의 새 롱 쉼 → 6년 연 35%·샤프 1.56. 류신영 봇 자체는 그대로(비교용). 홈·민경기 매매법 화면에 신호와 미·중·연준·환율 뉴스 표시(뉴스는 판단에 안 씀)', 'mg'],
     ['11/26', '민경기 매매법 모의 계좌 시작', '류신영 봇 50% + 상대 모멘텀 50%, 두 쪽 모두 크기 1.25배(류신영 거래당 위험 0.94%·레버리지 한도 3.75배, 상대 모멘텀 1.25배). 6년 시험: 연 34%·낙폭 −19%·샤프 1.53, 기록을 1000번 섞었을 때 낙폭 −25% 넘을 확률 4%. 류신영 혼자(지금 크기)는 같은 확률이 61%. 11/26 21시 봉부터 계산, 2027-02-25 판정', 'mg'],
     ['11/26', '날짜별 손익 표시', '봇 화면에 "날짜별 손익 · 봇 전체" 표, 봇마다 상세 화면에 날짜별 손익(손익·수익률·끝난 거래), 바이낸스 데모 화면에 날짜별 손익(계좌 전체 + 봇 5개 몫, USDT) 추가. 한국 날짜 기준, 평가손익 포함. 데모 날짜별 기록은 11/26부터 쌓여요', 'demo'],
     ['11/26', '세력 흔적 매매 3가지 시험 → 모두 탈락', '손절 털기 되받기(4시간봉 −0.11R·15분봉 −0.33R, 수수료 0이어도 무작위보다 나쁨), 강제청산 폭포 되받기(4시간봉 −0.23R·15분봉 −0.74R), 펀딩비 쏠림 필터(류신영 봇 샤프 1.29 → 1.12·1.23으로 낮춤). 큰 거래량 돌파는 되돌리기보다 이어지는 경우가 많았음 → 따라가는 류신영 봇 유지', 'rs'],

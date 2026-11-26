@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { loadEnv, push, cleanTicks } from './paper.mjs';
 import { trainGBM, predict, MK_COINS } from './mk.mjs';
 import { MG } from './mg.mjs';
+import * as MAC from './macro.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
 const H4 = 4 * 3600e3, DAY = 864e5;
@@ -226,8 +227,15 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
     return r;
   };
   const L = simulate(W, P, deriv, { judge, tA: st.inception });
-  // 민경기 매매법용: 같은 판단으로 크기만 1.25배 (거래당 위험·레버리지 한도) · 민경기 매매법 시작 시점부터
-  const PM = { ...P, riskPct: P.riskPct * MG.k, maxLev: P.maxLev * MG.k }, LM = simulate(W, PM, deriv, { judge, tA: MG.start });
+  // 민경기 매매법용: 같은 판단 + 세계 경제 필터(위험 회피 신호 2개 이상이면 새 롱 쉼), 크기 1.25배 · 시작 시점부터
+  //  지난 판단은 저장된 그대로(st.mgMacro) — 나중에 받은 데이터로 과거 결정이 바뀌지 않게
+  let MAC_LIVE = null; try { MAC_LIVE = await MAC.load({ dir, fetchImpl, now: nowT, log }); } catch (e) { log('세계 경제 신호 실패: ' + e.message); }
+  const MM = MAC.prepare(MAC_LIVE); st.mgMacro = st.mgMacro || {};
+  const judgeM = (s, t, c, j) => { const r = judge(s, t, c, j); if (!r.ok || c.g < 0) return r; const k = s + '|' + t;
+    if (st.mgMacro[k] == null) { const R = MAC.riskAt(MM, t); st.mgMacro[k] = R ? (R.blockLongs ? 1 : 0) : 0; }
+    return st.mgMacro[k] ? { ok: false, p: r.p, why: r.why + ' · 세계 경제 위험 신호 2개 이상 — 롱 쉼' } : r; };
+  const PM = { ...P, riskPct: P.riskPct * MG.k, maxLev: P.maxLev * MG.k }, LM = simulate(W, PM, deriv, { judge: judgeM, tA: MG.start });
+  { const ks = Object.keys(st.mgMacro).filter((k) => +k.split('|')[1] >= MG.start - 400 * H4); st.mgMacro = Object.fromEntries(ks.slice(-400).map((k) => [k, st.mgMacro[k]])); }
   const eqL = L.equity.filter(([t]) => t >= st.inception), trL = L.trades.filter((z) => Date.parse(z.in.replace(' ', 'T') + 'Z') >= st.inception);
   const fresh = L.events.filter((e) => e.t > lastBar && e.t >= st.inception);
   // 저장 크기: 판단 기록은 최근 400개 · 시작 전 것은 버림
@@ -247,7 +255,7 @@ export async function run({ root = ROOT, dir = process.env.SCALP_DIR || process.
       positions: Object.entries(L.pos).map(([s, p]) => { const m = mark(s), u = p.g * (m - p.e) * p.q - p.fund, j = W.X[s].m.get(last); return { sym: s, name: NAME[s] || s, side: p.side, kind: 'vbrk', entry: r2(p.e, 6), mark: m, lev: r2(m * p.q / eq, 2), notional: Math.round(m * p.q), upnl: Math.round(u), stop: r2(p.stop, 6), trail: p.trail, tp: null, why: p.why, since: isoT(p.t0), barsLeft: Math.max(0, P.maxBars - 1 - (j - p.j0)) }; }),
       pending: L.pend.map((o) => ({ sym: o.s, name: NAME[o.s] || o.s, side: o.side, why: o.why })) },
     decisions: st.decisions.slice(-20).reverse(),
-    mg: { k: MG.k, riskPct: PM.riskPct, maxLev: PM.maxLev, start: P.start, equity: mEq, ret: r2((mEq / P.start - 1) * 100, 2), curve: thin(eqM.length ? eqM : [[MG.start, P.start]]), trades: LM.trades.filter((z) => Date.parse(z.in.replace(' ', 'T') + 'Z') >= MG.start).slice(-200).reverse(), positions: posOf(LM, mEq) }
+    mg: { k: MG.k, riskPct: PM.riskPct, maxLev: PM.maxLev, start: P.start, equity: mEq, ret: r2((mEq / P.start - 1) * 100, 2), curve: thin(eqM.length ? eqM : [[MG.start, P.start]]), trades: LM.trades.filter((z) => Date.parse(z.in.replace(' ', 'T') + 'Z') >= MG.start).slice(-200).reverse(), positions: posOf(LM, mEq), macro: MAC_LIVE && MAC_LIVE.now ? { at: MAC_LIVE.at, n: MAC_LIVE.now.n, blockLongs: MAC_LIVE.now.blockLongs } : null }
   };
   writeFileSync(outFile, JSON.stringify(out));
   log('류신영 봇: 모의 ' + out.live.ret + '% · 거래 ' + out.live.n + ' · 포지션 ' + out.live.positions.length + ' · 대기 ' + out.live.pending.length + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');

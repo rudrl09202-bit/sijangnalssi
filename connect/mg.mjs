@@ -1,6 +1,7 @@
 /* 민경기 매매법 — 류신영 봇(4시간봉) 50% + 상대 모멘텀 50% · 두 쪽 모두 크기 1.25배 · 모의투자 전용
  *  어디서 나왔나: research/portfolio.mjs (2026-11-26) — 6년(2021-03~2026-11) 시험에서
  *    연 34% · 최대 낙폭 −19% · 샤프 1.53 · 기록을 1000번 섞었을 때 낙폭 −25% 넘을 확률 4%
+ *  + 세계 경제 필터 (11/26 추가, 시작 전): 위안화 급약세·달러 급등·미 금리 급등·나스닥 약세장 중 2개 이상이면 류신영 몫의 새 롱 쉼 → 6년 연 35% · 샤프 1.56
  *  방식: 두 봇이 각자 1.25배 크기로 1억씩 매매한 결과(rs-live.json·pair-live.json 의 mg)를 4시간마다 반반으로 다시 맞춰 합침
  *  2027-02-25 판정 때 상대 모멘텀이 실제로도 제 몫을 하면 크기 1.375 로 올릴지 정함 (지금은 1.25 고정)
  */
@@ -31,7 +32,7 @@ export async function run({ dir = process.env.SCALP_DIR || process.env.MK_DIR ||
   if (!RS || !RS.mg || !PR || !PR.mg) { log('민경기 매매법: 두 봇의 1.25배 기록이 아직 없어 건너뜀'); return null; }
   const live = combine({ rs: RS.mg, pr: PR.mg }, now.getTime());
   const out = { v: 1, generatedAt: now.toISOString(), inception: isoT(MG.start), watchUntil: MG.watchUntil, cfg: { k: MG.k, w: MG.w, rsRisk: RS.mg.riskPct, prLev: PR.mg.lev },
-    bt: { label: '6년 시험 (2021-03~2026-11)', cagr: 34.2, mdd: -18.7, sharpe: 1.53, pBad: 4, h1: '32%/−11%', h2: '36%/−19%' },
+    bt: { label: '6년 시험 (2021-03~2026-11)', cagr: 35.1, mdd: -18.7, sharpe: 1.56, pBad: 4, h1: '34%/−11%', h2: '36%/−19%' }, macro: RS.mg.macro || null,
     parts: { rs: { ret: RS.mg.ret, equity: RS.mg.equity }, pr: { ret: PR.mg.ret, equity: PR.mg.equity } }, live };
   writeFileSync(join(dir, 'mg-live.json'), JSON.stringify(out));
   log('민경기 매매법: 모의 ' + live.ret + '% · 거래 ' + live.n + ' · 포지션 ' + live.positions.length);
