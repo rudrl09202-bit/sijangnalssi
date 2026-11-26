@@ -192,6 +192,17 @@
     for (const id in acc.pos) { const p = acc.pos[id], a = W.A[id], i = lastIdx(a, d); v += p.qty * (i >= 0 ? a.c[i] : p.avg) * fxAt(W, a, d); }
     return v;
   }
+  // 주문 크기·한도 계산용: d 날 시가에 주문할 때는 d 종가를 아직 모름 → d 이전 마지막 종가로 평가 (미래 가격 안 씀)
+  function prevIdx(a, d) { const i = lastIdx(a, d); if (i < 0) return -1; return a.t[i] === d ? i - 1 : i; }
+  function equityPrev(W, acc, d) {
+    let v = acc.cash;
+    for (const id in acc.pos) { const p = acc.pos[id], a = W.A[id], i = prevIdx(a, d); v += p.qty * (i >= 0 ? a.c[i] : p.avg) * fxAt(W, a, d); }
+    return v;
+  }
+  function sectorExposurePrev(W, acc, d, sec) {
+    let v = 0; for (const id in acc.pos) { const a = W.A[id]; if ((W.sectorOf[id] || a.sec) === sec) { const i = prevIdx(a, d); v += acc.pos[id].qty * (i >= 0 ? a.c[i] : acc.pos[id].avg) * fxAt(W, a, d); } }
+    return v;
+  }
   function sectorExposure(W, acc, d, sec) {
     let v = 0; for (const id in acc.pos) { const a = W.A[id]; if ((W.sectorOf[id] || a.sec) === sec) { const i = lastIdx(a, d); v += acc.pos[id].qty * a.c[i] * fxAt(W, a, d); } }
     return v;
@@ -240,7 +251,9 @@
         fill(W, acc, a, d, 'sell', p.qty, px, p.stopWhy || '손절선 이탈');
       }
     }
-    // 2) 대기 주문
+    // 2) 대기 주문 — 금고가 막은 상태(낙폭 정지·하루 손실 차단)면 남아 있던 매수 주문은 모두 취소 (매도 주문은 그대로)
+    const blocked = acc.paused || acc.dayBlock;
+    if (blocked) { const nB = acc.orders.filter((o) => o.side === 'buy').length; if (nB) { acc.orders = acc.orders.filter((o) => o.side !== 'buy'); (acc.events = acc.events || []).push({ d, side: 'vault', reason: '금고 차단 중 — 대기 매수 주문 ' + nB + '개 취소' }); } }
     for (const o of acc.orders) {
       const a = W.A[o.id], i = a && a.idx[d];
       if (i == null) { keep.push(o); continue; }
@@ -281,17 +294,17 @@
 
   // 주문 크기: 위험 기준(riskKrw) 또는 비중 기준(weight), 금고 한도로 자름
   function sizeQty(W, acc, a, d, px, o) {
-    const eq = equityOf(W, acc, d), fx = fxAt(W, a, d);
+    const eq = equityPrev(W, acc, d), fx = fxAt(W, a, d);
     let krw;
     if (o.weight != null) krw = eq * o.weight;
     else if (o.riskKrw != null && o.stopDist > 0) krw = (o.riskKrw / (o.stopDist * fx)) * px * fx;
     else krw = eq * 0.05;
     if (o.part) krw *= o.part;
     if (acc.halve) krw *= 0.5;
-    const held = acc.pos[a.id] ? acc.pos[a.id].qty * px * fx : 0;
+    const pi = prevIdx(a, d), held = acc.pos[a.id] ? acc.pos[a.id].qty * (pi >= 0 ? a.c[pi] : px) * fx : 0;
     const capPos = eq * (o.maxPct || VAULT.maxPosPct) / 100 - held;
     const sec = W.sectorOf[a.id] || a.sec;
-    const capSec = sec && a.kind === 'stock' ? eq * VAULT.maxSectorPct / 100 - sectorExposure(W, acc, d, sec) : Infinity;
+    const capSec = sec && a.kind === 'stock' ? eq * VAULT.maxSectorPct / 100 - sectorExposurePrev(W, acc, d, sec) : Infinity;
     const capCash = acc.cash - eq * VAULT.minCashPct / 100;
     krw = Math.min(krw, capPos, capSec, capCash);
     if (krw < eq * 0.003) return 0; // 너무 작은 주문은 안 냄
