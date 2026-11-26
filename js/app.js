@@ -240,7 +240,7 @@
         ${RG && RG.label ? `<div class="kv"><span>장세 (15분봉 기준)</span><b>${esc(RG.label)}</b></div>` : ''}
         ${S.fng != null ? `<div class="kv"><span>코인 심리 (공포·탐욕)</span><b class="num">${S.fng} <span class="muted xs">${S.fng <= 25 ? '극단적 공포' : S.fng >= 75 ? '극단적 탐욕' : S.fng < 45 ? '공포' : S.fng > 55 ? '탐욕' : '보통'}</span></b></div>` : ''}
         ${(evs || []).map((e) => `<div class="kv"><span><span class="act warn">발표 임박</span></span><b class="sm">${esc(e.date.slice(5).replace('-', '/'))} ${esc(e.title)}</b></div>`).join('')}
-        ${(risky || []).map((n) => `<p class="sm news-line"><span class="act warn">주의</span> ${esc(n.title)} <span class="muted xs">${n.ago}시간 전</span></p>`).join('')}
+        ${(risky || []).map((n) => `<p class="sm news-line"><span class="act warn">주의</span> ${esc(unent(n.title))} <span class="muted xs">${agoH(n.ago)}</span></p>`).join('')}
         ${tvButton('perp', 'BTC', '비트코인 무기한 선물', '240')}</section>`;
   }
   function viewHomeOld() {
@@ -1836,7 +1836,7 @@
       <p class="nav num">${won(L.equity)}</p>
       <p class="hero-sub ${dirClass(L.ret)}">${L.ret >= 0 ? '+' : ''}${won(L.equity - L.start)} (${pct(L.ret, 2)})</p>
       <p class="muted xs">${futT(D.inception)}부터 · 4시간마다 자동 판단 · 지금 레버리지 ${L.lev}배</p>
-      <div class="goal"><div class="row between"><span class="sm">이번 달 ${mNow == null ? '—' : pct(mNow, 1)}</span><span class="muted xs">목표 월 ${D.goal}%</span></div><div class="goal-bar"><i style="width:${prog.toFixed(0)}%"></i></div></div>
+      <div class="goal"><div class="row between"><span class="sm">이번 달 ${mNow == null ? '—' : pct(mNow, 1)}</span><span class="muted xs">월 목표를 쫓지 않아요 · 낙폭 한도를 먼저 지켜요</span></div></div>
     </section>`;
     // 월 10% 현실 점검
     const cur = D.cfg.riskPct;
@@ -2138,7 +2138,7 @@
       ${X.positions.length ? `<div class="tbl" style="margin-top:8px">${X.positions.map((p) => `<div class="tr2"><span>${sideTag(p.side)} <b>${esc(p.sym.replace('USDT', ''))}</b> <span class="muted xs">${p.qty}${p.bot ? ' · ' + String(p.bot).split(',').map((b) => ({ mk3: '민경기', rs: '류신영', sc1: '조심형', sc2: '적극형', sc3: 'AI 다수결' }[b] || b)).join('+') : ''}</span></span><span class="num xs muted">${usd(p.entry)} → ${usd(p.mark)}${p.stop ? ' · 거래소 손절 ' + usd(p.stop) : ''}</span><span class="num ${dirClass(p.upnl)}">${p.upnl >= 0 ? '+' : ''}${nf(p.upnl, 1)}$</span></div>`).join('')}</div>` : ''}
       ${guardLine(X)}
       ${demoBots(X)}
-      ${X.actions.length ? `<details class="pro-inline"><summary>최근 주문 기록</summary>${X.actions.slice(0, 12).map((a) => `<p class="xs news-line"><span class="muted num">${kT(a.t)}</span> ${esc(a.m)}</p>`).join('')}</details>` : ''}
+      ${X.actions.length ? `<details class="pro-inline"><summary>최근 주문 기록</summary>${X.actions.slice(0, 12).map((a) => `<p class="xs news-line"><span class="muted num">${kT(a.t)}</span> ${esc(String(a.m).replace(/(\d+\.\d{4})\d+/g, '$1'))}</p>`).join('')}</details>` : ''}
       <p class="muted xs">${kT(X.at)} 확인 · 매시 5·20·35·50분 · 실제 돈 아님 (바이낸스 데모 트레이딩)${X.bots ? ' · 봇 ' + X.bots.length + '개(' + X.bots.map((b) => b.name).join('·') + ')가 잔고를 ' + X.bots.length + '등분, 같은 코인·같은 방향이면 몫을 합쳐 한 포지션(손절은 봇마다 따로)' : ''}</p></section>`;
   }
   function viewMk() {
@@ -2298,7 +2298,7 @@
     loadScalp();
     const crypto = `<section class="card"><div class="card-head"><h2>코인 시장 분위기</h2>${tvButton('perp', 'BTC', '비트코인 무기한 선물', '240')}</div>
       <div class="kpis k3">${kpi('비트코인', btc ? nf(Math.round(btc.krw / 1e4)) + '만' : '—', '', btc ? `<span class="${dirClass(btc.chg24)}">${sign(btc.chg24, 2)}%</span> 24시간` : '')}${kpi('장세 (15분봉)', RG && RG.label ? esc(RG.label.split('·')[0].trim()) : '—', '', RG && RG.label && RG.label.split('·')[1] ? esc(RG.label.split('·')[1].trim()) : '')}${kpi('공포·탐욕', fng != null ? String(fng) : '—', '', fng == null ? '' : fng <= 25 ? '극단적 공포' : fng >= 75 ? '극단적 탐욕' : fng < 45 ? '공포' : fng > 55 ? '탐욕' : '보통')}</div>
-      ${S.sc && (S.sc.news || []).length ? `<details class="pro-inline"><summary>코인 뉴스 ${S.sc.news.length}건 (최근 12시간)</summary>${S.sc.news.slice(0, 8).map((n) => `<p class="xs news-line">${esc(n.title)} <span class="muted">${esc(n.src || '')} · ${n.ago}시간 전</span></p>`).join('')}</details>` : ''}</section>`;
+      ${S.sc && (S.sc.news || []).length ? `<details class="pro-inline"><summary>코인 뉴스 ${S.sc.news.length}건 (최근 12시간)</summary>${S.sc.news.slice(0, 8).map((n) => `<p class="xs news-line">${esc(unent(n.title))} <span class="muted">${esc(n.src || '')} · ${agoH(n.ago)}</span></p>`).join('')}</details>` : ''}</section>`;
     return `<header class="top"><div><p class="kicker">코인 선물 · 금리 · 주식</p><h1>시장</h1></div>${tools()}</header>
       ${weatherCard()}
       ${crypto}
@@ -2338,12 +2338,15 @@
   }
 
   /* ---------- 처음 안내 · 쉬운 용어 사전 ---------- */
+  // 뉴스: 이중으로 인코딩된 기호(&#39; 등) 풀기 · '0.1시간 전' 대신 분 단위
+  const unent = (t) => String(t || '').replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (m, d) => String.fromCharCode(+d));
+  const agoH = (h) => (h == null || !isFinite(h) ? '' : h < 1 ? Math.max(1, Math.round(h * 60)) + '분 전' : (h < 10 ? Math.round(h * 10) / 10 : Math.round(h)) + '시간 전');
   function guideCard() {
     let done = false; try { done = !!localStorage.getItem('snw.guide'); } catch (err) { /* 무시 */ }
     if (done) return '';
     return `<section class="card guide"><p class="b">처음 오셨나요? 이렇게 보면 돼요</p>
       <ol class="guide-list"><li><b>AI 자동매매</b> — 봇들이 코인 선물(롱·숏)을 24시간 가상 돈 1억으로 자동 매매해요. 실제 돈은 움직이지 않아요.</li>
-      <li><b>민경기 봇</b> — 추세 돌파 규칙이 고른 후보 중, 학습 모델이 질 나쁜 절반을 걸러내는 대표 봇이에요.</li>
+      <li><b>민경기 매매법</b> — 시험을 통과한 류신영 봇(4시간 돌파 따라가기)과 상대 모멘텀을 반반 섞은 대표 계좌예요. 2월 25일에 실제 성적으로 판정해요.</li>
       <li><b>포지션</b> — 지금 들고 있는 롱·숏과 손익이에요. 손절선이 미리 정해져 있어요.</li>
       <li><b>시장</b>·<b>내 자산</b> — 코인 선물 시장 분위기, 내 실제 자산과 할 일을 봐요.</li></ol>
       <p class="muted xs">모르는 말은 더보기 → <a href="#words">쉬운 용어 사전</a>에서 찾아보세요.</p>
@@ -3040,7 +3043,7 @@
     const M = S.markets || {}, btc = S.prices && S.prices['KRW-BTC'];
     const mv = (k, d, unit) => { const m = M[k]; if (!m || m.value == null || !isFinite(m.value)) return { v: '—', c: '', cls: '' }; const c = m.chg == null || isNaN(m.chg) ? '' : sign(m.chg, m.chgUnit === 'bp' ? 0 : 2) + (m.chgUnit || ''); return { v: nf(Number(m.value), d) + (unit || ''), c, cls: dirClass(m.chg) }; };
     const line = (label, x) => `<div class="tile-row"><span class="muted">${label}</span><span class="num"><b>${x.v}</b> <span class="xs ${x.cls}">${x.c}</span></span></div>`;
-    const hero = w ? `<a class="card wx-hero" href="#explore"><div class="wx-ic">${IC[w.icon] || IC.sun}</div><div class="wx-txt"><p class="kicker">오늘의 시장날씨</p><p class="wx-title">${esc(w.title)}</p><p class="muted sm">${esc(w.sub)}</p>
+    const hero = w ? `<a class="card wx-hero" href="#explore"><div class="wx-ic">${ICON[w.icon] || ICON.sun}</div><div class="wx-txt"><p class="kicker">오늘의 시장날씨</p><p class="wx-title">${esc(w.title)}</p><p class="muted sm">${esc(w.sub)}</p>
       <div class="chips" style="margin-top:8px">${w.winds.map((x) => `<span class="chip ${x.on ? 'chip-on' : ''}">${esc(x.label)} ${x.missing ? '—' : x.on ? '역풍' : '양호'}</span>`).join('')}</div></div></a>` : '';
     const t1 = `<a class="tile" href="#explore"><p class="tile-h">오늘의 지수</p>
       ${line('비트코인', btc ? { v: nf(Math.round(btc.krw / 1e4)) + '만', c: sign(btc.chg24, 2) + '%', cls: dirClass(btc.chg24) } : { v: '—', c: '', cls: '' })}${line('코스피', mv('kospi', 2))}${line('나스닥', mv('nasdaq', 0))}</a>`;
@@ -3102,7 +3105,7 @@
     return `<section class="card"><div class="card-head"><h2>시장</h2><a href="#explore" class="xs">더 보기 ›</a></div>
       <div class="kpis k3">${kpi('비트코인', btc ? nf(Math.round(btc.krw / 1e4)) + '만' : '—', '', btc ? `<span class="${dirClass(btc.chg24)}">${sign(btc.chg24, 2)}%</span>` : '')}${kpi('장세', RG && RG.label ? esc(RG.label.split('·')[0].trim()) : '—', '', RG && RG.label && RG.label.split('·')[1] ? esc(RG.label.split('·')[1].trim()) : '15분봉')}${kpi('공포·탐욕', S.fng != null ? String(S.fng) : '—', '', S.fng == null ? '' : S.fng <= 25 ? '극단적 공포' : S.fng >= 75 ? '극단적 탐욕' : S.fng < 45 ? '공포' : S.fng > 55 ? '탐욕' : '보통')}</div>
       ${evs.map((e) => `<p class="sm news-line"><span class="act warn">발표</span> ${esc(e.date.slice(5).replace('-', '/'))} ${esc(e.title)}</p>`).join('')}
-      ${risky.map((n) => `<p class="sm news-line"><span class="act warn">주의</span> ${esc(n.title)} <span class="muted xs">${n.ago}시간 전</span></p>`).join('')}</section>`;
+      ${risky.map((n) => `<p class="sm news-line"><span class="act warn">주의</span> ${esc(unent(n.title))} <span class="muted xs">${agoH(n.ago)}</span></p>`).join('')}</section>`;
   }
 
   /* ---------- 진행 중인 포지션 전체 / 끝난 거래 전체 ---------- */
@@ -3225,7 +3228,7 @@
     const X = S.mac; if (!X || !X.now) return full ? `<section class="card"><h2>세계 경제 신호</h2><p class="muted sm">다음 갱신 때 받아 와요.</p></section>` : '';
     const R = X.now, S2 = R.S, f2 = (v, u) => (v == null ? '—' : (v > 0 && u !== '' ? '+' : '') + Number(v).toFixed(2) + (u ? u.split(' ')[0] : ''));
     const rows = ['A', 'B', 'C', 'D', 'E'].map((k) => { const z = S2[k]; return `<div class="kv"><span>${esc(z.label)} <span class="muted xs">기준 ${esc(z.th)}</span></span><b class="num">${f2(z.val, z.unit)} ${z.on ? '<span class="act warn">켜짐</span>' : '<span class="muted xs">꺼짐</span>'}</b></div>`; }).join('');
-    const news = (X.news || []).slice(0, full ? 10 : 3).map((n) => `<p class="sm news-line"><span class="muted xs">${esc(n.src)}</span> ${esc(n.title)}${n.t ? ` <span class="muted xs">${Math.max(1, Math.round((Date.now() - n.t) / 36e5))}시간 전</span>` : ''}</p>`).join('');
+    const news = (X.news || []).slice(0, full ? 10 : 3).map((n) => `<p class="sm news-line"><span class="muted xs">${esc(n.src)}</span> ${esc(unent(n.title))}${n.t ? ` <span class="muted xs">${Math.max(1, Math.round((Date.now() - n.t) / 36e5))}시간 전</span>` : ''}</p>`).join('');
     return `<section class="card"><div class="card-head"><h2>세계 경제 신호</h2><span class="act ${R.blockLongs ? 'warn' : 'neu'}">위험 ${R.n}/4${R.blockLongs ? ' · 롱 쉼' : ''}</span></div>
       ${full ? rows : `<p class="sm">${['A', 'B', 'C', 'D'].filter((k) => S2[k].on).map((k) => esc(S2[k].label)).join(' · ') || '켜진 위험 신호 없음'}</p>`}
       <p class="muted xs" style="margin-top:6px">위안화·달러·미국 금리·나스닥 중 2개 이상 켜지면 민경기 매매법이 새 롱을 쉬어요 (6년 시험으로 고른 규칙, 전날 마감 기준).${full ? ' VIX는 시험에서 우연과 구분이 안 돼 참고만 해요.' : ''}</p>
@@ -3312,6 +3315,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '앱 전체 점검 (휴대폰 화면 기준 32개 페이지)', '홈 시장날씨 아이콘이 "undefined"로 나오던 문제 수정 · 처음 안내 카드의 대표 봇 설명을 민경기 매매법으로 · 뉴스 제목에 &#39; 같은 기호가 그대로 보이던 문제 수정 · "0.1시간 전" → "6분 전" · 데모 주문 기록의 긴 소수점(60573.939781) 정리 · 선물 데스크의 "목표 월 10%" 진행 막대를 없앰(월 목표를 쫓으면 크기를 키우게 됨)', 'home'],
     ['11/26', '홈 첫 화면 새 디자인', '맨 위에 큰 시장날씨 카드(역풍 5개 표시) + 네 칸 요약(오늘의 지수 · 주요 거시 · 봇 상태 · 세계 경제 신호). 색은 차분하게 — 바탕은 모두 같은 색, 빨강(오름)·파랑(내림)만 의미 있게 사용. 누르면 자세한 화면으로', 'home'],
     ['11/26', '화면 보완 (외부 점검 반영)', '봇 카드마다 마지막 계산 시각·마지막 거래·보유 수, 갱신이 늦으면(15분봉 1시간·4시간봉 6시간) "갱신 늦음" 표시. 시장 탭 맨 위에 시장날씨 판정 기준(역풍 5개의 값·기준선) 카드. 거시 숫자를 못 받아도 날씨 계산이 깨지지 않게(값 없음은 역풍으로 안 셈). 앱 코드에 비밀 키가 없는지 점검 — 없음(키는 서버와 GitHub 비밀값에만)', 'more'],
     ['11/26', '통합 자산 방어 (바이낸스 데모 계좌 전체)', '봇 5개를 합쳐서 봄: 오늘 계좌 −5% 넘게 잃으면 그날 새 진입 멈춤 · 진입 뒤 전체 레버리지 5배 초과면 안 함 · 롱 합계나 숏 합계가 잔고의 4배 초과면 안 함. 손절·정리는 막지 않음. 평소엔 거의 안 걸리는 사고 대비용. 작동하면 휴대폰 알림 + 데모 화면에 기록', 'demo'],

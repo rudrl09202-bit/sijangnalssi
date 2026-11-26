@@ -13,10 +13,11 @@ export const FEEDS = [
   { src: 'Cointelegraph', url: 'https://cointelegraph.com/rss' }
 ];
 const decode = (t) => String(t || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/<[^>]+>/g, '').trim();
+const decode2 = (t) => { let a = decode(t); for (let k = 0; k < 2 && /&(amp|#39|apos|quot|lt|gt);/.test(a); k++) a = decode(a); return a; }; // 이중 인코딩(&amp;#39;)까지 풀기
 export function parseRss(xml, src) {
   const out = [];
   for (const m of String(xml).matchAll(/<item[\s>][\s\S]*?<\/item>/g)) {
-    const it = m[0], title = decode((it.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1]), pub = Date.parse(decode((it.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/) || [])[1]));
+    const it = m[0], title = decode2((it.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1]), pub = Date.parse(decode((it.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/) || [])[1]));
     if (title) out.push({ title: title.slice(0, 140), t: isFinite(pub) ? pub : null, src });
   }
   return out;
