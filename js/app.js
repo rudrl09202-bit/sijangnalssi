@@ -1925,6 +1925,28 @@
 
 
   /* ---------- 금리·물가 자동 갱신 (ECOS·FRED → data/policy-live.json) ---------- */
+  /* ---------- 외환 캐리 모의투자 봇 (connect/fxpaper.mjs → data/fx-live.json) ---------- */
+  function loadFxBot() {
+    if (S.fxbLoading || (S.fxb && Date.now() - S.fxbAt < 10 * 60e3)) return; S.fxbLoading = true;
+    const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/fx-live.json?t=' + Math.floor(Date.now() / 60e3);
+    fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/fx-live.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null)
+      .then((j) => { S.fxbLoading = false; S.fxbAt = Date.now(); if (j && j.positions) { S.fxb = j; if (route() === 'paper') render(); } });
+  }
+  function fxBotCard() {
+    loadFxBot(); const X = S.fxb;
+    if (!X) return `<section class="card"><p class="b">FX CARRY · 외환 캐리</p><p class="muted sm">${S.fxbLoading ? '불러오는 중이에요' : '평일 아침·오후 자동 실행 뒤에 결과가 나와요.'}</p></section>`;
+    const B = X.bt || {}, pos = X.positions.map((p) => `<div class="kv"><span>${p.side === 'long' ? '<span class="act up">매수</span>' : '<span class="act down">매도</span>'} ${esc(p.ko)} <span class="muted xs">금리차 ${p.diff > 0 ? '+' : ''}${nf(p.diff, 2)}%p</span></span><b class="num">${nf(Math.abs(p.w), 1)}%</b></div>`).join('');
+    const tr = (X.trades || []).slice(0, 6).map((t) => `<p class="xs"><span class="muted">${esc(t.d)}</span> ${esc(t.ko)} ${t.to > 0 ? '매수' : t.to < 0 ? '매도' : '정리'}${t.from ? ' (' + (t.from > 0 ? '매수' : '매도') + '에서)' : ''}</p>`).join('');
+    return `<section class="card"><div class="row between"><div><p class="b">FX CARRY · 외환 캐리</p><p class="muted xs">통화 11개 · 매달 · 달러 상대</p></div><span class="act neu">모의</span></div>
+      <div class="bot-mid"><div><p class="num bot-ret ${dirClass(X.ret)}">${pct(X.ret, 2)}</p><p class="muted xs num">${won(X.equity)} · ${esc(X.startDate)}부터</p></div>${spark(X.curve, 110, 36)}</div>
+      <h3 class="sm b" style="margin:10px 0 4px">지금 보유 (비중은 계좌 대비)</h3>${pos}
+      <p class="muted xs" style="margin-top:6px">규칙: 매달 첫 거래일, 그 나라 금리가 미국보다 가장 높은 3개 통화를 사고 가장 낮은 3개를 팔아요. 흔들림이 작은 통화일수록 비중이 커요(위안화처럼 관리되는 통화는 비중이 매우 클 수 있어요). 매일 환율 변화와 금리 차이(이자)를 함께 계산해요.</p>
+      <div class="kv" style="margin-top:8px"><span>10년 시험 (${esc(B.from)}~${esc(B.to)})</span><b class="num">연 ${pct(B.cagr, 1)} · 낙폭 ${pct(B.mdd, 1)} · 샤프 ${B.sharpe}</b></div>
+      <div class="kv"><span>표본 안 · 밖 샤프</span><b class="num">${B.inS} · ${B.outS}</b></div>
+      ${B.note ? `<p class="xs warn">${esc(B.note)}</p>` : ''}
+      ${tr ? `<h3 class="sm b" style="margin:10px 0 4px">최근 바꾼 것</h3>${tr}` : ''}
+      <p class="muted xs">캐리 전략은 평소엔 조금씩 벌다가 위기 때 한꺼번에 크게 잃는 성질이 있어요. 진짜 돈·주문과는 연결되어 있지 않아요. ${kT(X.at)} 갱신</p></section>`;
+  }
   function loadPolicy() {
     if (S.polLoading || (S.pol && Date.now() - S.polAt < 10 * 60e3)) return;
     S.polLoading = true;
@@ -3219,7 +3241,8 @@
       ${live.length ? live.map(card).join('') : '<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p></section>'}
       ${live.length ? dailyAll(live) : ''}
       ${cmp.length ? `<h2 class="sec">비교용 계좌</h2><p class="muted xs pad">새 방법이 정말 나은지 보려고 같이 돌리는 기준 계좌예요.</p>${cmp.map(card).join('')}` : ''}
-      <h2 class="sec">주식 봇 (모의)</h2>${homePaper().replace('href="#paper"', 'href="#stocks"')}`;
+      <h2 class="sec">주식 봇 (모의)</h2>${homePaper().replace('href="#paper"', 'href="#stocks"')}
+      <h2 class="sec">외환 봇 (모의)</h2>${fxBotCard()}`;
   }
 
   /* ---------- 봇 상세 ---------- */
