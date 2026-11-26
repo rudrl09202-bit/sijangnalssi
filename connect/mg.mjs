@@ -9,6 +9,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
+// 감시 기준 (research/guard.mjs, 6년 일별 기록에서): 자동으로 크기를 줄이면 6년 수익·샤프가 크게 나빠져서 알림만 하고, −25% 에서만 멈춤
+export const WATCH = { dd: { warn: -12, alarm: -18.7, stop: -25 }, r60: { mg: { warn: -6.0, alarm: -12.0 }, rs: { warn: -10.6, alarm: -20.1 }, pr: { warn: -5.8, alarm: -19.2 } } };
 export const MG = { start: Date.parse(process.env.MG_START || '2026-11-26T12:00:00Z'), k: 1.25, w: { rs: 0.5, pr: 0.5 }, cap: 1e8, watchUntil: '2027-02-25' };
 const tOf = (s) => Date.parse(String(s).replace(' ', 'T') + (String(s).length <= 16 ? ':00Z' : ''));
 const isoT = (t) => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
@@ -18,13 +20,26 @@ export function combine(subs, now = Date.now()) {
   const T = [...new Set(Object.values(ser).flatMap((c) => c.map((x) => x[0])))].filter((t) => t >= MG.start).sort((a, b) => a - b);
   const at = (c, t) => { let v = null; for (const [tt, x] of c) { if (tt <= t) v = x; else break; } return v; };
   let eq = MG.cap; const curve = [[isoT(MG.start), eq]]; let prev = Object.fromEntries(Object.keys(ser).map((id) => [id, at(ser[id], MG.start) ?? subs[id].start ?? MG.cap]));
-  for (const t of T) { let r = 0; for (const id of Object.keys(ser)) { const v = at(ser[id], t) ?? prev[id]; r += MG.w[id] * (v / prev[id] - 1); prev[id] = v; } eq *= 1 + r; curve.push([isoT(t), Math.round(eq)]); }
+  let pk = eq, stopAt = null;
+  for (const t of T) { let r = 0; for (const id of Object.keys(ser)) { const v = at(ser[id], t) ?? prev[id]; r += MG.w[id] * (v / prev[id] - 1); prev[id] = v; }
+    if (!stopAt) { eq *= 1 + r; pk = Math.max(pk, eq); if ((eq / pk - 1) * 100 <= WATCH.dd.stop) stopAt = t; } // 비상 정지: 그 뒤로는 따라가지 않음(현금)
+    curve.push([isoT(t), Math.round(eq)]); }
   // 지금 값 (각 봇의 현재 평가 포함)
-  { let r = 0; for (const id of Object.keys(ser)) { const v = subs[id].equity ?? prev[id]; r += MG.w[id] * (v / prev[id] - 1); } eq *= 1 + r; }
+  if (!stopAt) { let r = 0; for (const id of Object.keys(ser)) { const v = subs[id].equity ?? prev[id]; r += MG.w[id] * (v / prev[id] - 1); } eq *= 1 + r; pk = Math.max(pk, eq); }
+  // 감시: 낙폭 · 최근 60일 수익 (전체와 두 몫) — 6년 기준과 비교
+  const ago = (c, ms) => { const tt = (c.at(-1) || [0])[0] - ms; let v = null; for (const [x, y] of c) { if (x <= tt) v = y; else break; } return v; }, D60 = 60 * 864e5;
+  const cvT = curve.map(([t, v]) => [tOf(t), v]), full = cvT.length && cvT.at(-1)[0] - cvT[0][0] >= D60;
+  const r60 = (c, last) => { const v0 = ago(c, D60); return full && v0 ? (last / v0 - 1) * 100 : null; };
+  const dd = (eq / pk - 1) * 100, R60 = { mg: r60(cvT, eq), rs: ser.rs.length ? r60(ser.rs, subs.rs.equity ?? ser.rs.at(-1)[1]) : null, pr: ser.pr.length ? r60(ser.pr, subs.pr.equity ?? ser.pr.at(-1)[1]) : null };
+  const why = [], NMW = { mg: '민경기 매매법', rs: '류신영 몫', pr: '상대 모멘텀 몫' }; let lv = 0;
+  if (stopAt) { lv = 3; why.push(isoT(stopAt) + ' 고점 대비 ' + WATCH.dd.stop + '% 도달 — 비상 정지 (6년 동안 없던 수준 · 매매법이 안 통한다는 신호)'); }
+  else { if (dd <= WATCH.dd.alarm) { lv = Math.max(lv, 2); why.push('고점 대비 ' + r2(dd, 1) + '% — 6년 최악(' + WATCH.dd.alarm + '%) 수준'); } else if (dd <= WATCH.dd.warn) { lv = Math.max(lv, 1); why.push('고점 대비 ' + r2(dd, 1) + '% — 6년 중 흔치 않은 수준(' + WATCH.dd.warn + '%)'); }
+    for (const k of ['mg', 'rs', 'pr']) { const x = R60[k], th = WATCH.r60[k]; if (x == null) continue; if (x <= th.alarm) { lv = Math.max(lv, 2); why.push(NMW[k] + ' 최근 60일 ' + r2(x, 1) + '% — 6년 최악(' + th.alarm + '%) 수준'); } else if (x <= th.warn) { lv = Math.max(lv, 1); why.push(NMW[k] + ' 최근 60일 ' + r2(x, 1) + '% — 6년 하위 5%(' + th.warn + '%)'); } } }
+  const watch = { level: lv, label: ['정상', '주의', '경고', '비상 정지'][lv], dd: r2(dd, 2), r60: Object.fromEntries(Object.entries(R60).map(([k, v]) => [k, v == null ? null : r2(v, 2)])), why, stopAt: stopAt ? isoT(stopAt) : null, th: WATCH };
   const NM = { rs: '류신영', pr: '상대 모멘텀' }, part = (id, x) => ({ ...x, bot: id, botName: NM[id] });
   const trades = Object.entries(subs).flatMap(([id, s]) => (s.trades || []).filter((z) => tOf(z.in) >= MG.start).map((z) => part(id, { ...z, pnl: Math.round(z.pnl * MG.w[id]), qty: undefined }))).sort((a, b) => tOf(b.out) - tOf(a.out));
   const positions = Object.entries(subs).flatMap(([id, s]) => (s.positions || []).map((p) => part(id, { ...p, notional: Math.round((p.notional || 0) * MG.w[id]), upnl: Math.round((p.upnl || 0) * MG.w[id]), lev: r2((p.lev || 0) * MG.w[id], 2) })));
-  return { equity: Math.round(eq), start: MG.cap, ret: r2((eq / MG.cap - 1) * 100, 2), curve, trades, n: trades.length, positions, status: 'ok' };
+  return { equity: Math.round(eq), start: MG.cap, ret: r2((eq / MG.cap - 1) * 100, 2), curve, trades, n: trades.length, positions: stopAt ? [] : positions, status: stopAt ? 'stopped' : 'ok', watch };
 }
 export async function run({ dir = process.env.SCALP_DIR || process.env.MK_DIR || join(ROOT, 'data'), now = new Date(), log = console.log } = {}) {
   const rd = (f) => { const p = join(dir, f); return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null; };

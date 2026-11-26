@@ -3051,7 +3051,7 @@
     const G = S.mg && S.mg.live, A = (() => { try { return accounts(false).filter((a) => !a.cmp); } catch (e) { return []; } })(), nPos = A.reduce((t, a) => t + (a.positions || []).length, 0);
     const late = A.filter((a) => a.upd && Date.now() - Date.parse(a.upd) > (/15분/.test(a.tf || '') ? 3600e3 : 6 * 3600e3)).length;
     const t3 = `<a class="tile" href="${G ? '#bot/mg' : '#paper'}"><p class="tile-h">봇 상태</p>
-      <div class="tile-row"><span class="muted">민경기 매매법</span><span class="num"><b class="${G ? dirClass(G.ret) : ''}">${G ? pct(G.ret, 2) : '—'}</b></span></div>
+      <div class="tile-row"><span class="muted">민경기 매매법${G && G.watch && G.watch.level ? ' <span class="act warn">' + esc(G.watch.label) + '</span>' : ''}</span><span class="num"><b class="${G ? dirClass(G.ret) : ''}">${G ? pct(G.ret, 2) : '—'}</b></span></div>
       <div class="tile-row"><span class="muted">가동 봇</span><span class="num"><b>${A.length}개</b></span></div>
       <div class="tile-row"><span class="muted">${late ? '갱신 늦음' : '보유 포지션'}</span><span class="num"><b class="${late ? 'warn' : ''}">${late ? late + '개' : nPos + '개'}</b></span></div></a>`;
     const X = S.mac && S.mac.now, on = X ? ['A', 'B', 'C', 'D'].filter((k) => X.S[k].on).map((k) => X.S[k].label) : [];
@@ -3235,6 +3235,18 @@
       ${news ? `<h3 class="sm b" style="margin:10px 0 4px">세계 경제 뉴스</h3>${news}<p class="muted xs">뉴스는 보여 주기용이에요. 과거 기록으로 시험할 수 없어서 매매 판단에는 쓰지 않아요.</p>` : ''}
       <p class="muted xs">${kT(X.at)} 갱신</p></section>`;
   }
+  // 민경기 매매법 감시: 6년 기록 기준 정상·주의·경고·비상 정지 (자동으로 크기를 줄이진 않음 — 시험에서 수익·샤프를 크게 떨어뜨려서)
+  function mgWatch(G) {
+    const W = G.live && G.live.watch; if (!W) return '';
+    const th = W.th || {}, f = (v) => (v == null ? '<span class="muted xs">60일 전 기록 없음</span>' : pct(v, 1));
+    return `<h3 class="sm b" style="margin:12px 0 4px">변화 감시 <span class="act ${W.level >= 2 ? 'warn' : 'neu'}">${esc(W.label)}</span></h3>
+      <div class="kv"><span>고점 대비 낙폭 <span class="muted xs">주의 ${th.dd ? th.dd.warn : ''}% · 경고 ${th.dd ? th.dd.alarm : ''}% · 정지 ${th.dd ? th.dd.stop : ''}%</span></span><b class="num ${dirClass(W.dd)}">${pct(W.dd, 1)}</b></div>
+      <div class="kv"><span>최근 60일 · 전체 <span class="muted xs">주의 ${th.r60 ? th.r60.mg.warn : ''}%</span></span><b class="num">${f(W.r60 && W.r60.mg)}</b></div>
+      <div class="kv"><span>최근 60일 · 류신영 몫 <span class="muted xs">주의 ${th.r60 ? th.r60.rs.warn : ''}%</span></span><b class="num">${f(W.r60 && W.r60.rs)}</b></div>
+      <div class="kv"><span>최근 60일 · 상대 모멘텀 몫 <span class="muted xs">주의 ${th.r60 ? th.r60.pr.warn : ''}%</span></span><b class="num">${f(W.r60 && W.r60.pr)}</b></div>
+      ${W.why.length ? W.why.map((x) => `<p class="xs warn">${esc(x)}</p>`).join('') : ''}
+      <p class="muted xs">기준은 6년 기록에서 뽑았어요: 주의 = 6년 중 하위 5%, 경고 = 6년 최악 수준. 단계가 바뀌면 휴대폰으로 알려요. 크기를 자동으로 줄이진 않아요(6년 시험에서 수익 25~35%·샤프가 크게 떨어짐). 고점 대비 −25%에 닿으면 그때부터 따라가지 않고 멈춰요 — 매매법이 안 통한다는 신호로 보고 다시 판단해요.</p>`;
+  }
   function mgBlock(a) {
     const G = a.mg; if (!G) return ''; const P = G.parts || {}, B = G.bt || {};
     return `<section class="card"><h2>어떻게 섞었나</h2>
@@ -3244,6 +3256,7 @@
       <div class="kv" style="margin-top:8px"><span>6년 시험</span><b class="num">연 ${pct(B.cagr, 1)} · 낙폭 ${pct(B.mdd, 1)} · 샤프 ${B.sharpe ?? '—'}</b></div>
       <div class="kv"><span>낙폭 −25% 넘을 확률 (1000번 섞기)</span><b class="num">${B.pBad ?? '—'}%</b></div>
       <div class="kv"><span>앞 절반 · 뒤 절반 (연 수익/낙폭)</span><b class="num">${esc(B.h1 || '—')} · ${esc(B.h2 || '—')}</b></div>
+      ${mgWatch(G)}
       <p class="muted xs" style="margin-top:6px">${esc(G.watchUntil || '2027-02-25')} 판정: 상대 모멘텀이 실제로도 제 몫을 하면 크기를 1.375로 올릴지 정해요. 그 전엔 크기를 바꾸지 않아요. 실제 돈·바이낸스 데모에는 연결하지 않았어요.</p></section>`;
   }
   function valBlock0(a) {
@@ -3315,6 +3328,7 @@
       <p class="sm">· 올릴 방향: ① 거래량 확인을 민경기 봇에도 시험 ② 봇 여러 개를 섞어 낙폭 줄이기 ③ 미결제약정·롱숏 데이터(2달 뒤)로 재학습.</p></section>`;
   }
   const CHANGES = [
+    ['11/26', '민경기 매매법 변화 감시 (마지막 추가)', '자동 크기 조절 2가지를 6년 시험 — 낙폭 단계(−10%면 절반)는 연 35%→26%·샤프 1.56→1.36, 성적 이탈(60일 하위 5%면 절반)은 연 28%·샤프 1.39 → 모두 불합격. 대신 감시만: 낙폭 −12%·60일 수익 6년 하위 5%면 "주의", 6년 최악 수준이면 "경고", 고점 대비 −25%면 "비상 정지"(그 뒤로 따라가지 않음). 단계가 바뀌면 휴대폰 알림. 이것으로 매매법 추가는 끝 — 2/25까지 지켜봄', 'mg'],
     ['11/26', '앱 전체 점검 (휴대폰 화면 기준 32개 페이지)', '홈 시장날씨 아이콘이 "undefined"로 나오던 문제 수정 · 처음 안내 카드의 대표 봇 설명을 민경기 매매법으로 · 뉴스 제목에 &#39; 같은 기호가 그대로 보이던 문제 수정 · "0.1시간 전" → "6분 전" · 데모 주문 기록의 긴 소수점(60573.939781) 정리 · 선물 데스크의 "목표 월 10%" 진행 막대를 없앰(월 목표를 쫓으면 크기를 키우게 됨)', 'home'],
     ['11/26', '홈 첫 화면 새 디자인', '맨 위에 큰 시장날씨 카드(역풍 5개 표시) + 네 칸 요약(오늘의 지수 · 주요 거시 · 봇 상태 · 세계 경제 신호). 색은 차분하게 — 바탕은 모두 같은 색, 빨강(오름)·파랑(내림)만 의미 있게 사용. 누르면 자세한 화면으로', 'home'],
     ['11/26', '화면 보완 (외부 점검 반영)', '봇 카드마다 마지막 계산 시각·마지막 거래·보유 수, 갱신이 늦으면(15분봉 1시간·4시간봉 6시간) "갱신 늦음" 표시. 시장 탭 맨 위에 시장날씨 판정 기준(역풍 5개의 값·기준선) 카드. 거시 숫자를 못 받아도 날씨 계산이 깨지지 않게(값 없음은 역풍으로 안 셈). 앱 코드에 비밀 키가 없는지 점검 — 없음(키는 서버와 GitHub 비밀값에만)', 'more'],
