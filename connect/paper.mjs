@@ -245,6 +245,9 @@ export async function run({ root = ROOT, now = new Date(), log = console.log, en
 
   // ── 2) 모의투자 (이어서)
   if (!state) { state = { v: 1, inception: last, accounts: {} }; log('모의투자 계좌를 새로 엽니다: ' + last + ' 종가부터 판단, 다음 거래일 시가부터 체결'); }
+  // 새로 추가된 봇: 지난 날짜로 거슬러 매매하지 않고 다음 거래일부터 시작 (기존 계좌들이 마지막으로 처리한 날 다음부터)
+  const lastSeen = Object.values(state.accounts).map((x) => x.lastDate).filter(Boolean).sort().pop();
+  if (lastSeen) Q.BOTS.forEach((b) => { if (!state.accounts[b.id]) { const acc = Q.newAccount(b); acc.lastDate = lastSeen; acc.since = lastSeen; state.accounts[b.id] = acc; log('새 봇 계좌: ' + b.code + ' — ' + lastSeen + ' 다음 거래일부터'); } });
   const todo = W.cal.filter((d) => d >= state.inception);
   const events = Q.run(W, state, todo, { collect: true });
   const fresh = events.filter((e) => e.side === 'buy' || e.side === 'sell' || e.side === 'vault');

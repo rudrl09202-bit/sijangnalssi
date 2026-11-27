@@ -1962,20 +1962,23 @@
       <p class="sm">${T.list.slice(0, 3).map((x) => esc(x.name)).join(' · ')}${T.list.length > 3 ? ' 외 ' + (T.list.length - 3) + '개' : ''}</p><p class="muted xs">${esc(T.date)} 종가 · 나스닥·S&P 500·코스피·코스닥 ›</p></a>`;
   }
   // TOP 10 규칙(ORBIT)을 가상 1억으로 따라 하는 계좌 — connect/paper.mjs 가 매일 처리 (js/paper-live.js)
-  function orbitAccountCard() {
+  function orbitAccountCard(id) {
+    id = id || 'orbit'; const X = id === 'orbitx';
     const P = paperData(); if (!P) { loadRemotePaper && setTimeout(loadRemotePaper, 0); return `<section class="card"><h2>가상 계좌로 따라 하기</h2><p class="muted sm">계좌 기록을 불러오는 중이에요.</p></section>`; }
-    const b = (P.bots || []).find((x) => x.id === 'orbit'), L = b && b.live; if (!L) return '';
+    const b = (P.bots || []).find((x) => x.id === id), L = b && b.live; if (!L) return X ? `<section class="card"><h2>공격형 계좌 (ORBIT-X)</h2><p class="muted sm">다음 자동 실행(평일 07:30·16:10)부터 시작해요.</p></section>` : '';
     const px = (cur, v) => (v == null ? '—' : cur === 'USD' ? '$' + nf(v, 2) : nf(Math.round(v)) + '원');
     const pos = (L.positions || []).map((p) => `<div class="kv"><span>${esc(p.name)} <span class="muted xs">${p.kind === 'gold' ? '금' : ''} 산 값 ${px(p.cur, p.avg)} · 손절 ${px(p.cur, p.avg * 0.75)}</span></span><b class="num ${dirClass(p.pct)}">${p.pct > 0 ? '+' : ''}${nf(p.pct, 1)}% <span class="muted xs">${nf(p.w, 1)}%</span></b></div>`).join('');
     const ord = (L.orders || []).map((o) => `<p class="xs">⏳ ${esc(o.name)} — ${esc(o.kind)}${o.why ? ' <span class="muted">(' + esc(o.why) + ')</span>' : ''}</p>`).join('');
     const tr = (L.trades || []).slice(0, 8).map((t) => `<p class="xs"><span class="muted">${esc(t.out)}</span> ${esc(t.name)} 매도 <span class="${dirClass(t.pct)}">${t.pct > 0 ? '+' : ''}${nf(t.pct, 1)}%</span> <span class="muted">${esc(t.exitWhy || '')}</span></p>`).join('');
-    return `<section class="card"><div class="card-head"><h2>가상 계좌로 따라 하기</h2><span class="act neu">ORBIT · 모의</span></div>
+    return `<section class="card"><div class="card-head"><h2>${X ? '공격형 계좌' : '가상 계좌로 따라 하기'}</h2><span class="act ${X ? 'warn' : 'neu'}">${X ? 'ORBIT-X · 모의' : 'ORBIT · 모의'}</span></div>
       <div class="bot-mid"><div><p class="num bot-ret ${dirClass(L.ret)}">${pct(L.ret, 2)}</p><p class="muted xs num">${won(L.equity)} · 현금 ${won(L.cash)} · ${L.days}일째</p></div>${spark(L.curve, 110, 36)}</div>
-      <h3 class="sm b" style="margin:10px 0 4px">보유 ${(L.positions || []).length}개</h3>${pos || '<p class="muted sm">지금은 보유 없음 — 시장 필터 때문에 현금으로 기다리는 중이에요.</p>'}
+      <h3 class="sm b" style="margin:10px 0 4px">보유 ${(L.positions || []).length}개</h3>${pos || `<p class="muted sm">${X ? '지금은 보유 없음 — 다음 자동 실행 때 상위 5개를 사요.' : '지금은 보유 없음 — 시장 필터 때문에 현금으로 기다리는 중이에요.'}</p>`}
       ${ord ? `<h3 class="sm b" style="margin:10px 0 4px">다음 거래일 주문</h3>${ord}` : ''}
       ${tr ? `<h3 class="sm b" style="margin:10px 0 4px">최근 매도</h3>${tr}` : ''}
-      <p class="muted xs" style="margin-top:6px">이 계좌가 위 TOP 10 규칙을 그대로 실행해요: <b>매달 첫 거래일</b> 순위 안 종목을 변동성 반비례 비중으로 사고(종가에 판단 → 다음 거래일 시가 체결), 순위에서 빠지면 팔고, <b>산 값 −25%</b>면 바로 손절. 수수료·세금·환전 비용 포함, 진짜 돈과는 연결 안 됨.</p>
-      <p class="muted xs">손절 시험(10년): −25%가 −15% 손절·고점 −20% 추적 손절보다 수익·샤프 모두 나았어요 (촘촘한 손절은 흔들렸다 다시 오르는 주도주까지 팔아 버림).</p>
+      ${X ? `<p class="muted xs" style="margin-top:6px">같은 순위에서 <b>상위 5개만</b>, 지수가 200일선 아래여도 <b>쉬지 않고</b> 사요(한 종목 최대 15%, 남는 돈은 금 또는 현금). 매달 첫 거래일 교체, 순위 밖이면 매도, 산 값 −25% 손절은 같아요.</p>
+      <p class="xs warn">10년 시험: 연 38.2% · 낙폭 −28.6% · 샤프 1.36 (기본 계좌 24.8% · 1.01). 대신 하락장에 그대로 맞아요 — 2022년 −23% (기본 −8.6%). 5종목 집중이라 한 종목이 크게 흔들리면 계좌도 크게 흔들려요.</p>`
+      : `<p class="muted xs" style="margin-top:6px">이 계좌가 위 TOP 10 규칙을 그대로 실행해요: <b>매달 첫 거래일</b> 순위 안 종목을 변동성 반비례 비중으로 사고(종가에 판단 → 다음 거래일 시가 체결), 순위에서 빠지면 팔고, <b>산 값 −25%</b>면 바로 손절. 수수료·세금·환전 비용 포함, 진짜 돈과는 연결 안 됨.</p>
+      <p class="muted xs">손절 시험(10년): −25%가 −15% 손절·고점 −20% 추적 손절보다 수익·샤프 모두 나았어요 (촘촘한 손절은 흔들렸다 다시 오르는 주도주까지 팔아 버림).</p>`}
       <a class="link-btn xs" href="#stocks">주식 봇 전체 기록 보기 ›</a></section>`;
   }
   function viewTop10() {
@@ -2004,7 +2007,8 @@
     const B = T.bt || {};
     return head + `<section class="card"><p class="kicker">오늘의 판단 · ${esc(T.date)} 종가</p>${verdict}<p class="xs" style="margin-top:6px">시장 필터 지수 200일선 대비: ${gap}</p>
       ${T.added && T.added.length ? `<p class="xs">새로 들어옴: ${T.added.map(esc).join(', ')}</p>` : ''}${T.dropped && T.dropped.length ? `<p class="xs muted">빠짐: ${T.dropped.map(esc).join(', ')}</p>` : ''}</section>
-      ${orbitAccountCard()}
+      ${orbitAccountCard('orbit')}
+      ${orbitAccountCard('orbitx')}
       ${T.list.map(card).join('')}
       <section class="card"><h2>어떻게 고르나</h2>
       <p class="sm">모멘텀 순환 봇(ORBIT)의 규칙 그대로예요: 대표 종목 ${T.universe}개 중 ① 12-1 모멘텀이 플러스이고 200일선 위인 종목을 ② 모멘텀 큰 순서로. ③ 그 시장 지수(나스닥·S&P → S&P 500, 코스피·코스닥 → 코스피)가 200일선 아래면 사지 않아요.</p>
@@ -2507,6 +2511,7 @@
     REPORT: { c: '#F6D27A', d: '#E3B954', look: 'clip',    move: 'write', w: 20, h: 24 },   // 보고: 클립보드에 받아 적기
     ATLAS:  { c: '#F4A3A0', d: '#E2827E', look: 'fin',     move: 'hop',   w: 22, h: 28 },   // 추세 돌파: 로켓 지느러미, 통통 점프
     ORBIT:  { c: '#94D8C6', d: '#6FC0AB', look: 'ring',    move: 'sway',  w: 22, h: 26 },   // 모멘텀 순환: 머리 위 고리가 빙글
+    'ORBIT-X': { c: '#F7C873', d: '#E6AE4F', look: 'ring', move: 'hop',   w: 22, h: 26 },   // 모멘텀 공격형: 같은 고리, 더 통통 튐
     NOVA:   { c: '#F2B8D6', d: '#E096BE', look: 'star',    move: 'twinkle', w: 20, h: 24 }, // 코인: 머리 위 별이 반짝
     ECHO:   { c: '#C9CED6', d: '#AEB5BF', look: 'none',    move: 'sleep', w: 20, h: 24 },
     RATE:   { c: '#F5B48A', d: '#E39566', look: 'thermo',  move: 'sway',  w: 22, h: 26 },   // 금리: 온도계
@@ -2829,7 +2834,7 @@
     else PP.bots.filter((b) => !b.empty && !b.retired).slice(0, 4).forEach((b) => {
       const L = b.live, lagD = L ? bizDaysSince(L.lastDate) : 99, maxW = (PP.vault && PP.vault.maxPosPct) || 15;
       const over = L ? L.positions.filter((p) => p.w > maxW + 1) : [];
-      const noStop = L ? L.positions.filter((p) => b.code !== 'ORBIT' && p.stop == null) : [];
+      const noStop = L ? L.positions.filter((p) => b.code !== 'ORBIT' && b.code !== 'ORBIT-X' && p.stop == null) : [];
       let st = 'ok', short = '정상';
       if (!L) { st = 'fail'; short = '기록 없음'; }
       else if (lagD > 3) { st = 'fail'; short = lagD + '일째 멈춤'; }
