@@ -135,6 +135,12 @@
       edge: '학계에서 가장 오래 검증된 이상현상 중 하나(제가디시·티트먼, 안토나치 듀얼 모멘텀). 하락장 회피가 핵심.'
     },
     {
+      id: 'orbitx', code: 'ORBIT-X', name: '모멘텀 공격형', kinds: ['stock', 'gold'], maxPos: 5, noMarketFilter: true,
+      role: 'ORBIT 와 같은 순위에서 상위 5개만, 하락장에도 쉬지 않고 담음 (공격형 비교 계좌)',
+      method: '매달 첫 거래일: 12-1 모멘텀 상위 5개(절대 모멘텀: 12개월 수익 > 0, 200일선 위)를 변동성 반비례로 담음(한 종목 최대 15%). ORBIT 과 달리 지수가 200일선 아래여도 그대로 삼. 순위 밖이면 팔고, 산 값 −25%면 손절. 빈자리는 금(200일선 위일 때) 또는 현금.',
+      edge: '10년 시험(research/orbit-aggressive.mjs): 연 38.2% · 낙폭 −28.6% · 샤프 1.36(앞 1.21 · 뒤 1.64), 최대 승자 17개를 빼도 샤프 0.96(ORBIT 0.57). 대신 하락장에 그대로 맞음 — 2022년 −23%(ORBIT −8.6%).'
+    },
+    {
       id: 'nova', code: 'NOVA', name: '코인 추세', kinds: ['coin'], maxPos: 4,
       role: '코인은 추세가 살아 있을 때만, 흔들림에 맞춰 비중 조절',
       method: '매주 월요일: 비트코인이 200일선 위일 때만 위험 자산 보유(경계선 들락날락 방지: +2% 넘어야 켜지고 −3% 깨야 꺼짐). 손실로 판 코인은 2주 쉬었다 다시 봄. 20일 EMA > 50일 EMA 이고 종가가 50일 EMA 위인 코인 중 3개월 수익률 상위 4개. 비중 = 0.3 × (50% ÷ 실제 연 변동성), 코인당 최대 25%. 매일: 50일 EMA 이탈 또는 최고 종가 −3ATR 이탈 시 정리.',
@@ -449,6 +455,7 @@
   };
 
   // ORBIT — 모멘텀 순환 (월 1회)
+  STRAT.orbitx = function () { return STRAT.orbit.apply(null, arguments); }; // 모멘텀 공격형: ORBIT 규칙 + maxPos 5 + 시장 필터 없음
   STRAT.orbit = function (W, acc, bot, d, eq, canEnter) {
     for (const id of Object.keys(acc.pos)) {
       const p = acc.pos[id], a = W.A[id], i = a.idx[d]; if (i == null) continue;
@@ -465,7 +472,7 @@
       const I = a.ind, c = a.c[i];
       const m = a.c[i - 21] / a.c[i - 252] - 1; // 12-1 모멘텀
       if (!(m > 0 && c > I.sma200[i])) continue;    // 절대 모멘텀
-      if (!regimeOn(W, a, d)) continue;
+      if (!bot.noMarketFilter && !regimeOn(W, a, d)) continue; // 시장 필터 (공격형 ORBIT-X 는 안 씀)
       sc.push({ id, a, m, vol: I.vol60[i] || 30 });
     }
     sc.sort((x, y) => y.m - x.m);
