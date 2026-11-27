@@ -1,9 +1,19 @@
 {
  "v": 1,
- "updated": "2026-11-26",
+ "updated": "2026-11-27",
  "model": "gemini-3.6-flash",
- "grounded": false,
- "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남 · 2026-11-26 검토: 출처가 최근 전투 보도가 아니거나 확인이 더 필요한 4곳(미얀마·콜롬비아·나이지리아·소말리아) 뺌 · 사우디-후티는 사람이 출처를 확인해 다시 넣음(2026-11-26)",
+ "grounded": true,
+ "queries": [
+  "\"syria\" airstrikes airstrike november 2026 news",
+  "\"congo\" OR \"drc\" m23 fighting november 2026 news",
+  "sudan civil war news november 2026",
+  "russia ukraine war news november 2026",
+  "israel gaza news november 2026",
+  "myanmar civil war news november 2026",
+  "\"somalia\" al-shabaab attack november 2026 news",
+  "\"yemen\" houthi strike attack november 2026 news"
+ ],
+ "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남 · 2026-11-27 검토: 새 제안 3곳(미얀마·소말리아·시리아)은 출처가 전투 보도가 아니거나 약해서 뺌, 이번에 검색하지 않아 빠진 이스라엘-레바논·에티오피아는 전날 확인 출처(30일 이내)로 유지",
  "items": [
   {
    "id": "RU-UA",
@@ -12,28 +22,28 @@
    "kind": "war",
    "name": "러시아-우크라이나 전쟁",
    "since": "2022",
-   "summary": "러시아와 우크라이나 간 전면전이 드론·미사일 공습과 치열한 전선 지상전 형태로 격화되며 지속되고 있습니다.",
+   "summary": "러시아의 전면 침공 지속 속에 우크라이나 전역에 대한 대규모 미사일·드론 공습과 치열한 지상전이 이어지고 있습니다.",
    "sources": [
-    "https://www.cnn.com/2026/11/26/europe/putin-restraint-nuclear-kushner-intl/index.html",
-    "https://reliefweb.int/report/ukraine/ukraine-war-situation-update-7-13-november-2026"
+    "https://www.theguardian.com/world/2026/nov/26/ukraine-war-briefing-kyiv-launched-more-long-range-strikes-in-2026-than-rest-of-war-combined-data-shows",
+    "https://www.bbc.com/news/articles/cqx2x9dklxnro"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-26"
+   "checked": "2026-11-27"
   },
   {
    "id": "IL-PS",
    "a": "IL",
    "b": "PS",
    "kind": "war",
-   "name": "이스라엘-하마스 전쟁",
+   "name": "이스라엘-가자지구 전쟁",
    "since": "2023",
-   "summary": "이스라엘군이 가자지구 내 무장세력 지휘부와 거점에 대한 표적 공습과 폭격을 연일 감행하며 교전을 이어가고 있습니다.",
+   "summary": "이스라엘군의 가자지구 내 주거지 표적 공습과 지속적인 군사 작전으로 사망자와 민간인 피해 보도가 계속되고 있습니다.",
    "sources": [
-    "https://www.cnn.com/2026/11/26/middleeast/israel-gaza-strikes-ceasefire-intl/index.html",
-    "https://www.palestinechronicle.com/israel-threatens-new-gaza-offensive-to-displace-one-million-palestinians/"
+    "https://www.cnn.com/2026/11/26/middleeast/israel-gaza-assassinations-ceasefire-intl",
+    "https://www.theguardian.com/world/2026/nov/26/israeli-strikes-kill-schoolchildren-gaza"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-26"
+   "checked": "2026-11-27"
   },
   {
    "id": "IL-LB",
@@ -57,43 +67,43 @@
    "kind": "civil",
    "name": "수단 내전",
    "since": "2023",
-   "summary": "수단 정규군(SAF)과 신속지원군(RSF) 간 드론 공습과 지상 교전이 전국 주요 지역으로 확산되며 민간인 피해가 잇따르고 있습니다.",
+   "summary": "수단 정부군(SAF)과 신속지원군(RSF) 간의 드론 공습과 신규 전선 확대로 인명 피해와 피란민 발생이 가중되고 있습니다.",
    "sources": [
-    "https://sudantribune.com/article294321/",
-    "https://www.ohchr.org/en/press-releases/2026/11/sudan-un-report-details-deadly-civilian-impact-surge-drone-strikes"
+    "https://www.aljazeera.com/news/2026/11/23/drone-attacks-kill-four-near-sudans-capital-damage-un-building",
+    "https://www.nrc.no/news/2026/november/sudan-drone-strike-kills-10-year-old-pupil/"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-26"
+   "checked": "2026-11-27"
   },
   {
    "id": "SA-YE",
-   "a": "SA",
-   "b": "YE",
+   "a": "YE",
+   "b": "SA",
    "kind": "war",
-   "name": "사우디-후티 분쟁",
+   "name": "예멘 후티-사우디아라비아 분쟁",
    "since": "2015",
-   "summary": "사우디아라비아 주도 연합군과 예멘 후티 반군 간의 상호 미사일·드론 공격 및 보복 공습이 다시 격화하고 있습니다.",
+   "summary": "예멘 후티 반군이 사우디아라비아 정유시설과 수도 주요 건물에 미사일·드론 공습을 감행하고 사우디 연합군의 보복 공습이 교차하고 있습니다.",
    "sources": [
-    "https://www.middleeasteye.net/news/yemen-warring-sides-exchange-shelling-air-strikes-saudi-oil-facilities-burn",
-    "https://houseofsaud.com/saudi-coalition-strikes-sanaa-after-houthi-drone-wounds-11-in-riyadh/"
+    "https://www.cnn.com/2026/11/26/middleeast/houthis-strike-saudi-oil-refinery-intl",
+    "https://indianexpress.com/article/world/houthi-missile-strike-aramco-refinery-saudi-jazan-kills-nepali-worker-9692481/"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-26"
+   "checked": "2026-11-27"
   },
   {
    "id": "CD",
    "a": "CD",
    "b": null,
    "kind": "civil",
-   "name": "콩고민주공화국 내전",
-   "since": "2021",
-   "summary": "콩고민주공화국 동부 남키부주 등지에서 정부군과 M23/구국전선(FRN) 반군 간 드론 공습 및 지상 격전이 이어지고 있습니다.",
+   "name": "콩고민주공화국 동부 내전",
+   "since": "2022",
+   "summary": "M23 및 FRN 반군과 콩고정부군 간의 무인기 공격, 지상 교전, 군용기 격추 사건 등 무장 충돌이 전파되고 있습니다.",
    "sources": [
-    "https://mg.co.za/africa/2026-11-26-capture-of-sa-pilot-raises-concern-over-role-of-foreigners-in-drc-conflict/",
-    "https://www.criticalthreats.org/analysis/congo-war-security-review-november-18-2026"
+    "https://www.aljazeera.com/news/2026/11/18/dr-congos-rival-peace-efforts-fail-to-halt-violence-in-the-east",
+    "https://mg.co.za/news/2026-11-26-capture-of-sa-pilot-raises-concern-over-role-of-foreigners-in-drc-conflict/"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-26"
+   "checked": "2026-11-27"
   },
   {
    "id": "ET",
