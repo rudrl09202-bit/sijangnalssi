@@ -1948,6 +1948,45 @@
       ${tr ? `<h3 class="sm b" style="margin:10px 0 4px">최근 바꾼 것</h3>${tr}` : ''}
       <p class="muted xs">캐리 전략은 평소엔 조금씩 벌다가 위기 때 한꺼번에 크게 잃는 성질이 있어요. 진짜 돈·주문과는 연결되어 있지 않아요. ${kT(X.at)} 갱신</p></section>`;
   }
+  /* ---------- 공유 카드: 봇 하나의 오늘 성적을 한 장으로 (캡처해서 SNS 에) — 모의투자 표시는 항상 들어감 ---------- */
+  function shareStats(a) {
+    const curve = (a.curve || []).map(([t, v]) => [tOf(t), v]).filter((x) => isFinite(x[0]) && x[1] > 0), now = Date.now(), KST = 9 * 3600e3;
+    const dayStart = Math.floor((now + KST) / 864e5) * 864e5 - KST, dk = new Date(now + KST), monStart = Date.UTC(dk.getUTCFullYear(), dk.getUTCMonth(), 1) - KST;
+    const eqAt = (t) => { let v = a.start; for (const [ct, cv] of curve) { if (ct <= t) v = cv; else break; } return v; }; // t 직전까지의 평가액 (기록 전이면 시작 금액)
+    const tr = (a.trades || []).map((z) => ({ ...z, tt: tOf(z.out) })).filter((z) => isFinite(z.tt)).sort((x, y) => y.tt - x.tt), cnt = (from) => tr.filter((z) => z.tt >= from).length;
+    const eq = a.equity, e0 = eqAt(dayStart), m0 = eqAt(monStart), first = isFinite(tOf(a.since)) ? tOf(a.since) : (curve[0] ? curve[0][0] : now);
+    return { curve, tr, day: Math.max(1, Math.floor((now + KST) / 864e5) - Math.floor((first + KST) / 864e5) + 1), today: eq - e0, todayPct: (eq / e0 - 1) * 100, todayN: cnt(dayStart), month: eq - m0, monthPct: (eq / m0 - 1) * 100, monthN: cnt(monStart),
+      total: eq - a.start, totalPct: (eq / a.start - 1) * 100, n: tr.length, win: tr.length ? Math.round(tr.filter((z) => z.pnl > 0).length / tr.length * 100) : null, date: new Date(now + KST).toISOString().slice(0, 10) };
+  }
+  function shareText(a, x) {
+    const sg = (v) => (v >= 0 ? '+' : '-') + man(Math.abs(v));
+    return `자동매매 ${x.day}일차 (모의투자)\n${a.name}\n\n오늘 ${sg(x.today)} (${pct(x.todayPct, 2)}) · ${x.todayN}건\n누적 ${sg(x.total)} (${pct(x.totalPct, 2)}) / ${x.n}건${x.win != null ? ' · 승률 ' + x.win + '%' : ''}\n\n가상 1억 원으로 돌리는 모의 기록이에요. 실제 돈 아님.`;
+  }
+  function viewShare() {
+    const head = `<header class="top"><div><a href="#more" class="back">‹ 더보기</a><p class="kicker">캡처해서 스레드·인스타에</p><h1>공유 카드</h1></div>${tools()}</header>`;
+    let A = []; try { A = accounts(true); } catch (e) { A = []; }
+    if (!A.length) return head + `<section class="card"><p class="muted sm">봇 결과를 불러오는 중이에요.</p></section>`;
+    const id = S.ui.shareBot || store.get('snw.shareBot') || (A.find((z) => z.id === 'mg') || A[0]).id, a = A.find((z) => z.id === id) || A[0], x = shareStats(a);
+    const pick = `<section class="card"><h2>봇 고르기</h2><div class="chips">${A.map((z) => `<button class="chip ${z.id === a.id ? 'chip-on' : ''}" data-act="share-bot" data-v="${esc(z.id)}">${esc(z.name)}</button>`).join('')}</div>
+      <p class="muted xs">성적표의 90일 기준을 통과한 봇으로 정하는 걸 권해요. 고른 봇은 이 기기에 기억돼요.</p></section>`;
+    const sg = (v) => (v > 0 ? '+' : v < 0 ? '-' : '') + man(Math.abs(v)).replace('원', ''), c = (v) => (v > 0 ? 'sh-up' : v < 0 ? 'sh-dn' : '');
+    const box = (label, v, sub) => `<div class="sh-box"><p class="sh-l">${label}</p><p class="sh-v ${c(v)}">${v == null ? '—' : sg(v)}</p><p class="sh-s">${sub}</p></div>`;
+    const pos = (a.positions || []).length ? a.positions.map((p) => `<div class="sh-pos"><b class="${p.side === 'short' ? 'sh-dn' : 'sh-up'}">${p.side === 'short' ? 'SHORT' : 'LONG'}</b> ${esc(p.name || p.sym || '')}${p.upnl != null ? ` <span class="${c(p.upnl)}">${sg(p.upnl)}</span>` : ''}</div>`).join('') : `<div class="sh-pos"><b>FLAT</b> · 포지션 없음 <span class="sh-mut">신호를 기다리는 중</span></div>`;
+    const pts = x.curve.length > 1 ? x.curve : [[0, a.start], [1, a.equity]], lo = Math.min(...pts.map((p) => p[1]), a.start), hi = Math.max(...pts.map((p) => p[1]), a.start), rng = hi - lo || 1, Wd = 320, Hd = 90;
+    const xy = pts.map((p, i) => [(i / (pts.length - 1)) * Wd, Hd - 6 - ((p[1] - lo) / rng) * (Hd - 12)]), line = xy.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '), col = x.total >= 0 ? '#4ade80' : '#60a5fa';
+    const chart = `<svg viewBox="0 0 ${Wd} ${Hd}" class="sh-chart" preserveAspectRatio="none"><polygon points="0,${Hd} ${line} ${Wd},${Hd}" fill="${col}" opacity=".18"/><polyline points="${line}" fill="none" stroke="${col}" stroke-width="2"/></svg>`;
+    const trades = x.tr.slice(0, 4).map((t) => `<div class="sh-tr"><span class="sh-mut">${kT(t.out)}</span><span>${esc(t.name || t.sym || '')} <b class="${t.side === 'short' ? 'sh-dn' : 'sh-up'}">${t.side === 'short' ? '숏' : '롱'}</b></span><span class="${c(t.pnl)}">${t.pct != null ? (t.pct > 0 ? '+' : '') + nf(t.pct, 2) + '%' : ''}</span><span class="${c(t.pnl)}">${sg(t.pnl)}</span></div>`).join('');
+    const card = `<section class="sh-card" id="share-card">
+      <div class="sh-head"><div><p class="sh-name">${esc(a.name)}</p><p class="sh-mut">${esc(a.tf || '')} · 자동매매 ${x.day}일차 · ${esc(x.date)}</p></div><span class="sh-tag">모의투자</span></div>
+      <div class="sh-sec"><p class="sh-cap">POSITION · 진행 중 포지션</p>${pos}</div>
+      <div class="sh-grid">${box('오늘', x.today, `${pct(x.todayPct, 2)} · ${x.todayN}건`)}${box('이번 달', x.month, `${pct(x.monthPct, 2)} · ${x.monthN}건`)}${box('누적 손익', x.total, `${pct(x.totalPct, 2)} · ${x.n}건`)}<div class="sh-box"><p class="sh-l">승률</p><p class="sh-v">${x.win == null ? '—' : x.win + '%'}</p><p class="sh-s">끝난 거래 ${x.n}건</p></div></div>
+      <div class="sh-sec"><p class="sh-cap">누적 손익 · <span class="${c(x.total)}">${sg(x.total)}원</span></p>${chart}</div>
+      ${trades ? `<div class="sh-sec"><p class="sh-cap">TRADES · 최근 거래</p>${trades}</div>` : ''}
+      <p class="sh-foot">시장날씨 · 가상 1억 원 모의투자 · 실제 돈 아님</p></section>`;
+    const text = shareText(a, x);
+    return head + pick + card + `<section class="card"><h2>올릴 글</h2><pre class="sh-text" id="share-text">${esc(text)}</pre><button class="btn" data-act="share-copy">글 복사</button>
+      <p class="muted xs">위 카드를 캡처해서 글과 함께 올리세요. 모의투자 결과라 "모의투자" 표시는 지우지 않는 걸 권해요 — 실제 수익처럼 보이면 보는 사람이 오해할 수 있어요.</p></section>`;
+  }
   /* ---------- 봇 성적표 (connect/scorecard.mjs → data/scorecard.json, 기준은 CLAUDE.md 2장) ---------- */
   function loadScorecard() {
     if (S.scLoading || (S.scd && Date.now() - S.scdAt < 10 * 60e3)) return; S.scLoading = true;
@@ -2515,7 +2554,7 @@
     const dark = document.documentElement.dataset.theme === 'dark';
     const tg = (act, on, ic, t, sub) => `<button class="lrow" data-act="${act}" role="switch" aria-checked="${on}"><span class="ic">${ic}</span><span class="grow"><p class="t">${t}</p><p class="s">${sub}</p></span><span class="toggle ${on ? 'on' : ''}"></span></button>`;
     return `<header class="top"><div><h1>더보기</h1></div></header>
-      <section class="card menu-group"><h2>내 계좌 · 봇</h2>${lrow('#assets', IC.score, '내 자산', '빗썸·토스증권 실제 보유 자산과 할 일')}${lrow('#stocks', IC.rank, '주식 봇 (모의)', 'ATLAS·ORBIT·NOVA·CHIEF · 10년 검증')}${lrow('#hq', IC.info, '본부', 'BOSS가 봇들이 일을 제대로 하는지 점검')}</section>
+      <section class="card menu-group"><h2>내 계좌 · 봇</h2>${lrow('#assets', IC.score, '내 자산', '빗썸·토스증권 실제 보유 자산과 할 일')}${lrow('#share', IC.rank, '공유 카드', '봇 하나를 골라 오늘 성적을 한 장으로 — 캡처해서 스레드에')}${lrow('#stocks', IC.rank, '주식 봇 (모의)', 'ATLAS·ORBIT·NOVA·CHIEF · 10년 검증')}${lrow('#hq', IC.info, '본부', 'BOSS가 봇들이 일을 제대로 하는지 점검')}</section>
       <section class="card menu-group"><h2>내 기록</h2>
         ${lrow('#journal', IC.journal, '투자 일지', '산 이유·판 이유 적고 돌아보기')}
         ${lrow('#calendar', IC.cal, '자산 달력', '하루하루 내 자산 변화')}
@@ -3654,8 +3693,8 @@
     }
     return head + seg + body;
   }
-  const VIEWS = { scorecard: viewScorecard, top10: viewTop10, macro: viewMacro, open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
-  const TAB_OF = { scorecard: 'paper', top10: 'explore', macro: 'home', demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { share: viewShare, scorecard: viewScorecard, top10: viewTop10, macro: viewMacro, open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
+  const TAB_OF = { share: 'more', scorecard: 'paper', top10: 'explore', macro: 'home', demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { let h = (location.hash || '#home').slice(1); if (h.indexOf('bot/') === 0) { S.ui.bot = h.slice(4); h = 'bot'; } return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };
@@ -3695,6 +3734,8 @@
     const act = b.dataset.act, v = b.dataset.v, id = b.dataset.id;
     if (act === 'ksim-on') { const K = S.mac && S.mac.korea; if (K && K.fx) { S.ui.ksim = { rate: Math.round(K.fx.now), cut: 0 }; render(); } return; }
     if (act === 'ksim-off') { S.ui.ksim = null; render(); return; }
+    if (act === 'share-bot') { S.ui.shareBot = v; store.set('snw.shareBot', v); render(); return; }
+    if (act === 'share-copy') { const t = document.getElementById('share-text'); if (t && navigator.clipboard) navigator.clipboard.writeText(t.textContent).then(() => { b.textContent = '복사됨'; setTimeout(() => { b.textContent = '글 복사'; }, 1500); }).catch(() => {}); return; }
     if (act === 'basis') { S.ui.compareBasis = v; render(); }
     else if (act === 'phase') { S.ui.phase = Number(v); render(); }
     else if (act === 'coin') { S.ui.coin = v; render(); ensureCloses(v); }
