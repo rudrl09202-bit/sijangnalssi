@@ -3156,7 +3156,7 @@
       ${nTr ? `<div class="tbl">${allTr.slice(0, 8).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${esc(t.who.name)} · ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     const ins = insights(A);
     const insCard = ins.length ? `<section class="card"><div class="card-head"><h2>오늘의 점검</h2><a href="#analysis" class="xs">자세히 ›</a></div>${ins.slice(0, 3).map((x) => `<div class="ins ${x.lv}"><p class="sm"><b>${esc(x.title)}</b></p><p class="muted xs">${esc(x.text)}</p></div>`).join('')}</section>` : '';
-    return head + homeTop() + posCard; // 홈은 간단하게: 시장날씨 · 네 칸 요약 · 진행 중인 포지션만 (나머지는 봇·분석·시장 탭에)
+    return head + homeTop() + demoLine() + posCard; // 홈은 간단하게: 시장날씨 · 네 칸 요약 · 바이낸스 데모 한 줄 · 진행 중인 포지션만 (나머지는 봇·분석·시장 탭에)
   }
   // 홈: 바이낸스 데모(가짜 돈) 계좌 요약 한 줄 → 누르면 #demo
   function demoLine() {
