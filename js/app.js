@@ -3190,7 +3190,7 @@
   function viewHome() {
     const A = accounts(false), live = A.filter((a) => !a.cmp);
     const head = `<header class="top"><div><p class="kicker">${esc(todayLabel())}</p><h1>자동매매</h1></div>${tools()}</header>${demoBanner()}`;
-    if (!live.length) return head + homeTop() + `<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p><p class="muted sm">잠시 뒤 자동으로 나타나요.</p></section>`;
+    if (!live.length) return head + deskHome() + `<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p><p class="muted sm">잠시 뒤 자동으로 나타나요.</p></section>`;
     const tot = live.reduce((s, a) => s + a.equity, 0), start = live.reduce((s, a) => s + a.start, 0), pnl = tot - start;
     const ch1s = live.filter((a) => a.st.ch1 != null), d1 = ch1s.length ? ch1s.reduce((s, a) => s + a.equity - a.equity / (1 + a.st.ch1 / 100), 0) : null;
     const pos = [].concat(...live.map((a) => (a.positions || []).map((p) => ({ ...p, who: a }))));
@@ -3213,7 +3213,43 @@
       ${nTr ? `<div class="tbl">${allTr.slice(0, 8).map((t) => `<div class="tr2"><span>${sideTag(t.side)} <b>${esc(t.name)}</b><span class="muted xs"> ${esc(t.who.name)} · ${kT(t.out)}</span></span><span class="muted xs">${esc(t.reason || '')}</span><span class="num ${dirClass(t.pnl)}">${t.pnl >= 0 ? '+' : ''}${man(t.pnl)}</span></div>`).join('')}</div>` : '<p class="muted sm">아직 끝난 거래가 없어요.</p>'}</section>`;
     const ins = insights(A);
     const insCard = ins.length ? `<section class="card"><div class="card-head"><h2>오늘의 점검</h2><a href="#analysis" class="xs">자세히 ›</a></div>${ins.slice(0, 3).map((x) => `<div class="ins ${x.lv}"><p class="sm"><b>${esc(x.title)}</b></p><p class="muted xs">${esc(x.text)}</p></div>`).join('')}</section>` : '';
-    return head + homeTop() + demoLine() + posCard; // 홈은 간단하게: 시장날씨 · 네 칸 요약 · 바이낸스 데모 한 줄 · 진행 중인 포지션만 (나머지는 봇·분석·시장 탭에)
+    return head + deskHome() + demoLine() + posCard; // 홈 = 데스크: 상태 줄 · 시세 표 · 봇 표 · 오늘의 브리핑 · 데모 한 줄 · 진행 중인 포지션 (예전 큰 카드 홈은 homeTop)
+  }
+  /* ---------- 홈 데스크: 한 화면에 상태·시세·봇·브리핑 (전문 트레이딩 화면처럼 촘촘하게) ---------- */
+  function loadBrief() {
+    if (S.brLoading || (S.brief && Date.now() - S.briefAt < 10 * 60e3)) return; S.brLoading = true;
+    const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/brief.json?t=' + Math.floor(Date.now() / 60e3);
+    fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/brief.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null)
+      .then((j) => { S.brLoading = false; S.briefAt = Date.now(); if (j && j.lines) { S.brief = j; if (route() === 'home') render(); } });
+  }
+  function deskHome() {
+    loadTop10(); loadScorecard(); loadBrief(); loadConflicts();
+    let w = null; try { w = weather(); } catch (e) { w = null; }
+    const X = S.mac && S.mac.now, K = S.mac && S.mac.korea, T = S.t10, CF = S.cf, D = S.scd, B = S.brief, M = S.markets || {}, btc = S.prices && S.prices['KRW-BTC'];
+    const pill = (txt, cls) => `<span class="act ${cls}">${txt}</span>`, st = (label, val, tag, href) => `<a class="dk-row" href="${href}"><span class="dk-l">${label}</span><span class="dk-v">${val}</span>${tag}</a>`;
+    const on = X ? ['A', 'B', 'C', 'D'].filter((k) => X.S[k].on).map((k) => X.S[k].label) : [], buys = T ? T.list.filter((x) => x.buy).length : null;
+    const gap = T && T.regimeGap ? Object.entries(T.regimeGap).map(([k, v]) => `${esc(k)} <b class="num ${v < 0 ? 'down' : 'up'}">${v > 0 ? '+' : ''}${nf(v, 1)}%</b>`).join(' · ') : '—';
+    const status = `<section class="card desk"><div class="dk-h"><span>상태</span><span class="muted">${esc(todayLabel())}</span></div>
+      ${st('코인 롱', X ? `신호 ${X.n}/4${on.length ? ' · ' + esc(on.join(' · ')) : ''}` : '불러오는 중', X ? pill(X.blockLongs ? '쉼' : '허용', X.blockLongs ? 'warn' : 'up') : '', '#macro')}
+      ${st('주식 매수', gap, buys == null ? '' : pill(buys ? '후보 ' + buys : '없음', buys ? 'up' : 'warn'), '#top10')}
+      ${st('한국 경보', K && K.sig ? `외환 ${K.reserves ? nf(K.reserves.months, 1) + '개월' : '—'} · 원화 3개월 ${K.fx ? (K.fx.chg3m > 0 ? '+' : '') + nf(K.fx.chg3m, 1) + '%' : '—'}` : '불러오는 중', K && K.sig ? pill(esc(K.stageName) + ' ' + K.n + '/3', K.n >= 2 ? 'down' : K.n ? 'warn' : 'neu') : '', '#macro')}
+      ${st('분쟁', CF && CF.items ? esc(CF.items.slice(0, 3).map((c) => String(c.name).replace(/\s*(전쟁|분쟁|내전|무력 충돌)$/, '')).join(' · ')) + (CF.items.length > 3 ? ' 외' : '') : '불러오는 중', CF && CF.items ? pill(CF.items.length + '곳', CF.items.length ? 'warn' : 'neu') : '', '#macro')}
+      ${w ? st('시장날씨', esc(w.sub || ''), pill(esc(w.title), w.winds.filter((x) => x.on).length >= 3 ? 'warn' : 'neu'), '#explore') : ''}</section>`;
+    const mv = (k, d, unit) => { const m = M[k]; if (!m || m.value == null || !isFinite(m.value)) return ['—', '', '']; return [nf(Number(m.value), d) + (unit || ''), m.chg == null || isNaN(m.chg) ? '' : sign(m.chg, m.chgUnit === 'bp' ? 0 : 1) + (m.chgUnit || ''), dirClass(m.chg)]; };
+    const cell = (label, x) => `<div class="dk-c"><span class="dk-l">${label}</span><span class="num dk-n">${x[0]}</span><span class="num xs ${x[2]}">${x[1]}</span></div>`;
+    const tape = `<a class="card desk" href="#explore"><div class="dk-h"><span>시세</span><span class="muted">전일 대비</span></div><div class="dk-tape">
+      ${cell('코스피', mv('kospi', 0))}${cell('나스닥', mv('nasdaq', 0))}${cell('S&P 500', mv('spx', 0))}${cell('비트코인', btc ? [nf(Math.round(btc.krw / 1e4)) + '만', sign(btc.chg24, 1) + '%', dirClass(btc.chg24)] : ['—', '', ''])}
+      ${cell('원/달러', mv('usdkrw', 0))}${cell('미 10년', mv('us10y', 2, '%'))}${cell('달러지수', mv('dxy', 1))}${cell('VIX', mv('vix', 1))}</div></a>`;
+    const VC = { '통과': 'up', '미달': 'down', '기록 중': 'neu', '판단 보류': 'warn' };
+    const bots = D && D.bots ? `<a class="card desk" href="#scorecard"><div class="dk-h"><span>봇 ${D.bots.filter((b) => b.verdict !== '은퇴').length}개</span><span class="muted">기록 ${Math.max(0, Math.ceil((Date.parse(D.period.to) - Date.now()) / 864e5))}일 남음 ›</span></div>
+      <div class="dk-tbl"><div class="dk-tr dk-th"><span>봇</span><span>수익</span><span>낙폭</span><span>거래</span><span></span></div>
+      ${(() => { const act = D.bots.filter((b) => b.verdict !== '은퇴'), main = act.filter((b) => b.role === '대표' || b.count > 0 || b.ret !== 0 || b.verdict === '미달'), rest = act.length - main.length;
+        return main.map((b) => `<div class="dk-tr"><span class="dk-name">${esc(b.name)}<span class="muted xs"> ${esc(b.role)}</span></span><span class="num ${dirClass(b.ret)}">${pct(b.ret, 1)}</span><span class="num ${b.mdd < 0 ? 'down' : ''}">${b.mdd ? nf(b.mdd, 1) + '%' : '0%'}</span><span class="num">${b.count}</span><span class="dk-dot ${VC[b.verdict] || 'neu'}" title="${esc(b.verdict)}"></span></div>`).join('') + (rest ? `<div class="dk-tr dk-more"><span class="muted">외 ${rest}개 — 아직 거래 없음</span><span></span><span></span><span></span><span></span></div>` : ''); })()}</div></a>` : '';
+    const LV = { warn: 'warn', alert: 'down', info: 'neu' };
+    const brief = B && B.lines ? `<section class="card desk"><div class="dk-h"><span>오늘의 브리핑</span><span class="muted">${kT(B.at)} · 자동</span></div>
+      ${B.lines.map((l) => `<a class="dk-br${l.level !== 'info' ? ' hot' : ''}" ${l.href ? `href="${l.href}"` : ''}><span class="act ${LV[l.level] || 'neu'}">${esc(l.tag)}</span><span>${esc(l.text)}</span></a>`).join('')}
+      <p class="muted xs">이미 모으는 자료를 자동으로 정리한 것이에요. 봇 판단에는 쓰지 않고, 매일 기록해 두었다가 봇 성적과의 관계를 따로 시험해요.</p></section>` : '';
+    return status + tape + bots + brief;
   }
   // 홈: 바이낸스 데모(가짜 돈) 계좌 요약 한 줄 → 누르면 #demo
   function demoLine() {
