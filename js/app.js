@@ -1998,7 +1998,7 @@
   // TOP 10 규칙(ORBIT)을 가상 1억으로 따라 하는 계좌 — connect/paper.mjs 가 매일 처리 (js/paper-live.js)
   function orbitAccountCard(id) {
     id = id || 'orbit'; const X = id === 'orbitx';
-    const P = paperData(); if (!P) { loadRemotePaper && setTimeout(loadRemotePaper, 0); return `<section class="card"><h2>가상 계좌로 따라 하기</h2><p class="muted sm">계좌 기록을 불러오는 중이에요.</p></section>`; }
+    const P = paperData(); if (!P) { loadRemotePaper && setTimeout(loadRemotePaper, 0); return id === 'orbitx' ? '' : `<section class="card"><h2>가상 계좌로 따라 하기</h2><p class="muted sm">계좌 기록을 불러오는 중이에요. 오래 걸리면 화면을 아래로 당겨 새로고침해 주세요.</p></section>`; }
     const b = (P.bots || []).find((x) => x.id === id), L = b && b.live; if (!L) return X ? `<section class="card"><h2>공격형 계좌 (ORBIT-X)</h2><p class="muted sm">다음 자동 실행(평일 07:30·16:10)부터 시작해요.</p></section>` : '';
     const px = (cur, v) => (v == null ? '—' : cur === 'USD' ? '$' + nf(v, 2) : nf(Math.round(v)) + '원');
     const pos = (L.positions || []).map((p) => `<div class="kv"><span>${esc(p.name)} <span class="muted xs">${p.kind === 'gold' ? '금' : ''} 산 값 ${px(p.cur, p.avg)} · 손절 ${px(p.cur, p.avg * 0.75)}</span></span><b class="num ${dirClass(p.pct)}">${p.pct > 0 ? '+' : ''}${nf(p.pct, 1)}% <span class="muted xs">${nf(p.w, 1)}%</span></b></div>`).join('');
@@ -2006,7 +2006,7 @@
     const tr = (L.trades || []).slice(0, 8).map((t) => `<p class="xs"><span class="muted">${esc(t.out)}</span> ${esc(t.name)} 매도 <span class="${dirClass(t.pct)}">${t.pct > 0 ? '+' : ''}${nf(t.pct, 1)}%</span> <span class="muted">${esc(t.exitWhy || '')}</span></p>`).join('');
     return `<section class="card"><div class="card-head"><h2>${X ? '공격형 계좌' : '가상 계좌로 따라 하기'}</h2><span class="act ${X ? 'warn' : 'neu'}">${X ? 'ORBIT-X · 모의' : 'ORBIT · 모의'}</span></div>
       <div class="bot-mid"><div><p class="num bot-ret ${dirClass(L.ret)}">${pct(L.ret, 2)}</p><p class="muted xs num">${won(L.equity)} · 현금 ${won(L.cash)} · ${L.days}일째</p></div>${spark(L.curve, 110, 36)}</div>
-      <h3 class="sm b" style="margin:10px 0 4px">보유 ${(L.positions || []).length}개</h3>${pos || `<p class="muted sm">${X ? '지금은 보유 없음 — 다음 자동 실행 때 상위 5개를 사요.' : '지금은 보유 없음 — 시장 필터 때문에 현금으로 기다리는 중이에요.'}</p>`}
+      <h3 class="sm b" style="margin:10px 0 4px">보유 ${(L.positions || []).length}개</h3>${pos || `<p class="muted sm">${X ? `지금은 보유 없음 — ${esc(L.lastDate || '')} 장 마감까지 처리됐어요. 다음 거래일 마감이 처리되는 평일 자동 실행(07:30·16:10) 때 상위 5개 매수 주문을 내고, 그다음 실행에서 체결돼요.` : '지금은 보유 없음 — 시장 필터 때문에 현금으로 기다리는 중이에요.'}</p>`}
       ${ord ? `<h3 class="sm b" style="margin:10px 0 4px">다음 거래일 주문</h3>${ord}` : ''}
       ${tr ? `<h3 class="sm b" style="margin:10px 0 4px">최근 매도</h3>${tr}` : ''}
       ${X ? `<p class="muted xs" style="margin-top:6px">같은 순위에서 <b>상위 5개만</b>, 지수가 200일선 아래여도 <b>쉬지 않고</b> 사요(한 종목 최대 15%, 남는 돈은 금 또는 현금). 매달 첫 거래일 교체, 순위 밖이면 매도, 산 값 −25% 손절은 같아요.</p>

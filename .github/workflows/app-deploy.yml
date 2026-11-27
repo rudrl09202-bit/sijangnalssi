@@ -42,6 +42,14 @@ jobs:
         env:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
           SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
+      # 버그 수정(2026-11-27): 앱 화면만 다시 올릴 때 매일 자동 실행에서만 만들어지는 결과 파일(js/paper-live.js · js/alerts-live.js)이
+      # 빠져서 주식 봇·알림 화면이 "불러오는 중"에서 멈췄음 → 여기서도 다시 만듦. 알림 키(VAPID·텔레그램)를 안 넘기므로 알림은 안 나가고,
+      # 모의투자 기록(data/paper-state.json)은 커밋하지 않으므로 계좌는 매일 자동 실행에서만 앞으로 감
+      - name: 주식 봇·알림 결과 파일 다시 만들기 (알림 없이 · 기록 저장 안 함)
+        run: |
+          node connect/alerts.mjs || echo "알림 목록 만들기 실패"
+          node -e "import('./connect/paper.mjs').then((m) => m.run({ sendPush: false }))" || echo "주식 봇 결과 만들기 실패"
+        continue-on-error: true
       - name: 앱 파일 모으기
         run: |
           mkdir -p _site
