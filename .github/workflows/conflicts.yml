@@ -1,4 +1,4 @@
-# 분쟁 지도 목록 제안 (머니 글로브): 하루 한 번 Gemini + 구글 검색으로 받아, 바뀐 게 있으면 PR 로 올림
+# 분쟁 지도 목록 제안 (머니 글로브): 하루 한 번 구글 뉴스 RSS 로 기사를 모아 Gemini 가 정리, 바뀐 게 있으면 PR 로 올림
 # 사람이 PR 을 열어 출처를 확인하고 "Merge" 해야 앱 지구본에 나타남 (기획서: "표시 전에 사람이 확인")
 # PR 을 만들려면 저장소 Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" 가 켜져 있어야 함
 name: 분쟁 목록 제안
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund
-      - name: Gemini 로 분쟁 목록 받기
+      - name: 뉴스 모아 Gemini 로 분쟁 목록 정리
         run: |
           set -o pipefail   # 실패하면 빨간 X (tee 가 실패를 가리지 않게)
           node connect/conflicts.mjs 2>&1 | tee /tmp/cf.log || { { echo "### ❌ 분쟁 목록 받기 실패"; echo; tail -4 /tmp/cf.log; } >> "$GITHUB_STEP_SUMMARY"; exit 1; }
@@ -42,5 +42,5 @@ jobs:
           BODY="$(cat /tmp/cf.log)
 
           **합치기 전에 확인할 것**: 항목마다 출처 링크를 열어 지난 30일 안의 실제 전투 보도인지 봐 주세요. 틀린 항목은 이 PR 에서 data/conflicts.json 을 고치거나 PR 을 닫으면 됩니다.
-          합치면 앱 '세계 경제 신호' 화면 지구본에 나타납니다. (Gemini + 구글 검색 자동 제안)"
+          합치면 앱 '세계 경제 신호' 화면 지구본에 나타납니다. (구글 뉴스 기사 + Gemini 정리 · 출처는 모은 기사 링크만)"
           if [ -n "$(gh pr list --head conflicts/proposal --state open --json number -q '.[].number')" ]; then echo "열린 PR 갱신됨"; else gh pr create --base main --head conflicts/proposal --title "분쟁 목록 확인 요청 $(date -u +%F)" --body "$BODY" || echo "PR 만들기 실패 — 위 설정을 켜거나 conflicts/proposal 브랜치로 직접 PR 을 만드세요"; fi

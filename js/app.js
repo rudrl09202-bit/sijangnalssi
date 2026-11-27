@@ -3261,10 +3261,10 @@
   function conflictCard() {
     loadConflicts(); const C = S.cf, KIND = { war: '나라 사이 전쟁', civil: '내전·무장 충돌', border: '국경 충돌' };
     const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return '링크'; } };
-    if (!C || !C.items.length) return `<section class="card"><h2>분쟁 지도</h2><p class="muted sm">${C ? '아직 확인된 분쟁 목록이 없어요.' : '불러오는 중이에요.'}</p><p class="muted xs">매일 아침 Gemini가 구글 검색으로 찾은 목록을 GitHub에 "분쟁 목록 확인 요청" PR로 올려요. 출처를 확인하고 합치면 여기와 지구본에 나타나요.</p></section>`;
-    const rows = C.items.map((x) => `<div class="cf-row"><p class="sm"><b>${esc(x.name || x.id)}</b> <span class="muted xs">${esc(KIND[x.kind] || '')}${x.since ? ' · ' + esc(x.since) + '~' : ''}</span></p>${x.summary ? `<p class="xs">${esc(x.summary)}</p>` : ''}<p class="xs">${(x.sources || []).map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(host(u))}</a>`).join(' · ')}</p></div>`).join('');
+    if (!C || !C.items.length) return `<section class="card"><h2>분쟁 지도</h2><p class="muted sm">${C ? '아직 확인된 분쟁 목록이 없어요.' : '불러오는 중이에요.'}</p><p class="muted xs">매일 아침 구글 뉴스 기사를 모아 Gemini가 정리한 목록을 GitHub에 "분쟁 목록 확인 요청" PR로 올려요. 출처를 확인하고 합치면 여기와 지구본에 나타나요.</p></section>`;
+    const rows = C.items.map((x) => `<div class="cf-row"><p class="sm"><b>${esc(x.name || x.id)}</b> <span class="muted xs">${esc(KIND[x.kind] || '')}${x.since ? ' · ' + esc(x.since) + '~' : ''}</span></p>${x.summary ? `<p class="xs">${esc(x.summary)}</p>` : ''}<p class="xs">${(x.sources || []).map((u, k) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc((x.outlets && x.outlets[k]) || host(u))}</a>`).join(' · ')}</p></div>`).join('');
     return `<section class="card"><div class="card-head"><h2>분쟁 지도</h2><span class="act up">${C.items.length}곳</span></div>${rows}
-      <p class="muted xs" style="margin-top:6px">지구본의 빨간 곡선은 나라 사이 분쟁, 빨간 물결은 내전이에요. Gemini가 구글 검색으로 제안하고 <b>사람이 출처를 확인해 합친 목록만</b> 보여 줘요. 봇 판단에는 쓰지 않아요. 확인 ${esc(C.updated || '')}</p></section>`;
+      <p class="muted xs" style="margin-top:6px">지구본의 빨간 곡선은 나라 사이 분쟁, 빨간 물결은 내전이에요. 구글 뉴스에서 모은 기사를 Gemini가 정리해 제안하고 <b>사람이 출처를 확인해 합친 목록만</b> 보여 줘요. 봇 판단에는 쓰지 않아요. 확인 ${esc(C.updated || '')}</p></section>`;
   }
   // 한국 위기 경보 판 (기획서 7장 기준, 보여 주기용) + 시뮬레이션
   function koreaSim(K, sim) { const sig = K.sig.map((z) => ({ ...z }));
