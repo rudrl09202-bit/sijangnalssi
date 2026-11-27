@@ -45,7 +45,9 @@ export async function askGeminiSearch(key, model, prompt, fetchImpl = fetch) {
     const cand = (j.candidates || [])[0] || {}, gm = cand.groundingMetadata || {};
     // 검색을 실제로 했는지: 검색어·검색 결과 조각·검색 진입점 중 하나라도 있으면 검색함
     const refs = (gm.groundingChunks || []).map((c) => c.web && { title: c.web.title || '', uri: c.web.uri || '' }).filter(Boolean);
-    return { text: ((cand.content || { parts: [] }).parts || []).map((p) => p.text || '').join(''), grounded: !!(refs.length || (gm.webSearchQueries || []).length || gm.searchEntryPoint), queries: gm.webSearchQueries || [], refs };
+    // 진단용: 검색을 안 한 것처럼 보일 때 원인을 보려고 응답 모양을 짧게 남김 (키·본문은 남기지 않음)
+    const diag = { model, version: j.modelVersion || null, finish: cand.finishReason || null, candKeys: Object.keys(cand), gmKeys: Object.keys(gm), usage: j.usageMetadata || null, parts: ((cand.content || {}).parts || []).map((p) => Object.keys(p).join('+')) };
+    return { text: ((cand.content || { parts: [] }).parts || []).map((p) => p.text || '').join(''), grounded: !!(refs.length || (gm.webSearchQueries || []).length || gm.searchEntryPoint), queries: gm.webSearchQueries || [], refs, diag };
   } finally { clearTimeout(to); }
 }
 export function parseObj(text) { const o = text.indexOf('{'), e = text.lastIndexOf('}'); if (o < 0 || e < o) throw new Error('JSON 없음'); return JSON.parse(text.slice(o, e + 1)); }
@@ -82,10 +84,12 @@ export async function run({ root = ROOT, now = Date.now(), env = loadEnv(), fetc
   const g = VOTERS.find((v) => v.id === 'gemini'), models = [model, ...((g && g.backup) || [])].filter((m, i, a) => m && a.indexOf(m) === i);
   const usedSet = new Set(), queries = [], refs = [], fails = [];
   // 검색한 답만 받음: 검색 없이 답하면(기억으로 쓴 답 → 링크가 지어낸 것일 수 있음) 버리고 다음 모델. retry: 같은 모델에 한 번 더 물어볼지
-  const askGrounded = async (q, retry) => { const tried = [];
+  let diag = null, noSearch = 0; // 검색 없는 답이 계속되면(6번) 남은 질문은 건너뜀 — 호출·시간 낭비 방지
+  const askGrounded = async (q, retry) => { const tried = []; if (noSearch >= 6) throw new Error('앞 질문들이 모두 검색 없이 답해서 건너뜀');
     for (const m of models) { for (let k = 0; k < 2; k++) { try { let r = await askGeminiSearch(key, m, q, fetchImpl);
           if (!r.grounded && retry) r = await askGeminiSearch(key, m, q, fetchImpl);
-          if (!r.grounded) throw new Error('구글 검색 없이 답함');
+          if (!r.grounded) { noSearch++; if (!diag) diag = r.diag; throw new Error('구글 검색 없이 답함'); }
+          noSearch = 0;
           usedSet.add(m); queries.push(...r.queries); refs.push(...r.refs); return r;
         } catch (e) { tried.push(m + ': ' + e.message.slice(0, 80)); if (!/HTTP (429|5\d\d)/.test(e.message)) break; if (k === 0) await new Promise((ok) => setTimeout(ok, opts.wait ?? 10000)); } } }
     throw new Error(tried.join(' / ')); };
@@ -97,6 +101,7 @@ export async function run({ root = ROOT, now = Date.now(), env = loadEnv(), fetc
     } catch (e) { fails.push((x.name || x.id) + ': ' + e.message.slice(0, 100)); } }
   // ② 새 분쟁 찾기
   let newOk = false; try { const P0 = parseList((await askGrounded(PROMPT_NEW(d, items0.map((x) => x.id + ' ' + (x.name || ''))), true)).text); active.push(...P0.active); newOk = true; } catch (e) { fails.push('새 분쟁 찾기: ' + e.message.slice(0, 120)); }
+  if (diag) log('진단(검색 없이 답한 첫 응답): ' + JSON.stringify(diag));
   if (!newOk && fails.length === items0.length + 1) throw new Error('Gemini 모두 실패 — ' + fails.join(' / '));
   if (fails.length) log('검색한 답을 못 받은 질문 ' + fails.length + '개: ' + fails.join(' / '));
   const used = [...usedSet].join(', '), grounded = true, res = { queries };

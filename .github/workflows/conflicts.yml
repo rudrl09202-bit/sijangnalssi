@@ -25,7 +25,7 @@ jobs:
       - name: Gemini 로 분쟁 목록 받기
         run: |
           set -o pipefail   # 실패하면 빨간 X (tee 가 실패를 가리지 않게)
-          node connect/conflicts.mjs 2>&1 | tee /tmp/cf.log || { { echo "### ❌ 분쟁 목록 받기 실패"; echo; tail -3 /tmp/cf.log; } >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          node connect/conflicts.mjs 2>&1 | tee /tmp/cf.log || { { echo "### ❌ 분쟁 목록 받기 실패"; echo; tail -4 /tmp/cf.log; } >> "$GITHUB_STEP_SUMMARY"; exit 1; }
           { echo "### 분쟁 목록"; echo; tail -3 /tmp/cf.log; } >> "$GITHUB_STEP_SUMMARY"
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
