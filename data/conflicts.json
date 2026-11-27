@@ -1,19 +1,10 @@
 {
- "v": 1,
+ "v": 2,
  "updated": "2026-11-27",
  "model": "gemini-3.6-flash",
- "grounded": true,
- "queries": [
-  "\"syria\" airstrikes airstrike november 2026 news",
-  "\"congo\" OR \"drc\" m23 fighting november 2026 news",
-  "sudan civil war news november 2026",
-  "russia ukraine war news november 2026",
-  "israel gaza news november 2026",
-  "myanmar civil war news november 2026",
-  "\"somalia\" al-shabaab attack november 2026 news",
-  "\"yemen\" houthi strike attack november 2026 news"
- ],
- "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남 · 2026-11-27 검토: 새 제안 3곳(미얀마·소말리아·시리아)은 출처가 전투 보도가 아니거나 약해서 뺌, 이번에 검색하지 않아 빠진 이스라엘-레바논·에티오피아는 전날 확인 출처(30일 이내)로 유지",
+ "method": "구글 뉴스 RSS 기사 + Gemini 정리(근거 기사 번호)",
+ "articles": 82,
+ "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남",
  "items": [
   {
    "id": "RU-UA",
@@ -22,10 +13,16 @@
    "kind": "war",
    "name": "러시아-우크라이나 전쟁",
    "since": "2022",
-   "summary": "러시아의 전면 침공 지속 속에 우크라이나 전역에 대한 대규모 미사일·드론 공습과 치열한 지상전이 이어지고 있습니다.",
+   "summary": "러시아가 우크라이나의 주요 도시와 민간 시설에 공습을 이어가고 있습니다.",
    "sources": [
-    "https://www.theguardian.com/world/2026/nov/26/ukraine-war-briefing-kyiv-launched-more-long-range-strikes-in-2026-than-rest-of-war-combined-data-shows",
-    "https://www.bbc.com/news/articles/cqx2x9dklxnro"
+    "https://news.google.com/rss/articles/CBMipwFBVV95cUxPTGlNOVlsbTJmZFFRZ2xsbGFaVzMzTElHdkh1ajUyQ2RXQVZaWTctbWNDOEs1YnJUNzFKeEVmNV9FWW5mZ01fNHVBY2JXcnc5em56RVlfT2R0eWt5alZIb011MWNQWEZJZ0oxWkEydUVjWkh0QllRQlpYUmFTS0JHeHhHS3ZFZWItZmlsUUw1eE93bWxMNXk1cVdVWU1EM25TSXNrVl9RVdIBrAFBVV95cUxPZ0o0UFhZaDdFcTBNMVFRajhabmRDZEpEa1ZtRDVzdjkzaEFKQ29DTXY3N3FCRnNybGlxVEZvaW1JWkVmYV9mNUtSV3JxaWxCZjMwOUUzN0xQc1E2NTd1U1dhSHZINzJCNWZmZFg1cm44SExHVTRsWEJKUEg1OWJhWFNUREswY08wSXQyNng3RTRJZ0dGTkpaX2h6OTJUcnFqbTAyTkQzZDQzblZU?oc=5",
+    "https://news.google.com/rss/articles/CBMiwwFBVV95cUxPNVcyZ0hkU0dhQUVmWGo3NWZqS1JRVDZPa2RWMG1VVnNjR2NvdDdwQk5mLV95ejlyVTg0dENtYURJeXFKRVI5UzcyV3hsR0xkUFk0UGFUUEtieU5QUkRtNGgtODdEQ0RjdGNUT0o1RFVoVV9BSGd2MFVYS0k3b0xSc2QyVGg2b2FvMHdURHlXREs5S255aktaVllpUzctbGI2bUhKYVo3RzFuT1dtNVFQdzZzVTZMV29uWWhCR3FNTmc2RzTSAcgBQVVfeXFMTS0xdnJIdDk3RzlVY3ZQczFJSzlSQ2VOdVk5WkVLUkwtWUpxNjNGc01pX1RkSHNFY3FjdWIyNnhPYWJ2ZVgzMmoyUFpxc0VSRGZ0RXp3azNxa1FRWXcwTWFGZHM5eEtMM3NOQU5VTTlTR2pUc1ZvNk5DclZhdk9EU2NReEpmczNMaWY0TUl2MXQyVWtjYm5abGVDUzllenNER0g5NE15YnFOTWhnOE55akhmNGdQN0pHU29TWXQwUnpfTlV0b0pRUWg?oc=5",
+    "https://news.google.com/rss/articles/CBMicEFVX3lxTE4xTWFaNElLcUdraGxMS2FscW5RS3pTd01iTzh1U2NSZ1FibV92S0kwa0x2anp0M29PLTBIYzJEcy1DMW9EeHRkakV0amYxaG9rNmdWOWRFU1ZmT040YjBBenZGSmJaSHpjTzl5VGNqSU8?oc=5"
+   ],
+   "outlets": [
+    "Daily Sabah",
+    "Ukrinform",
+    "Boston Herald"
    ],
    "first": "2026-11-26",
    "checked": "2026-11-27"
@@ -37,12 +34,117 @@
    "kind": "war",
    "name": "이스라엘-가자지구 전쟁",
    "since": "2023",
-   "summary": "이스라엘군의 가자지구 내 주거지 표적 공습과 지속적인 군사 작전으로 사망자와 민간인 피해 보도가 계속되고 있습니다.",
+   "summary": "이스라엘이 가자지구의 병원, 민간인 거주지, 하마스 고위 간부 등을 대상으로 공습을 지속하고 있습니다.",
    "sources": [
-    "https://www.cnn.com/2026/11/26/middleeast/israel-gaza-assassinations-ceasefire-intl",
-    "https://www.theguardian.com/world/2026/nov/26/israeli-strikes-kill-schoolchildren-gaza"
+    "https://news.google.com/rss/articles/CBMiWkFVX3lxTE81NDRhN2ZQdWhxT19KbXJNYU9RdnB2VmtyaThlWEp3YjVjajhaOFJscFdOUlNtWEtsNHZlSklqMUpUUGFaM3ZDcHNiMnNyM3hyVXRSQXNlZ2U4d9IBX0FVX3lxTE4zMGQxQWdqWkxqYm1uZThDektsRWo4RUs0UFNmT2Z3STA1U3JBUlFyY0dWRXBfTDJVRU1QTHZ6Q1VLSkU5VUg0X0tUaDBwZTBKMER4cXpyeHpLajBKcWpn?oc=5",
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1rczdKNkgwd3Rldkt3c3VoZDRHSFlSM2REbnFIRTYyOXE1TTRQUDY4SWIyNHlHaUFZZTRFOTI1WW9pMzZMVXA3QmFLZFJ3Qi1pUER6NE5sQWZDVjg?oc=5",
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1UcUhiRTJQcEJtRndhZEVWQU45Ql9takFoTVA4MEctZW9oSHI3U2ZUbmdpV2pYTENVcjZqcEI2UlYtTHlWTm9Pbm9DVmsxRHB5RlpvZ3hTUHlRbzjSAWBBVV95cUxNOGtrYlhpTEJHOUFKRWRqcTEyalpwRks1V0cxLTl4eFh4SFJLZjhlblZ3OWQ0SHRFd3V5RGZab0tWYWI2YkZ0OThhZjJxaVNQTGh1c1lsR29xOGQyTnd6TzU?oc=5"
+   ],
+   "outlets": [
+    "경향신문",
+    "KBS 뉴스",
+    "연합뉴스"
    ],
    "first": "2026-11-26",
+   "checked": "2026-11-27"
+  },
+  {
+   "id": "SD",
+   "a": "SD",
+   "b": null,
+   "kind": "civil",
+   "name": "수단 내전",
+   "since": "2023",
+   "summary": "수단 내전에서 드론 공습이 지속되며 민간인 사망자가 잇따르고 있습니다.",
+   "sources": [
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1TTWF2U2FKOW02UER0UDY2QW1tdElHZmQ1SUFVVEx0eGRjRWJzcHNrVjl0a1hUQ1hEcm41NWlueWIyTlZCYUlKdFJ2T19xN1JRT2kyRzFXSTdBa00?oc=5",
+    "https://news.google.com/rss/articles/CBMiYkFVX3lxTE41VTFGdnFkQ3BLRUl5bmxZd3A5SXp1WUhfTWUwTEc2Rzk0OU00akQ1YlFzdDg5RDEzU0dHQ3k0MVR2XzI2V2duejc4UUFMR1ctZ0VuNk1mWDU3eTk2MFZSN0tR?oc=5",
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1zZ04xcF90X09wbGNJcmotbWV6Y3FFVlRGS0Q5VDRwWElLQzE3SV80SnVfUXNNTl92MnFiNDE4aXZYUkNpeElyOVpSd0V1MTFyNDRPRGh6WUJEbHfSAWBBVV95cUxQX2JXZkxxMFh1OWpMSzNYNjg1bmc5bG40R01YcEdya3V5ZHl1NmZmY3JBeUNHRlZNLUNFaFVaRWppRlJTeHlRUjVVS1ZMX05nSm03cFo2a1hNUWpDcHJLWGY?oc=5"
+   ],
+   "outlets": [
+    "KBS 뉴스",
+    "뉴스1",
+    "연합뉴스"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-27"
+  },
+  {
+   "id": "SA-YE",
+   "a": "YE",
+   "b": "SA",
+   "kind": "war",
+   "name": "예멘 후티-사우디아라비아 분쟁",
+   "since": "2015",
+   "summary": "예멘 후티 반군의 사우디 정유시설 및 건물 피격과 사우디 연합군의 반격 공습으로 양측 충돌이 격화하고 있습니다.",
+   "sources": [
+    "https://news.google.com/rss/articles/CBMidEFVX3lxTFB1My1KZVluMGxRb2VFQnVTdjVGci1hV1dvbTV1ZmN2VXhzSnJfTHhFMTE3aWVTUDhfU0hxd2NUTS1jaHhYcmN4UlJ6V2FjNkI2ZFZZNEF1aWlWR3J2VHVEdmhWYlJYTThsSlVlYXdGM2d1LTFy0gF0QVVfeXFMT0ZlSFBUbTE3SlRSMXFGcDJxOFpWVE5na3JsbVl5WDdDU20wWkMya1JKaHV5Tm5RX3c0MEhzZzZIVDRuTlNMWFpMMzBrZGFpb0w4S05OQlkyaWdyLVd0Vi1QeWt5X2VzdUpTbGRHVUU5aXp1YkM?oc=5",
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE95QW1WeVBKRHZrdFhuU2J1MmFmcjcyZHNQd0otbV9ldDZHMDZ3ZDRUeUtyTlV0MW9CQ0gtaE5venFkWUhwRi1KVHBfOXpQblEzZ0lIQTFQajdDaGfSAWBBVV95cUxQODFDekRhRVlhZGhKa3ZYOFRuRVk3cENFX3FhOVpjYVZ0aFdxS2JuV09xT0tMZW9Ubi1SU1NCNUlYTTRwdV9zdFphOEV0YkV4TmQ2QXdoLXEtUW9TcEt4VDE?oc=5",
+    "https://news.google.com/rss/articles/CBMic0FVX3lxTE1ENnFVUk02UjA3R2czRWkxVThxVElpVklwZnBzZXBqU1BKdkxpdHJzVEZGc1VNN2ZuZmVHMEpjSGJwajM4THp4eVZvZ3FMeERNM3Z3ZDJMdWRXUXhUVVFIc2RZcDd6Qzl0TVRVVG5JTUZLbEHSAXNBVV95cUxNRDZxVVJNNlIwN0dnM0VpMVU4cVRJaVZJcGZwc2VwalNQSnZMaXRyc1RGRnNVTTdmbmZlRzBKY0hicGozOEx6eHlWb2dxTHhETTN2d2QyTHVkV1F4VFVRSHNkWXA3ekM5dE1UVVRuSU1GS2xB?oc=5"
+   ],
+   "outlets": [
+    "MBC 뉴스",
+    "연합뉴스",
+    "여성신문"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-27"
+  },
+  {
+   "id": "ET",
+   "a": "ET",
+   "b": null,
+   "kind": "civil",
+   "name": "에티오피아 내전",
+   "since": "2020",
+   "summary": "에티오피아군이 티그라이 지역에 포격을 가하는 등 무력 충돌이 이어지고 있습니다.",
+   "sources": [
+    "https://news.google.com/rss/articles/CBMitgFBVV95cUxQRUZuNTROT1Y1Q0pTWEtuSWQ5V0tPV2o4X1VlUkhnQkRJaWF3bWtRUTloNW5tQ2xLbV9kMUxWYTUycGhkekFLWGtCXzQ0dVN3TS0yZmItbEM0X3loQUdXeFhwM2p1MXZDck5TT2pJdmNOYVFmZEtaNjdIeGZuZHk0Wk1xOTFfaklzS3JaZ1FtelVLaG5CX0xVWDFpUjNqZXdqdndMcDJ2ZnVaSXhmczhWT25ZRFZNQdIBuwFBVV95cUxPRnMyTmt0UFVNXzNISzFrbXFYWU1KcXU2Z2JiSk00QXFPbmN5bzJrNmpBeE81dmxzTXI5RjlINjFFbHQ1dWhFbnVIenRvQ2ROSlBSWEZCM0NHSy13RUJ1YzhDOHNTT1o4c18tWlRHcWlGUG0wdU8xeFc1Qmk3NUI1dDB5cXh5cUNYRW9MWE5wNXJ1WmZlenB1ajhfQ3JYaktBWDJMTV95YzF3SE1KS004VEExeDNsS2o2Z0U4?oc=5"
+   ],
+   "outlets": [
+    "ABC News - Breaking News, Latest News an"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-27"
+  },
+  {
+   "id": "BH-IR",
+   "a": "IR",
+   "b": "BH",
+   "kind": "war",
+   "name": "이란-바레인 무력 충돌",
+   "since": "2026",
+   "summary": "이란이 바레인 내 미군 시설 및 민간 시설을 공습하여 부상자가 발생했습니다.",
+   "sources": [
+    "https://news.google.com/rss/articles/CBMiVkFVX3lxTE4wSjRLV2xMMkhrMVJKMVlFQi1yZmZxVnpfVVltQVNxay0tM0l0Y0E5ckI5cmJmVVhFU3lUd0xHaW14UWE0QThUZHpaQmwzVWoySWV4Uk5R?oc=5",
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE9jWm1lSHZoZmltTGpSNGFKenhjRXpQaTBoTXpXbDVyNEVaeWpIaTBRZzJwTTZGbVB1eWZfM1lxZEFkaEdfZl9SWHJvbkhDT1pfWEZpOUpfQUgxU1HSAWBBVV95cUxPRV90aXEzaDlQd3EyRjdUSE5HVkZ0eHpRSUV2VmY4VmxtS0NfSDVmS0RTYkFkenNmeWUtMV85czBydUhKSk9GZGYxcmRqdS1DakRmZlI1Y0dSZm1URjM5UUI?oc=5",
+    "https://news.google.com/rss/articles/CBMiXkFVX3lxTFBPNFMzTHB0MlFmako1YWFhTGRhNkhvY0FVTmNsbFNJSU0zY2RfMDNjSmIzXy1iZEdmUVJmRmJJZUwtWDJFZm1aRW45aTJicmcxMTFYOG51LWM1bFJiTWc?oc=5"
+   ],
+   "outlets": [
+    "중앙일보",
+    "연합뉴스",
+    "YTN"
+   ],
+   "first": "2026-11-27",
+   "checked": "2026-11-27"
+  },
+  {
+   "id": "YE",
+   "a": "YE",
+   "b": null,
+   "kind": "civil",
+   "name": "예멘 내전",
+   "since": "2014",
+   "summary": "예멘 정부군과 후티 반군이 타이즈 공항 등에 대규모 공습을 실시하는 등 상호 교전을 벌이고 있습니다.",
+   "sources": [
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTFBvUEZhTGRHUVRuTFFkSFNtcjhkLTNHckcwS1BPRWVjR1BNWG1reDktdHhuakpOeWZFOUpFT1R1ZjVDOXJsTXhyejNUZnVpTWlVbDd6aUY2cENDM1nSAWBBVV95cUxQYWFIX3hiYjczSUFuZ3RuaUZvV3p1TlZMeXJ2d3Y4RWt5b3FyOGM3M01IRzA1UlhKMjZMelBRZTltRjJpN3FYSUFtc3NoQmU2R1E5SXFLMGFlSW05V2U5M2o?oc=5",
+    "https://news.google.com/rss/articles/CBMiYEFVX3lxTE1Ob3MtRVQyMFg1cnVKTGVlejU5WjdhbmFrUzE2MHc5bGUxRnJxWDA2czk4LVJrOVlGdU9xbG5kSlN0MTY0UTlXUmQtSjBMeUI3MUJtX0FoQVJQRTRBeTlQctIBeEFVX3lxTE9rX3c2X0pzZ2k2OVp3LUl3TFNUOF8wQUtqZ2k4aVZDNFJYLTRoTC03TlpuTXVvQmR0MDVRd0lsdHlaRzZUTEhmNEd2N2dtaUM2UEkwS2JJOV9PTnhIOUNVT2hPYnZnaEhDUVhZeWh2XzBrbTg4Ml95LQ?oc=5"
+   ],
+   "outlets": [
+    "연합뉴스",
+    "뉴시스"
+   ],
+   "first": "2026-11-27",
    "checked": "2026-11-27"
   },
   {
@@ -61,36 +163,6 @@
    "checked": "2026-11-26"
   },
   {
-   "id": "SD",
-   "a": "SD",
-   "b": null,
-   "kind": "civil",
-   "name": "수단 내전",
-   "since": "2023",
-   "summary": "수단 정부군(SAF)과 신속지원군(RSF) 간의 드론 공습과 신규 전선 확대로 인명 피해와 피란민 발생이 가중되고 있습니다.",
-   "sources": [
-    "https://www.aljazeera.com/news/2026/11/23/drone-attacks-kill-four-near-sudans-capital-damage-un-building",
-    "https://www.nrc.no/news/2026/november/sudan-drone-strike-kills-10-year-old-pupil/"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-27"
-  },
-  {
-   "id": "SA-YE",
-   "a": "YE",
-   "b": "SA",
-   "kind": "war",
-   "name": "예멘 후티-사우디아라비아 분쟁",
-   "since": "2015",
-   "summary": "예멘 후티 반군이 사우디아라비아 정유시설과 수도 주요 건물에 미사일·드론 공습을 감행하고 사우디 연합군의 보복 공습이 교차하고 있습니다.",
-   "sources": [
-    "https://www.cnn.com/2026/11/26/middleeast/houthis-strike-saudi-oil-refinery-intl",
-    "https://indianexpress.com/article/world/houthi-missile-strike-aramco-refinery-saudi-jazan-kills-nepali-worker-9692481/"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-27"
-  },
-  {
    "id": "CD",
    "a": "CD",
    "b": null,
@@ -104,21 +176,6 @@
    ],
    "first": "2026-11-26",
    "checked": "2026-11-27"
-  },
-  {
-   "id": "ET",
-   "a": "ET",
-   "b": null,
-   "kind": "civil",
-   "name": "에티오피아 내전",
-   "since": "2020",
-   "summary": "에티오피아 정부군과 티그라이(TPLF) 및 암하라(Fano) 지역 무장세력 간의 포격과 충돌이 재발발했습니다.",
-   "sources": [
-    "https://www.washingtonpost.com/world/2026/11/25/ethiopia-tigray-amnesty-war-crimes-shelling/",
-    "https://www.criticalthreats.org/analysis/ethiopia-war-security-review-november-20-2026"
-   ],
-   "first": "2026-11-26",
-   "checked": "2026-11-26"
   }
  ]
 }
