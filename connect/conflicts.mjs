@@ -5,7 +5,8 @@
  *  규칙: 출처(URL) 없는 항목·나라 코드가 이상한 항목은 버림. 이전 목록에 있던 것은 처음 확인일을 이어 씀
  *  검색 필수: 같은 모델이 두 번 모두 구글 검색 없이 답하면 그 답은 버리고 예비 모델로. 모두 그러면 PR 을 안 올리고 실패(빨간 X)
  *   (검색 없이 쓴 답은 출처 링크가 지어낸 주소일 수 있어서)
- *  지금 목록 다시 확인: 질문에 지금 목록을 넣어 하나씩 다시 검색하게 함. "끝남"은 이유·출처와 함께 따로 받음
+ *  지금 목록 다시 확인: 분쟁마다 짧은 질문을 따로 보내 다시 검색하게 함 + 새 분쟁 찾기 질문 1개 (한 번에 길게 물으면 검색을 건너뛰었음)
+ *   "끝남"은 이유·출처와 함께 받음
  *   - 끝남(출처 있음) → 뺌 · 답이 없음 → 마지막 확인 뒤 30일까지는 그대로 둠(검색을 안 해서 빠지는 일 방지), 30일 넘으면 뺌
  *  키: GEMINI_API_KEY (모델 GEMINI_MODEL, 기본은 council.mjs 와 같음)
  *  한도 초과(429)·서버 오류(5xx): 10초 뒤 한 번 더 → 그래도 안 되면 council.mjs 의 예비 모델로. 모두 실패하면 오류로 끝냄(워크플로 빨간 X)
@@ -20,19 +21,22 @@ import { VOTERS } from './council.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
 const KINDS = { war: '나라 사이 전쟁', civil: '내전·무장 충돌', border: '국경 충돌' };
 const today = (now) => new Date(now).toISOString().slice(0, 10);
-const PROMPT = (d, prev) => `오늘은 ${d} 입니다. 구글 검색으로 확인해서, 지난 30일 안에 실제 전투·공습·포격이 보도된 무력 분쟁만 골라 주세요.
-${prev && prev.length ? `먼저 지금 목록의 분쟁을 하나씩 따로 검색해서 아직 진행 중인지 확인하세요: ${prev.map((x) => x.id + ' ' + (x.name || '')).join(', ')}
-- 아직 진행 중이면 active 에 최신 출처와 함께 넣고, 끝났거나 30일 넘게 전투 보도가 없으면 ended 에 이유와 근거 출처를 넣으세요
-그다음 목록에 없는 새 분쟁도 찾아 active 에 넣으세요.
-` : ''}
-- 나라 사이 전쟁은 kind "war", 한 나라 안의 내전·무장 충돌은 kind "civil"(b 는 null), 국경 충돌은 kind "border"
+// 질문은 짧게 나눠서 (한 번에 길게 물으면 Gemini 가 검색을 건너뛰고 기억으로 답하는 일이 많았음 — 11/27)
+const RULES = `- 나라 사이 전쟁은 kind "war", 한 나라 안의 내전·무장 충돌은 kind "civil"(b 는 null), 국경 충돌은 kind "border"
 - 휴전이 지켜지고 있거나 30일 넘게 전투 보도가 없으면 넣지 마세요. 말싸움·제재·무역 갈등은 넣지 마세요
 - 나라는 ISO 3166-1 두 글자 대문자 코드. 공격하는 쪽을 a 에
-- 항목마다 오늘 기준 최신 보도 원문 URL 을 1~3개 (언론사 기사 주소)
-- 최대 15개, 큰 것부터
+- 항목마다 최신 보도 원문 URL 1~3개 (언론사 기사 주소)`;
+// 새 분쟁 찾기
+const PROMPT_NEW = (d, known) => `오늘은 ${d} 입니다. 구글 검색으로 확인해서, 지난 30일 안에 실제 전투·공습·포격이 보도된 무력 분쟁을 찾아 주세요.${known.length ? '\n이미 아는 것은 빼고 찾으세요: ' + known.join(', ') : ''}
+${RULES}
+- 최대 8개, 큰 것부터
+JSON 배열 하나만 답하세요. 다른 글은 쓰지 마세요:
+[{"a":"RU","b":"UA","kind":"war","name":"한국어 이름","since":"시작 연도","summary":"지금 상황 한국어 한 문장","sources":["https://..."]}]`;
+// 지금 목록의 분쟁 하나 다시 확인
+const PROMPT_ONE = (d, x) => `오늘은 ${d} 입니다. 구글 검색으로 "${x.name || x.id}" (${x.a}${x.b ? ' 대 ' + x.b : ' 안'}) 의 최근 30일 전투·공습·포격 보도를 찾아 주세요.
+진행 중이면 active true 와 최신 기사 URL 1~3개, 끝났거나 30일 넘게 전투 보도가 없으면 active false 와 이유·근거 기사 URL.
 JSON 하나만 답하세요. 다른 글은 쓰지 마세요:
-{"active":[{"a":"RU","b":"UA","kind":"war","name":"한국어 이름","since":"시작 연도","summary":"지금 상황 한국어 한 문장","sources":["https://..."]}],
- "ended":[{"id":"지금 목록의 id","reason":"한국어 한 문장","sources":["https://..."]}]}`;
+{"active":true,"summary":"지금 상황 한국어 한 문장","reason":"끝났다면 이유, 아니면 빈칸","sources":["https://..."]}`;
 export async function askGeminiSearch(key, model, prompt, fetchImpl = fetch) {
   const c = new AbortController(), to = setTimeout(() => c.abort(), 60000); // 검색 포함 1분이면 충분
   try { const r = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', signal: c.signal,
@@ -44,6 +48,7 @@ export async function askGeminiSearch(key, model, prompt, fetchImpl = fetch) {
     return { text: ((cand.content || { parts: [] }).parts || []).map((p) => p.text || '').join(''), grounded: !!(refs.length || (gm.webSearchQueries || []).length || gm.searchEntryPoint), queries: gm.webSearchQueries || [], refs };
   } finally { clearTimeout(to); }
 }
+export function parseObj(text) { const o = text.indexOf('{'), e = text.lastIndexOf('}'); if (o < 0 || e < o) throw new Error('JSON 없음'); return JSON.parse(text.slice(o, e + 1)); }
 // 답: { active:[...], ended:[...] } (예전 형식인 배열만 와도 받음)
 export function parseList(text) {
   const o = text.indexOf('{'), a = text.indexOf('[');
@@ -74,19 +79,29 @@ export async function run({ root = ROOT, now = Date.now(), env = loadEnv(), fetc
   const key = env.GEMINI_API_KEY; if (!key) { log('분쟁 목록: GEMINI_API_KEY 없음 → 건너뜀'); return null; }
   const model = env.GEMINI_MODEL || VOTERS.find((v) => v.id === 'gemini').def, f = join(root, 'data', 'conflicts.json'), d = today(now);
   let prev = null; try { if (existsSync(f)) prev = JSON.parse(readFileSync(f, 'utf8')); } catch (e) { prev = null; }
-  const g = VOTERS.find((v) => v.id === 'gemini'), models = [model, ...((g && g.backup) || [])].filter((m, i, a) => m && a.indexOf(m) === i), tried = [];
-  let res = null, used = null;
-  // 검색을 안 하고 답했으면(기억으로 쓴 답 → 링크가 지어낸 것일 수 있음) 한 번 더 물어봄
-  const Q = PROMPT(d, (prev && prev.items) || []);
-  const ask = async (m) => { let r = await askGeminiSearch(key, m, Q, fetchImpl); if (!r.grounded) { log(m + ': 검색 없이 답함 → 한 번 더'); const r2 = await askGeminiSearch(key, m, Q, fetchImpl); if (r2.grounded) r = r2; }
-    if (!r.grounded) throw new Error('두 번 모두 구글 검색 없이 답함'); return r; }; // 검색 없는 답은 쓰지 않음 → 예비 모델로
-  for (const m of models) { for (let k = 0; k < 2 && !res; k++) { try { res = await ask(m); used = m; } catch (e) { tried.push(m + ': ' + e.message.slice(0, 90));
-        if (!/HTTP (429|5\d\d)/.test(e.message)) break; if (k === 0) await new Promise((ok) => setTimeout(ok, opts.wait ?? 10000)); } } if (res) break; }
-  if (!res) throw new Error('Gemini 모두 실패 — ' + tried.join(' / '));
-  if (used !== model) log('기본 모델 실패 → 예비 모델 ' + used + ' 사용');
-  const { text, grounded } = res;
-  log('구글 검색 ' + res.queries.length + '번 · 검색 결과 ' + res.refs.length + '개를 보고 답함: ' + res.refs.slice(0, 8).map((r) => r.title).join(', '));
-  const P = parseList(text), r = clean(P.active, prev, d, P.ended);
+  const g = VOTERS.find((v) => v.id === 'gemini'), models = [model, ...((g && g.backup) || [])].filter((m, i, a) => m && a.indexOf(m) === i);
+  const usedSet = new Set(), queries = [], refs = [], fails = [];
+  // 검색한 답만 받음: 검색 없이 답하면(기억으로 쓴 답 → 링크가 지어낸 것일 수 있음) 버리고 다음 모델. retry: 같은 모델에 한 번 더 물어볼지
+  const askGrounded = async (q, retry) => { const tried = [];
+    for (const m of models) { for (let k = 0; k < 2; k++) { try { let r = await askGeminiSearch(key, m, q, fetchImpl);
+          if (!r.grounded && retry) r = await askGeminiSearch(key, m, q, fetchImpl);
+          if (!r.grounded) throw new Error('구글 검색 없이 답함');
+          usedSet.add(m); queries.push(...r.queries); refs.push(...r.refs); return r;
+        } catch (e) { tried.push(m + ': ' + e.message.slice(0, 80)); if (!/HTTP (429|5\d\d)/.test(e.message)) break; if (k === 0) await new Promise((ok) => setTimeout(ok, opts.wait ?? 10000)); } } }
+    throw new Error(tried.join(' / ')); };
+  const active = [], ended = [], items0 = (prev && prev.items) || [];
+  // ① 지금 목록 하나씩 다시 확인 (답이 없으면 clean 이 30일까지 그대로 둠)
+  for (const x of items0) { try { const j = parseObj((await askGrounded(PROMPT_ONE(d, x), false)).text), src = (j.sources || []).map(String).filter((u) => URLRE.test(u));
+      if (j.active && src.length) active.push({ a: x.a, b: x.b, kind: x.kind, name: x.name, since: x.since, summary: j.summary || x.summary, sources: src });
+      else if (j.active === false && src.length) ended.push({ id: x.id, reason: j.reason, sources: src });
+    } catch (e) { fails.push((x.name || x.id) + ': ' + e.message.slice(0, 100)); } }
+  // ② 새 분쟁 찾기
+  let newOk = false; try { const P0 = parseList((await askGrounded(PROMPT_NEW(d, items0.map((x) => x.id + ' ' + (x.name || ''))), true)).text); active.push(...P0.active); newOk = true; } catch (e) { fails.push('새 분쟁 찾기: ' + e.message.slice(0, 120)); }
+  if (!newOk && fails.length === items0.length + 1) throw new Error('Gemini 모두 실패 — ' + fails.join(' / '));
+  if (fails.length) log('검색한 답을 못 받은 질문 ' + fails.length + '개: ' + fails.join(' / '));
+  const used = [...usedSet].join(', '), grounded = true, res = { queries };
+  log('질문 ' + (items0.length + 1) + '개 · 구글 검색 ' + queries.length + '번 · 검색 결과 ' + refs.length + '개를 보고 답함: ' + [...new Set(refs.map((r) => r.title))].slice(0, 10).join(', '));
+  const r = clean(active, prev, d, ended);
   const out = { v: 1, updated: d, model: used, grounded, queries: res.queries.slice(0, 10), note: '사람이 PR 을 읽고 합친 목록만 앱에 나타남', items: r.items };
   const summary = `분쟁 ${r.items.length}개 · 새로 ${r.added.length}${r.added.length ? ' (' + r.added.join(', ') + ')' : ''} · 빠짐 ${r.gone.length}${r.gone.length ? ' (' + r.gone.join(' / ') + ')' : ''}${r.kept.length ? ' · 이번에 확인 못 해 그대로 둠 ' + r.kept.length + ' (' + r.kept.join(', ') + ')' : ''}${r.drop.length ? ' · 버림 ' + r.drop.join(' / ') : ''}`;
   // 내용(확인 날짜 빼고)이 같으면 파일을 안 바꿈 → 매일 PR 이 생기지 않게
