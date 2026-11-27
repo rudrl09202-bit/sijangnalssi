@@ -13,7 +13,7 @@
   "\"somalia\" al-shabaab attack november 2026 news",
   "\"yemen\" houthi strike attack november 2026 news"
  ],
- "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남",
+ "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남 · 2026-11-27 검토: 새 제안 3곳(미얀마·소말리아·시리아)은 출처가 전투 보도가 아니거나 약해서 뺌, 이번에 검색하지 않아 빠진 이스라엘-레바논·에티오피아는 전날 확인 출처(30일 이내)로 유지",
  "items": [
   {
    "id": "RU-UA",
@@ -46,6 +46,21 @@
    "checked": "2026-11-27"
   },
   {
+   "id": "IL-LB",
+   "a": "IL",
+   "b": "LB",
+   "kind": "war",
+   "name": "이스라엘-레바논 분쟁",
+   "since": "2023",
+   "summary": "이스라엘군과 레바논 헤즈볼라 무장세력 간 레바논 남부 및 국경 지대에서 공습과 포격전이 지속 전개되고 있습니다.",
+   "sources": [
+    "https://en.mehrnews.com/news/249707/Blasts-rock-southern-Lebanon-as-Israel-s-occupation-continues",
+    "https://news.un.org/en/story/2026/11/1157982"
+   ],
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
+  },
+  {
    "id": "SD",
    "a": "SD",
    "b": null,
@@ -76,21 +91,6 @@
    "checked": "2026-11-27"
   },
   {
-   "id": "MM",
-   "a": "MM",
-   "b": null,
-   "kind": "civil",
-   "name": "미얀마 내전",
-   "since": "2021",
-   "summary": "군사정권과 반군 동맹 및 소수민족 무장단체 간의 포격, 공습, 지상 전투가 지속되고 있습니다.",
-   "sources": [
-    "https://apnews.com/article/myanmar-genocide-rohingya-icj-min-aung-hlaing-36b0c2a297b777a83d0c",
-    "https://www.hrw.org/news/2026/11/27/japan-should-press-myanmar-comply-world-court-ruling"
-   ],
-   "first": "2026-11-27",
-   "checked": "2026-11-27"
-  },
-  {
    "id": "CD",
    "a": "CD",
    "b": null,
@@ -106,32 +106,19 @@
    "checked": "2026-11-27"
   },
   {
-   "id": "SO",
-   "a": "SO",
+   "id": "ET",
+   "a": "ET",
    "b": null,
    "kind": "civil",
-   "name": "소말리아 내전",
-   "since": "2009",
-   "summary": "알샤바브 무장단체와 소말리아 정부군 간의 박격포 공세, 토벌 작전 및 공습이 격화되고 있습니다.",
+   "name": "에티오피아 내전",
+   "since": "2020",
+   "summary": "에티오피아 정부군과 티그라이(TPLF) 및 암하라(Fano) 지역 무장세력 간의 포격과 충돌이 재발발했습니다.",
    "sources": [
-    "https://www.cfr.org/global-conflict-tracker/conflict/conflict-al-shabaab-somalia"
+    "https://www.washingtonpost.com/world/2026/11/25/ethiopia-tigray-amnesty-war-crimes-shelling/",
+    "https://www.criticalthreats.org/analysis/ethiopia-war-security-review-november-20-2026"
    ],
-   "first": "2026-11-27",
-   "checked": "2026-11-27"
-  },
-  {
-   "id": "SY",
-   "a": "SY",
-   "b": null,
-   "kind": "civil",
-   "name": "시리아 내전",
-   "since": "2011",
-   "summary": "시리아 내부 무장단체 간 국발적 포격전과 함께 외세 및 주변국의 표적 공습이 계속되고 있습니다.",
-   "sources": [
-    "https://www.newarab.com/news/syria-and-jordan-reopen-border-crossing-after-deadly-air-strikes"
-   ],
-   "first": "2026-11-27",
-   "checked": "2026-11-27"
+   "first": "2026-11-26",
+   "checked": "2026-11-26"
   }
  ]
 }
