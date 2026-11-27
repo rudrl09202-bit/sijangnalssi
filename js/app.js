@@ -1948,6 +1948,40 @@
       ${tr ? `<h3 class="sm b" style="margin:10px 0 4px">최근 바꾼 것</h3>${tr}` : ''}
       <p class="muted xs">캐리 전략은 평소엔 조금씩 벌다가 위기 때 한꺼번에 크게 잃는 성질이 있어요. 진짜 돈·주문과는 연결되어 있지 않아요. ${kT(X.at)} 갱신</p></section>`;
   }
+  /* ---------- 봇 성적표 (connect/scorecard.mjs → data/scorecard.json, 기준은 CLAUDE.md 2장) ---------- */
+  function loadScorecard() {
+    if (S.scLoading || (S.scd && Date.now() - S.scdAt < 10 * 60e3)) return; S.scLoading = true;
+    const raw = 'https://raw.githubusercontent.com/' + futRepo() + '/main/data/scorecard.json?t=' + Math.floor(Date.now() / 60e3);
+    fetch(raw, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => fetch('data/scorecard.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null))).catch(() => null)
+      .then((j) => { S.scLoading = false; S.scdAt = Date.now(); if (j && j.bots) { S.scd = j; if (['scorecard', 'paper'].indexOf(route()) >= 0) render(); } });
+  }
+  const SC_TAG = { '통과': 'up', '미달': 'down', '기록 중': 'neu', '판단 보류': 'warn', '은퇴': 'neu' };
+  function scorecardEntry() {
+    loadScorecard(); const D = S.scd; if (!D) return '';
+    const sm = D.summary || {}, left = Math.max(0, Math.ceil((Date.parse(D.period.to) - Date.now()) / 864e5));
+    return `<a class="card" href="#scorecard" style="display:block"><div class="card-head"><h2>봇 성적표</h2><span class="act neu">${D.bots.length}개</span></div>
+      <p class="sm">${['통과', '미달', '기록 중', '판단 보류'].filter((k) => sm[k]).map((k) => k + ' ' + sm[k]).join(' · ')}</p><p class="muted xs">모의 기록 기간 ${esc(D.period.from)} ~ ${esc(D.period.to)} · ${left}일 남음 ›</p></a>`;
+  }
+  function viewScorecard() {
+    loadScorecard(); const D = S.scd, head = `<header class="top"><div><a href="#paper" class="back">‹ 봇</a><p class="kicker">실제 돈을 넣기 전 확인 · 매일 자동 채점</p><h1>봇 성적표</h1></div>${tools()}</header>`;
+    if (!D) return head + `<section class="card"><p class="muted sm">${S.scLoading ? '불러오는 중이에요' : '평일 자동 실행 뒤에 나와요.'}</p></section>`;
+    const C = D.criteria, KIND = { coin: '코인', stock: '주식', fx: '외환' }, ok = (v) => (v === true ? '<span class="act up">✓</span>' : v === false ? '<span class="act down">✗</span>' : '<span class="muted xs">—</span>');
+    const row = (b) => `<section class="card sc-bot"><div class="row between"><div><p class="b">${esc(b.name)} <span class="muted xs">${KIND[b.kind] || ''} · ${esc(b.role)}</span></p><p class="muted xs">${esc(b.what)}</p></div><span class="act ${SC_TAG[b.verdict] || 'neu'}">${esc(b.verdict)}</span></div>
+      ${b.why ? `<p class="xs warn">${esc(b.why)}</p>` : ''}${b.note ? `<p class="xs muted">${esc(b.note)}</p>` : ''}
+      <div class="sc-prog"><i style="width:${Math.min(100, b.days / C.minDays * 100)}%"></i></div>
+      <div class="kv"><span>${ok(b.c.days)} 기록 <span class="muted xs">${C.minDays}일 필요</span></span><b class="num">${b.days}일${b.since ? ` <span class="muted xs">${esc(b.since)}~</span>` : ''}</b></div>
+      <div class="kv"><span>${ok(b.c.sharpe)} 샤프 <span class="muted xs">${C.minSharpe} 이상 · 백테스트 ${b.btSharpe ?? '—'}</span></span><b class="num">${b.sharpe ?? '<span class="muted xs">기록 부족</span>'}</b></div>
+      <div class="kv"><span>${ok(b.c.mdd)} 최대 낙폭 <span class="muted xs">한도 ${b.mddLimit != null ? b.mddLimit + '%' : '없음'} (백테스트 ${b.btMdd != null ? b.btMdd + '%' : '기록 없음'}의 ${C.mddFactor}배)</span></span><b class="num ${dirClass(b.mdd)}">${pct(b.mdd, 1)}</b></div>
+      <div class="kv"><span>${ok(b.c.trades)} ${b.swapMonths != null ? '교체한 달' : '거래 수'} <span class="muted xs">${b.need != null ? b.need + ' 이상' : '기준 없음'}</span></span><b class="num">${b.count}</b></div>
+      <div class="kv"><span>모의 수익률</span><b class="num ${dirClass(b.ret)}">${pct(b.ret, 2)}</b></div></section>`;
+    const order = { '통과': 0, '미달': 1, '판단 보류': 2, '기록 중': 3, '은퇴': 4 }, bots = D.bots.slice().sort((a, b) => (order[a.verdict] - order[b.verdict]) || (a.role === '대표' ? -1 : 1));
+    const left = Math.max(0, Math.ceil((Date.parse(D.period.to) - Date.now()) / 864e5));
+    return head + `<section class="card"><p class="kicker">모의 기록 기간 ${esc(D.period.from)} ~ ${esc(D.period.to)}</p><p class="h-md">${left}일 남음</p>
+      <p class="sm">${Object.entries(D.summary).map(([k, v]) => `<span class="act ${SC_TAG[k] || 'neu'}" style="margin-right:4px">${esc(k)} ${v}</span>`).join('')}</p>
+      <p class="muted xs" style="margin-top:6px">네 가지를 모두 넘어야 실제 돈을 넣어요: 기록 ${C.minDays}일 · 샤프 ${C.minSharpe} 이상 · 낙폭이 백테스트의 ${C.mddFactor}배 이내 · 거래 수. 낙폭 한도는 기간 중에도 넘으면 바로 "미달"이에요. 이 기간엔 새 봇을 더하거나 규칙을 바꾸지 않아요.</p></section>
+      ${bots.map(row).join('')}
+      <p class="muted xs pad">${kT(D.at)} 채점 · 샤프는 일별 수익 20일치부터 계산해요 · 낙폭은 하루 끝 평가액 기준이에요</p>`;
+  }
   /* ---------- 오늘의 추천 TOP 10 (connect/top10.mjs → data/top10-live.json, ORBIT 규칙) ---------- */
   function loadTop10() {
     if (S.t10Loading || (S.t10 && Date.now() - S.t10At < 10 * 60e3)) return; S.t10Loading = true;
@@ -3324,6 +3358,7 @@
         ${freshLine(a)}
         <div class="bot-stats"><span>거래 <b class="num">${a.st.n}</b></span><span>승률 <b class="num">${a.st.win == null ? '—' : Math.round(a.st.win) + '%'}</b></span><span>손익비 <b class="num">${fmtPF(a.st.pf)}</b></span><span>낙폭 <b class="num">${a.st.mdd == null ? '—' : pct(a.st.mdd, 1)}</b></span><span>포지션 <b class="num">${a.positions.length}</b></span></div></a>`; };
     return `<header class="top"><div><p class="kicker">코인 선물 · 가상 1억씩 · 24시간 자동</p><h1>봇</h1></div>${tools()}</header>
+      ${scorecardEntry()}
       ${live.length ? live.map(card).join('') : '<section class="card empty"><p class="h-md">봇 결과를 불러오는 중이에요</p></section>'}
       ${live.length ? dailyAll(live) : ''}
       ${cmp.length ? `<h2 class="sec">비교용 계좌</h2><p class="muted xs pad">새 방법이 정말 나은지 보려고 같이 돌리는 기준 계좌예요.</p>${cmp.map(card).join('')}` : ''}
@@ -3583,8 +3618,8 @@
     }
     return head + seg + body;
   }
-  const VIEWS = { top10: viewTop10, macro: viewMacro, open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
-  const TAB_OF = { top10: 'explore', macro: 'home', demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
+  const VIEWS = { scorecard: viewScorecard, top10: viewTop10, macro: viewMacro, open: viewOpen, closed: viewClosed, bot: viewBot, analysis: viewAnalysis, stocks: viewPaper, mk: viewMk, quants: viewQuants, words: viewWords, scalp: viewScalp, futures: viewFutures, hq: viewHQ, explore: viewExplore, more: viewMore, paper: viewBots, alerts: viewAlerts, calendar: viewCalendar, review: viewReview, chart: viewChart, world: viewWorld, rank: viewRank, home: viewHome, assets: viewAssets, score: viewScore, coin: viewCoin, journal: viewJournal, compare: viewCompare, cycle: viewCycle, demo: viewDemo };
+  const TAB_OF = { scorecard: 'paper', top10: 'explore', macro: 'home', demo: 'home', open: 'home', closed: 'home', bot: 'paper', stocks: 'paper', assets: 'more', world: 'explore', mk: 'paper', quants: 'explore', words: 'more', scalp: 'paper', futures: 'paper', hq: 'home', compare: 'explore', cycle: 'explore', rank: 'explore', world: 'explore', chart: 'explore', score: 'explore', coin: 'explore', review: 'more', calendar: 'more', journal: 'more', alerts: 'more' };
   function route() { let h = (location.hash || '#home').slice(1); if (h.indexOf('bot/') === 0) { S.ui.bot = h.slice(4); h = 'bot'; } return VIEWS[h] ? h : 'home'; }
   function tape() {
     const item = (k, label) => { const m = S.markets[k]; if (!m) return ''; const f = fmtMarket(m); return `<span class="tk"><b>${label}</b> ${esc(f.v)} <em class="${dirClass(m.chg)}">${esc(f.c)}</em></span>`; };

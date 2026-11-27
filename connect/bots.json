@@ -1,0 +1,22 @@
+{
+  "_설명": "봇 등록부 — 이 저장소에서 도는 모든 모의투자 봇을 한 곳에. 성적표(connect/scorecard.mjs)와 앱 '봇 성적표' 화면이 이 파일을 읽음. 봇을 더하거나 끄면 여기부터 고침. 기준은 CLAUDE.md 2장.",
+  "period": { "from": "2026-11-27", "to": "2027-02-27" },
+  "criteria": { "minDays": 90, "minSharpe": 0.5, "mddFactor": 1.5, "minTradesCoin": 20, "minSwapsMonthly": 3 },
+  "bots": [
+    { "id": "mg", "name": "민경기 매매법", "kind": "coin", "role": "대표", "what": "류신영 봇 50% + 상대 모멘텀 50%, 세계 경제 신호 필터", "src": "botdata:mg-live.json", "btMdd": -18.7, "btSharpe": 1.56 },
+    { "id": "rs", "name": "류신영 봇", "kind": "coin", "role": "재료", "what": "4시간봉 20봉 돌파 + 거래량 + 학습 필터", "src": "botdata:rs-live.json", "btMdd": -24.3, "btSharpe": 1.31 },
+    { "id": "pair", "name": "상대 모멘텀", "kind": "coin", "role": "재료", "what": "ETH/BTC 상대 강도", "src": "botdata:pair-live.json", "btMdd": null, "btSharpe": null },
+    { "id": "mk", "name": "민경기 봇 1세대", "kind": "coin", "role": "비교", "what": "1시간봉 학습형", "src": "botdata:mk-live.json", "btMdd": null, "btSharpe": null },
+    { "id": "mk3", "name": "민경기 봇 3세대", "kind": "coin", "role": "비교", "what": "4시간봉 40봉 돌파 학습형", "src": "botdata:mk3-live.json", "btMdd": null, "btSharpe": null },
+    { "id": "scalp", "name": "단타 (SCALP)", "kind": "coin", "role": "실험", "what": "15분봉, Claude 가 진입 결정 — AI 판단은 과거로 시험할 수 없음", "src": "botdata:scalp-live.json", "btMdd": null, "btSharpe": null, "note": "엔진만 백테스트 57일 −25.5%" },
+    { "id": "flux", "name": "선물 FLUX", "kind": "coin", "role": "비교", "what": "4시간봉 추세추종 (규칙만)", "src": "futures:live", "btMdd": null, "btSharpe": null },
+    { "id": "council", "name": "AI 회의 (COUNCIL)", "kind": "coin", "role": "실험", "what": "FLUX 후보를 Claude·Gemini·GPT 만장일치로 심사 — AI 판단은 과거로 시험할 수 없음", "src": "futures:council", "btMdd": null, "btSharpe": null },
+    { "id": "orbit", "name": "ORBIT 모멘텀 순환", "kind": "stock", "role": "대표", "what": "12-1 모멘텀 상위 10 + 시장 필터 (오늘의 추천 TOP 10)", "src": "paper:orbit", "btMdd": -29.1, "btSharpe": 1.01, "monthly": true },
+    { "id": "orbitx", "name": "ORBIT-X 공격형", "kind": "stock", "role": "비교", "what": "상위 5개, 시장 필터 없음", "src": "paper:orbitx", "btMdd": -28.61, "btSharpe": 1.36, "monthly": true },
+    { "id": "atlas", "name": "ATLAS 추세 돌파", "kind": "stock", "role": "비교", "what": "미너비니 템플릿 + 20일 돌파", "src": "paper:atlas", "btMdd": -25.65, "btSharpe": 0.61 },
+    { "id": "chief", "name": "CHIEF 시장날씨 점수", "kind": "stock", "role": "비교", "what": "앱 스크리너 점수 그대로 — 점수 검증용", "src": "paper:chief", "btMdd": -11.02, "btSharpe": 0.19 },
+    { "id": "nova", "name": "NOVA 코인 추세", "kind": "coin", "role": "비교", "what": "주간 코인 추세 (현물)", "src": "paper:nova", "btMdd": -37.93, "btSharpe": 0.96 },
+    { "id": "echo", "name": "ECHO 눌림목", "kind": "stock", "role": "은퇴", "what": "RSI(2) 평균회귀 — 10년 시험 손실로 은퇴, 기록만 관찰", "src": "paper:echo", "btMdd": -41.54, "btSharpe": -0.85, "retired": true },
+    { "id": "fxcarry", "name": "FX CARRY 외환 캐리", "kind": "fx", "role": "대표", "what": "금리 높은 통화 3개 매수 · 낮은 3개 매도", "src": "fx", "btMdd": -9.0, "btSharpe": 0.74, "monthly": true }
+  ]
+}

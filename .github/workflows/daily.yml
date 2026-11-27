@@ -68,6 +68,9 @@ jobs:
       - name: 외환 캐리 모의투자 봇 (가상 1억 · 공개 자료만)
         run: node connect/fxpaper.mjs
         continue-on-error: true   # 실패해도 나머지는 계속
+      - name: 봇 성적표 (모든 봇을 실전 기준으로 채점)
+        run: node connect/scorecard.mjs
+        continue-on-error: true
       - name: 공시 위험 확인 (DART·SEC)
         run: node connect/filings.mjs
         continue-on-error: true
@@ -78,7 +81,7 @@ jobs:
         run: |
           git config user.name "sijangnalssi-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/alerts-state.json data/paper-state.json data/fx-state.json data/fx-live.json data/top10-state.json data/top10-live.json
+          git add data/alerts-state.json data/paper-state.json data/fx-state.json data/fx-live.json data/top10-state.json data/top10-live.json data/scorecard-state.json data/scorecard.json
           git commit -m "알림·모의투자 기록 $(date -u +%F)" || echo "변경 없음"
           git pull --rebase -q || true
           git push || echo "기록 저장 건너뜀"
@@ -90,6 +93,7 @@ jobs:
           cp data/filings-live.json _site/data/ 2>/dev/null || true
           cp data/fx-live.json _site/data/ 2>/dev/null || true
           cp data/top10-live.json _site/data/ 2>/dev/null || true
+          cp data/scorecard.json _site/data/ 2>/dev/null || true
           cp data/futures-live.json _site/data/ 2>/dev/null || true
           rm -f _site/js/holdings-live.js
           echo "window.SNW_CONFIG = { vapidPublicKey: '${VAPID_PUBLIC_KEY}' };" > _site/js/config.js

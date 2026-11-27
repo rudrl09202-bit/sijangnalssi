@@ -1,0 +1,309 @@
+{
+ "rs": {
+  "cfg": {
+   "N": 20,
+   "volx": 1.5,
+   "stopAtr": 2,
+   "trail": 4,
+   "maxBars": 60,
+   "riskPct": 0.75,
+   "maxPos": 4,
+   "maxLev": 3,
+   "taker": 0.0005,
+   "slipIn": 0.0002,
+   "slipStop": 0.0005,
+   "fundBase": 0.0001,
+   "start": 100000000,
+   "label": 0.5,
+   "skipQ": 50
+  },
+  "trades": 113,
+  "longs": 55,
+  "cash": 186812631,
+  "firstIn": "2022-02-08 12:00",
+  "sumR": 86.2
+ },
+ "pair": {
+  "cfg": {
+   "A": "ETH",
+   "B": "BTC",
+   "betaN": 180,
+   "zN": 120,
+   "zIn": 2,
+   "maxBars": 30,
+   "hlMin": 6,
+   "hlMax": 60,
+   "lev": 1,
+   "taker": 0.0005,
+   "slip": 0.0002,
+   "start": 100000000
+  },
+  "trades": 21,
+  "last": 90496119
+ },
+ "quant": {
+  "atlas": {
+   "trades": 78,
+   "last": 122726133
+  },
+  "echo": {
+   "trades": 204,
+   "last": 81608673
+  },
+  "orbit": {
+   "trades": 58,
+   "last": 137120629
+  },
+  "orbitx": {
+   "trades": 35,
+   "last": 137549809
+  },
+  "nova": {
+   "trades": 70,
+   "last": 118567142
+  }
+ },
+ "quantCfg": {
+  "vault": {
+   "maxPosPct": 15,
+   "maxSectorPct": 35,
+   "dayLossStop": -3,
+   "ddPause": -15,
+   "ddResume": -8,
+   "pauseDays": 20,
+   "ddCut": -25,
+   "streakHalve": 4,
+   "minCashPct": 2
+  },
+  "cost": {
+   "KRW_STOCK": {
+    "buy": 0.00015,
+    "sell": 0.00215,
+    "slip": 0.0005
+   },
+   "USD_STOCK": {
+    "buy": 0.002,
+    "sell": 0.002,
+    "slip": 0.0005
+   },
+   "COIN": {
+    "buy": 0.001,
+    "sell": 0.001,
+    "slip": 0.001
+   },
+   "GOLD": {
+    "buy": 0.002,
+    "sell": 0.002,
+    "slip": 0.0005
+   }
+  },
+  "bots": [
+   {
+    "id": "atlas",
+    "maxPos": 10,
+    "riskPct": 0.6,
+    "posPct": null,
+    "noMarketFilter": false,
+    "stopPct": null,
+    "trailPct": null
+   },
+   {
+    "id": "echo",
+    "maxPos": 8,
+    "riskPct": null,
+    "posPct": 12,
+    "noMarketFilter": false,
+    "stopPct": null,
+    "trailPct": null
+   },
+   {
+    "id": "orbit",
+    "maxPos": 10,
+    "riskPct": null,
+    "posPct": null,
+    "noMarketFilter": false,
+    "stopPct": null,
+    "trailPct": null
+   },
+   {
+    "id": "orbitx",
+    "maxPos": 5,
+    "riskPct": null,
+    "posPct": null,
+    "noMarketFilter": true,
+    "stopPct": null,
+    "trailPct": null
+   },
+   {
+    "id": "nova",
+    "maxPos": 4,
+    "riskPct": null,
+    "posPct": null,
+    "noMarketFilter": false,
+    "stopPct": null,
+    "trailPct": null
+   },
+   {
+    "id": "chief",
+    "maxPos": 10,
+    "riskPct": 0.75,
+    "posPct": null,
+    "noMarketFilter": false,
+    "stopPct": null,
+    "trailPct": null
+   }
+  ]
+ },
+ "macro": {
+  "blockDays": 74,
+  "onSum": 264,
+  "each": {
+   "A": 108,
+   "B": 41,
+   "C": 0,
+   "D": 115
+  },
+  "th": {
+   "A": "+1.5% 이상",
+   "B": "+3% 이상",
+   "C": "+0.5%p 이상",
+   "D": "200일선 아래",
+   "E": "30 이상"
+  }
+ },
+ "fxbreadth": {
+  "cfg": {
+   "n": 20,
+   "weakPct": 2,
+   "minWeak": 6
+  },
+  "currencies": [
+   "krw",
+   "jpy",
+   "cny",
+   "twd",
+   "inr",
+   "idr",
+   "thb",
+   "myr",
+   "php",
+   "sgd",
+   "brl",
+   "mxn",
+   "clp",
+   "cop",
+   "zar",
+   "try",
+   "pln",
+   "huf",
+   "czk",
+   "ils"
+  ],
+  "onDays": 3
+ },
+ "fxcarry": {
+  "cfg": {
+   "nLong": 3,
+   "nShort": 3,
+   "volTarget": 0.1,
+   "maxGross": 2,
+   "cost": 0.001,
+   "start": 100000000
+  },
+  "currencies": [
+   "krw",
+   "jpy",
+   "cny",
+   "mxn",
+   "pln",
+   "huf",
+   "czk",
+   "ils",
+   "clp",
+   "zar",
+   "idr"
+  ],
+  "weights": {
+   "cny": 0.2777,
+   "huf": 0.2398,
+   "clp": 0.2124,
+   "pln": -0.2708,
+   "ils": -0.2171,
+   "idr": -0.1752
+  }
+ },
+ "korea": {
+  "cfg": {
+   "resMonths": 3,
+   "fx3m": 15,
+   "caStreak": 3
+  },
+  "stage": 2
+ },
+ "mg": {
+  "MG": {
+   "start": 1795694400000,
+   "k": 1.25,
+   "w": {
+    "rs": 0.5,
+    "pr": 0.5
+   },
+   "cap": 100000000,
+   "watchUntil": "2027-02-25"
+  },
+  "WATCH": {
+   "dd": {
+    "warn": -12,
+    "alarm": -18.7,
+    "stop": -25
+   },
+   "r60": {
+    "mg": {
+     "warn": -6,
+     "alarm": -12
+    },
+    "rs": {
+     "warn": -10.6,
+     "alarm": -20.1
+    },
+    "pr": {
+     "warn": -5.8,
+     "alarm": -19.2
+    }
+   }
+  }
+ },
+ "mk": {
+  "ml": true,
+  "bar": 60,
+  "riskPct": 1,
+  "maxPos": 3,
+  "stopAtr": 1.5,
+  "minStopPct": 0.8,
+  "tpR": 2,
+  "beR": 1,
+  "maxBars": 24,
+  "coolBars": 4,
+  "pauseBars": 12,
+  "killBars": 168,
+  "atrMaxPct": 6,
+  "names": {
+   "BTC": "비트코인",
+   "ETH": "이더리움",
+   "SOL": "솔라나",
+   "XRP": "엑스알피",
+   "DOGE": "도지코인",
+   "BNB": "바이낸스코인",
+   "ADA": "에이다",
+   "LINK": "체인링크"
+  }
+ },
+ "files": {
+  "mk.mjs": "a8d9057b582409a4",
+  "mk3.mjs": "0f9852fcbeb05db8",
+  "scalp.mjs": "56578d875055c658",
+  "futures.mjs": "add5a0175e3aafc4",
+  "council.mjs": "e28ee7572abd6dde",
+  "mg.mjs": "e89a306453b353b8"
+ }
+}
