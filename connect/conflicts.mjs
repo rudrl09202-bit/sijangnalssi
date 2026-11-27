@@ -3,6 +3,8 @@
  *  하는 일: 지금 진행 중인 무력 분쟁을 출처와 함께 받아 data/conflicts.json 을 새로 씀
  *  사람 확인: 이 파일은 워크플로(.github/workflows/conflicts.yml)가 PR 로 올림 → 사람이 읽고 합쳐야 앱에 나타남
  *  규칙: 출처(URL) 없는 항목·나라 코드가 이상한 항목은 버림. 이전 목록에 있던 것은 처음 확인일을 이어 씀
+ *  검색 필수: 같은 모델이 두 번 모두 구글 검색 없이 답하면 그 답은 버리고 예비 모델로. 모두 그러면 PR 을 안 올리고 실패(빨간 X)
+ *   (검색 없이 쓴 답은 출처 링크가 지어낸 주소일 수 있어서)
  *  지금 목록 다시 확인: 질문에 지금 목록을 넣어 하나씩 다시 검색하게 함. "끝남"은 이유·출처와 함께 따로 받음
  *   - 끝남(출처 있음) → 뺌 · 답이 없음 → 마지막 확인 뒤 30일까지는 그대로 둠(검색을 안 해서 빠지는 일 방지), 30일 넘으면 뺌
  *  키: GEMINI_API_KEY (모델 GEMINI_MODEL, 기본은 council.mjs 와 같음)
@@ -76,14 +78,14 @@ export async function run({ root = ROOT, now = Date.now(), env = loadEnv(), fetc
   let res = null, used = null;
   // 검색을 안 하고 답했으면(기억으로 쓴 답 → 링크가 지어낸 것일 수 있음) 한 번 더 물어봄
   const Q = PROMPT(d, (prev && prev.items) || []);
-  const ask = async (m) => { let r = await askGeminiSearch(key, m, Q, fetchImpl); if (!r.grounded) { log(m + ': 검색 없이 답함 → 한 번 더'); const r2 = await askGeminiSearch(key, m, Q, fetchImpl); if (r2.grounded) r = r2; } return r; };
+  const ask = async (m) => { let r = await askGeminiSearch(key, m, Q, fetchImpl); if (!r.grounded) { log(m + ': 검색 없이 답함 → 한 번 더'); const r2 = await askGeminiSearch(key, m, Q, fetchImpl); if (r2.grounded) r = r2; }
+    if (!r.grounded) throw new Error('두 번 모두 구글 검색 없이 답함'); return r; }; // 검색 없는 답은 쓰지 않음 → 예비 모델로
   for (const m of models) { for (let k = 0; k < 2 && !res; k++) { try { res = await ask(m); used = m; } catch (e) { tried.push(m + ': ' + e.message.slice(0, 90));
         if (!/HTTP (429|5\d\d)/.test(e.message)) break; if (k === 0) await new Promise((ok) => setTimeout(ok, opts.wait ?? 10000)); } } if (res) break; }
   if (!res) throw new Error('Gemini 모두 실패 — ' + tried.join(' / '));
   if (used !== model) log('기본 모델 실패 → 예비 모델 ' + used + ' 사용');
   const { text, grounded } = res;
-  if (!grounded) log('⚠️ 주의: Gemini 가 구글 검색 없이 답함 — 출처 링크가 지어낸 주소일 수 있으니 꼭 열어 볼 것');
-  else log('구글 검색 ' + res.queries.length + '번 · 검색 결과 ' + res.refs.length + '개를 보고 답함: ' + res.refs.slice(0, 8).map((r) => r.title).join(', '));
+  log('구글 검색 ' + res.queries.length + '번 · 검색 결과 ' + res.refs.length + '개를 보고 답함: ' + res.refs.slice(0, 8).map((r) => r.title).join(', '));
   const P = parseList(text), r = clean(P.active, prev, d, P.ended);
   const out = { v: 1, updated: d, model: used, grounded, queries: res.queries.slice(0, 10), note: '사람이 PR 을 읽고 합친 목록만 앱에 나타남', items: r.items };
   const summary = `분쟁 ${r.items.length}개 · 새로 ${r.added.length}${r.added.length ? ' (' + r.added.join(', ') + ')' : ''} · 빠짐 ${r.gone.length}${r.gone.length ? ' (' + r.gone.join(' / ') + ')' : ''}${r.kept.length ? ' · 이번에 확인 못 해 그대로 둠 ' + r.kept.length + ' (' + r.kept.join(', ') + ')' : ''}${r.drop.length ? ' · 버림 ' + r.drop.join(' / ') : ''}`;
