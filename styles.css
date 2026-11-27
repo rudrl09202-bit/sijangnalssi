@@ -991,3 +991,6 @@ html.big body { zoom: 1.15; }
 .t10-bar i { display: block; height: 100%; background: var(--accent); }
 .t10-more summary { cursor: pointer; padding: 6px 0; color: var(--muted); }
 .num.down { color: var(--down); } .num.up { color: var(--up); }
+/* 봇 성적표 */
+.sc-prog { height: 6px; border-radius: 3px; background: var(--line2); margin: 8px 0 4px; overflow: hidden; } .sc-prog i { display: block; height: 100%; background: var(--accent); }
+.sc-bot p { margin: 2px 0; }

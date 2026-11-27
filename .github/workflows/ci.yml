@@ -1,0 +1,25 @@
+# PR 검사: 문법 + 미래 엿보기 검사 + 봇 규칙 고정 검사 + 성적표 채점 검사 (네트워크·키 필요 없음, 1분 이내)
+# 빨간 X 가 뜨면 합치지 말 것. "규칙·설정이 바뀜"이면 CLAUDE.md 1장(모의 기록 기간에는 봇 규칙을 바꾸지 않음)을 먼저 볼 것
+name: 검사 (PR)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: 문법 검사
+        run: |
+          for f in connect/*.mjs research/*.mjs tests/*.mjs js/*.js sw.js; do node --check "$f" || exit 1; done
+          for f in .github/workflows/*.yml; do python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f" || exit 1; done
+          python3 -c "import json; json.load(open('connect/bots.json')); json.load(open('connect/notify.json')); json.load(open('tests/golden.json'))"
+      - name: 미래 엿보기 · 규칙 고정 · 성적표 검사
+        run: node --test tests/*.test.mjs
