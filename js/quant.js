@@ -452,7 +452,10 @@
   STRAT.orbit = function (W, acc, bot, d, eq, canEnter) {
     for (const id of Object.keys(acc.pos)) {
       const p = acc.pos[id], a = W.A[id], i = a.idx[d]; if (i == null) continue;
-      if (a.c[i] < p.avg * 0.75) sell(acc, id, '비상 손절(−25%)');
+      // 손절: 산 값 −stopPct (기본 25%). trailPct 가 있으면 보유 중 최고 종가 대비 추적 손절도 (연구용, 실제 봇은 기본값)
+      const sp = bot.stopPct || 0.25; p.hiC = Math.max(p.hiC || p.avg, a.c[i]);
+      if (a.c[i] < p.avg * (1 - sp)) sell(acc, id, '비상 손절(−' + Math.round(sp * 100) + '%)');
+      else if (bot.trailPct && a.c[i] < p.hiC * (1 - bot.trailPct)) sell(acc, id, '추적 손절(고점 −' + Math.round(bot.trailPct * 100) + '%)');
     }
     if (!isMonthStart(W, d, acc)) return;
     const sc = [];

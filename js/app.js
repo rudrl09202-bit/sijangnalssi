@@ -1961,6 +1961,23 @@
     return `<a class="card" href="#top10" style="display:block"><div class="card-head"><h2>오늘의 추천 TOP 10</h2><span class="act ${buys ? 'up' : 'neu'}">${buys ? '매수 후보 ' + buys : '관찰만'}</span></div>
       <p class="sm">${T.list.slice(0, 3).map((x) => esc(x.name)).join(' · ')}${T.list.length > 3 ? ' 외 ' + (T.list.length - 3) + '개' : ''}</p><p class="muted xs">${esc(T.date)} 종가 · 나스닥·S&P 500·코스피·코스닥 ›</p></a>`;
   }
+  // TOP 10 규칙(ORBIT)을 가상 1억으로 따라 하는 계좌 — connect/paper.mjs 가 매일 처리 (js/paper-live.js)
+  function orbitAccountCard() {
+    const P = paperData(); if (!P) { loadRemotePaper && setTimeout(loadRemotePaper, 0); return `<section class="card"><h2>가상 계좌로 따라 하기</h2><p class="muted sm">계좌 기록을 불러오는 중이에요.</p></section>`; }
+    const b = (P.bots || []).find((x) => x.id === 'orbit'), L = b && b.live; if (!L) return '';
+    const px = (cur, v) => (v == null ? '—' : cur === 'USD' ? '$' + nf(v, 2) : nf(Math.round(v)) + '원');
+    const pos = (L.positions || []).map((p) => `<div class="kv"><span>${esc(p.name)} <span class="muted xs">${p.kind === 'gold' ? '금' : ''} 산 값 ${px(p.cur, p.avg)} · 손절 ${px(p.cur, p.avg * 0.75)}</span></span><b class="num ${dirClass(p.pct)}">${p.pct > 0 ? '+' : ''}${nf(p.pct, 1)}% <span class="muted xs">${nf(p.w, 1)}%</span></b></div>`).join('');
+    const ord = (L.orders || []).map((o) => `<p class="xs">⏳ ${esc(o.name)} — ${esc(o.kind)}${o.why ? ' <span class="muted">(' + esc(o.why) + ')</span>' : ''}</p>`).join('');
+    const tr = (L.trades || []).slice(0, 8).map((t) => `<p class="xs"><span class="muted">${esc(t.out)}</span> ${esc(t.name)} 매도 <span class="${dirClass(t.pct)}">${t.pct > 0 ? '+' : ''}${nf(t.pct, 1)}%</span> <span class="muted">${esc(t.exitWhy || '')}</span></p>`).join('');
+    return `<section class="card"><div class="card-head"><h2>가상 계좌로 따라 하기</h2><span class="act neu">ORBIT · 모의</span></div>
+      <div class="bot-mid"><div><p class="num bot-ret ${dirClass(L.ret)}">${pct(L.ret, 2)}</p><p class="muted xs num">${won(L.equity)} · 현금 ${won(L.cash)} · ${L.days}일째</p></div>${spark(L.curve, 110, 36)}</div>
+      <h3 class="sm b" style="margin:10px 0 4px">보유 ${(L.positions || []).length}개</h3>${pos || '<p class="muted sm">지금은 보유 없음 — 시장 필터 때문에 현금으로 기다리는 중이에요.</p>'}
+      ${ord ? `<h3 class="sm b" style="margin:10px 0 4px">다음 거래일 주문</h3>${ord}` : ''}
+      ${tr ? `<h3 class="sm b" style="margin:10px 0 4px">최근 매도</h3>${tr}` : ''}
+      <p class="muted xs" style="margin-top:6px">이 계좌가 위 TOP 10 규칙을 그대로 실행해요: <b>매달 첫 거래일</b> 순위 안 종목을 변동성 반비례 비중으로 사고(종가에 판단 → 다음 거래일 시가 체결), 순위에서 빠지면 팔고, <b>산 값 −25%</b>면 바로 손절. 수수료·세금·환전 비용 포함, 진짜 돈과는 연결 안 됨.</p>
+      <p class="muted xs">손절 시험(10년): −25%가 −15% 손절·고점 −20% 추적 손절보다 수익·샤프 모두 나았어요 (촘촘한 손절은 흔들렸다 다시 오르는 주도주까지 팔아 버림).</p>
+      <a class="link-btn xs" href="#stocks">주식 봇 전체 기록 보기 ›</a></section>`;
+  }
   function viewTop10() {
     loadTop10(); const T = S.t10, head = `<header class="top"><div><a href="#explore" class="back">‹ 시장</a><p class="kicker">나스닥 · S&P 500 · 코스피 · 코스닥 · 매일</p><h1>오늘의 추천 TOP 10</h1></div>${tools()}</header>`;
     if (!T) return head + `<section class="card"><p class="muted sm">${S.t10Loading ? '불러오는 중이에요' : '평일 아침·오후 자동 실행 뒤에 나와요.'}</p></section>`;
@@ -1987,6 +2004,7 @@
     const B = T.bt || {};
     return head + `<section class="card"><p class="kicker">오늘의 판단 · ${esc(T.date)} 종가</p>${verdict}<p class="xs" style="margin-top:6px">시장 필터 지수 200일선 대비: ${gap}</p>
       ${T.added && T.added.length ? `<p class="xs">새로 들어옴: ${T.added.map(esc).join(', ')}</p>` : ''}${T.dropped && T.dropped.length ? `<p class="xs muted">빠짐: ${T.dropped.map(esc).join(', ')}</p>` : ''}</section>
+      ${orbitAccountCard()}
       ${T.list.map(card).join('')}
       <section class="card"><h2>어떻게 고르나</h2>
       <p class="sm">모멘텀 순환 봇(ORBIT)의 규칙 그대로예요: 대표 종목 ${T.universe}개 중 ① 12-1 모멘텀이 플러스이고 200일선 위인 종목을 ② 모멘텀 큰 순서로. ③ 그 시장 지수(나스닥·S&P → S&P 500, 코스피·코스닥 → 코스피)가 200일선 아래면 사지 않아요.</p>
