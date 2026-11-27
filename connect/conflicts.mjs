@@ -1,55 +1,52 @@
 #!/usr/bin/env node
-/* 분쟁 지도 목록 제안 (머니 글로브) — Gemini + 구글 검색. 보여 주기용, 봇 판단에는 안 씀
- *  하는 일: 지금 진행 중인 무력 분쟁을 출처와 함께 받아 data/conflicts.json 을 새로 씀
- *  사람 확인: 이 파일은 워크플로(.github/workflows/conflicts.yml)가 PR 로 올림 → 사람이 읽고 합쳐야 앱에 나타남
- *  규칙: 출처(URL) 없는 항목·나라 코드가 이상한 항목은 버림. 이전 목록에 있던 것은 처음 확인일을 이어 씀
- *  검색 필수: 같은 모델이 두 번 모두 구글 검색 없이 답하면 그 답은 버리고 예비 모델로. 모두 그러면 PR 을 안 올리고 실패(빨간 X)
- *   (검색 없이 쓴 답은 출처 링크가 지어낸 주소일 수 있어서)
- *  지금 목록 다시 확인: 분쟁마다 짧은 질문을 따로 보내 다시 검색하게 함 + 새 분쟁 찾기 질문 1개 (한 번에 길게 물으면 검색을 건너뛰었음)
- *   "끝남"은 이유·출처와 함께 받음
- *   - 끝남(출처 있음) → 뺌 · 답이 없음 → 마지막 확인 뒤 30일까지는 그대로 둠(검색을 안 해서 빠지는 일 방지), 30일 넘으면 뺌
- *  키: GEMINI_API_KEY (모델 GEMINI_MODEL, 기본은 council.mjs 와 같음)
- *  한도 초과(429)·서버 오류(5xx): 10초 뒤 한 번 더 → 그래도 안 되면 council.mjs 의 예비 모델로. 모두 실패하면 오류로 끝냄(워크플로 빨간 X)
- *  최악(모델 3개 모두 응답 없음)에도 약 3분 안에 끝남
+/* 분쟁 지도 목록 제안 (머니 글로브) — 구글 뉴스 RSS 로 기사를 직접 모으고, Gemini 는 그 기사만 보고 정리. 보여 주기용, 봇 판단에는 안 씀
+ *  왜 이렇게: Gemini 의 구글 검색 도구는 모델이 쓸지 말지 스스로 정하고 강제할 수 없음 — 11/27 에 24번 연속 검색 없이 기억으로 답함
+ *   (진단: serviceTier standard · groundingMetadata 없음 · 생각 토큰 2,106). 그래서 기사 수집은 우리가 하고, 출처는 모은 기사 링크만 씀 → 링크를 지어낼 수 없음
+ *  하는 일: ① 지금 목록의 분쟁마다 "이름 when:30d" 뉴스 검색 ② 새 분쟁 찾기용 검색(한국어·영어) ③ 기사 제목 목록을 번호와 함께 Gemini 에 주고
+ *   "진행 중인지 + 근거 기사 번호", "새 분쟁 + 근거 기사 번호"를 JSON 으로 받음 ④ 근거 번호가 실제 기사일 때만 씀
+ *  사람 확인: 결과 data/conflicts.json 은 워크플로(.github/workflows/conflicts.yml)가 PR 로 올림 → 사람이 읽고 합쳐야 앱에 나타남
+ *  규칙: 근거 기사 없는 항목·나라 코드가 이상한 항목은 버림. 끝남(근거 기사 있음) → 뺌, 답 없음 → 마지막 확인 뒤 30일까지 그대로 둠
+ *  키: GEMINI_API_KEY (모델 GEMINI_MODEL, 실패하면 council.mjs 의 예비 모델)
  *  실행: node connect/conflicts.mjs   (--dry: 파일 안 쓰고 결과만 출력)
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadEnv } from './paper.mjs';
-import { VOTERS } from './council.mjs';
+import { VOTERS, askGemini } from './council.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, '..');
 const KINDS = { war: '나라 사이 전쟁', civil: '내전·무장 충돌', border: '국경 충돌' };
 const today = (now) => new Date(now).toISOString().slice(0, 10);
-// 질문은 짧게 나눠서 (한 번에 길게 물으면 Gemini 가 검색을 건너뛰고 기억으로 답하는 일이 많았음 — 11/27)
-const RULES = `- 나라 사이 전쟁은 kind "war", 한 나라 안의 내전·무장 충돌은 kind "civil"(b 는 null), 국경 충돌은 kind "border"
-- 휴전이 지켜지고 있거나 30일 넘게 전투 보도가 없으면 넣지 마세요. 말싸움·제재·무역 갈등은 넣지 마세요
-- 나라는 ISO 3166-1 두 글자 대문자 코드. 공격하는 쪽을 a 에
-- 항목마다 최신 보도 원문 URL 1~3개 (언론사 기사 주소)`;
-// 새 분쟁 찾기
-const PROMPT_NEW = (d, known) => `오늘은 ${d} 입니다. 구글 검색으로 확인해서, 지난 30일 안에 실제 전투·공습·포격이 보도된 무력 분쟁을 찾아 주세요.${known.length ? '\n이미 아는 것은 빼고 찾으세요: ' + known.join(', ') : ''}
-${RULES}
-- 최대 8개, 큰 것부터
-JSON 배열 하나만 답하세요. 다른 글은 쓰지 마세요:
-[{"a":"RU","b":"UA","kind":"war","name":"한국어 이름","since":"시작 연도","summary":"지금 상황 한국어 한 문장","sources":["https://..."]}]`;
-// 지금 목록의 분쟁 하나 다시 확인
-const PROMPT_ONE = (d, x) => `오늘은 ${d} 입니다. 구글 검색으로 "${x.name || x.id}" (${x.a}${x.b ? ' 대 ' + x.b : ' 안'}) 의 최근 30일 전투·공습·포격 보도를 찾아 주세요.
-진행 중이면 active true 와 최신 기사 URL 1~3개, 끝났거나 30일 넘게 전투 보도가 없으면 active false 와 이유·근거 기사 URL.
-JSON 하나만 답하세요. 다른 글은 쓰지 마세요:
-{"active":true,"summary":"지금 상황 한국어 한 문장","reason":"끝났다면 이유, 아니면 빈칸","sources":["https://..."]}`;
-export async function askGeminiSearch(key, model, prompt, fetchImpl = fetch) {
-  const c = new AbortController(), to = setTimeout(() => c.abort(), 60000); // 검색 포함 1분이면 충분
-  try { const r = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', signal: c.signal,
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }) });
-    const j = await r.json(); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + ((j.error && j.error.message) || ''));
-    const cand = (j.candidates || [])[0] || {}, gm = cand.groundingMetadata || {};
-    // 검색을 실제로 했는지: 검색어·검색 결과 조각·검색 진입점 중 하나라도 있으면 검색함
-    const refs = (gm.groundingChunks || []).map((c) => c.web && { title: c.web.title || '', uri: c.web.uri || '' }).filter(Boolean);
-    // 진단용: 검색을 안 한 것처럼 보일 때 원인을 보려고 응답 모양을 짧게 남김 (키·본문은 남기지 않음)
-    const diag = { model, version: j.modelVersion || null, finish: cand.finishReason || null, candKeys: Object.keys(cand), gmKeys: Object.keys(gm), usage: j.usageMetadata || null, parts: ((cand.content || {}).parts || []).map((p) => Object.keys(p).join('+')) };
-    return { text: ((cand.content || { parts: [] }).parts || []).map((p) => p.text || '').join(''), grounded: !!(refs.length || (gm.webSearchQueries || []).length || gm.searchEntryPoint), queries: gm.webSearchQueries || [], refs, diag };
-  } finally { clearTimeout(to); }
-}
+// 구글 뉴스 RSS: 제목·링크·날짜·언론사
+const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; sijangnalssi/1.0)' };
+const dec = (x) => String(x || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+export function parseFeed(xml) { const out = [];
+  for (const m of String(xml).matchAll(/<item[\s>][\s\S]*?<\/item>/g)) { const it = m[0], g = (re) => dec((it.match(re) || [])[1]);
+    const title = g(/<title[^>]*>([\s\S]*?)<\/title>/), link = g(/<link[^>]*>([\s\S]*?)<\/link>/), t = Date.parse(g(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/)), src = g(/<source[^>]*>([\s\S]*?)<\/source>/);
+    if (title && /^https?:\/\//.test(link)) out.push({ title: title.slice(0, 160), link, t: isFinite(t) ? t : null, src }); }
+  return out; }
+// 연달아 보내면 429(너무 잦은 요청)가 나서: 검색 사이 1.5초 쉬고, 429 면 5초 뒤 한 번 더
+export async function news(q, lang, fetchImpl = fetch, wait = 1500) {
+  await new Promise((ok) => setTimeout(ok, wait));
+  try { return await news1(q, lang, fetchImpl); } catch (e) { if (!/429/.test(e.message)) throw e; await new Promise((ok) => setTimeout(ok, wait * 3.3)); return news1(q, lang, fetchImpl); } }
+async function news1(q, lang, fetchImpl) {
+  const L = lang === 'en' ? 'hl=en-US&gl=US&ceid=US:en' : 'hl=ko&gl=KR&ceid=KR:ko', c = new AbortController(), to = setTimeout(() => c.abort(), 15000);
+  try { const r = await fetchImpl('https://news.google.com/rss/search?q=' + encodeURIComponent(q) + '&' + L, { headers: UA, signal: c.signal }); if (!r.ok) throw new Error('뉴스 HTTP ' + r.status); return parseFeed(await r.text()); } finally { clearTimeout(to); } }
+const FIND = [['공습 OR 교전 OR 무력충돌 OR 포격 when:7d', 'ko'], ['내전 OR 반군 교전 when:7d', 'ko'], ['airstrike OR shelling OR "armed clashes" when:7d', 'en'], ['"civil war" OR insurgents fighting when:7d', 'en']];
+const SYSTEM = `당신은 국제 분쟁 뉴스를 정리하는 편집자입니다. 반드시 사용자가 준 기사 제목 목록만 근거로 판단하고, 목록에 없는 사실은 쓰지 마세요.
+- 근거로 쓴 기사는 번호(E 뒤 숫자)로만 적으세요. 근거가 없으면 그 항목은 빼세요.
+- 실제 전투·공습·포격·교전 보도만 인정합니다. 외교 회담·제재·무역 갈등·재판·과거 회고 기사는 근거가 아닙니다.
+- 나라는 ISO 3166-1 두 글자 대문자 코드. 나라 사이 전쟁 kind "war", 한 나라 안 내전·무장 충돌 kind "civil"(b 는 null), 국경 충돌 kind "border". 공격하는 쪽을 a 에.
+- 한국어로, JSON 하나만 답하세요.`;
+const PROMPT = (d, items, ev) => `오늘은 ${d} 입니다. 아래는 구글 뉴스에서 모은 최근 30일 기사 제목입니다.
+${ev.map((e, i) => 'E' + (i + 1) + ' [' + (e.t ? new Date(e.t).toISOString().slice(0, 10) : '날짜?') + ' · ' + (e.src || '?') + '] ' + e.title).join('\n')}
+
+1) 지금 목록의 분쟁마다, 위 기사에 최근 30일 전투 보도가 있으면 active true, 휴전·종전이 보도됐으면 active false, 기사가 없으면 빼세요:
+${items.map((x) => x.id + ' ' + (x.name || '')).join('\n') || '(없음)'}
+2) 위 기사에 나온 새 무력 분쟁(지금 목록에 없는 것)을 최대 5개, 큰 것부터.
+답 모양:
+{"existing":[{"id":"RU-UA","active":true,"summary":"지금 상황 한 문장","reason":"끝났다면 이유","evidence":[3,7]}],
+ "new":[{"a":"SD","b":null,"kind":"civil","name":"한국어 이름","since":"시작 연도","summary":"지금 상황 한 문장","evidence":[12]}]}`;
 export function parseObj(text) { const o = text.indexOf('{'), e = text.lastIndexOf('}'); if (o < 0 || e < o) throw new Error('JSON 없음'); return JSON.parse(text.slice(o, e + 1)); }
 // 답: { active:[...], ended:[...] } (예전 형식인 배열만 와도 받음)
 export function parseList(text) {
@@ -67,7 +64,7 @@ export function clean(list, prev, d, endedList = []) {
     if (why) { drop.push((x.name || a) + ': ' + why); continue; }
     const id = kind === 'civil' ? a : [a, b].sort().join('-'), o = old.get(id);
     if (out.some((y) => y.id === id)) continue;
-    out.push({ id, a, b: kind === 'civil' ? null : b, kind, name: String(x.name || '').slice(0, 40), since: String(x.since || '').slice(0, 10), summary: String(x.summary || '').slice(0, 160), sources: src, first: o ? o.first : d, checked: d });
+    out.push({ id, a, b: kind === 'civil' ? null : b, kind, name: String(x.name || '').slice(0, 40), since: String(x.since || '').slice(0, 10), summary: String(x.summary || '').slice(0, 160), sources: src, outlets: (Array.isArray(x.outlets) ? x.outlets : []).slice(0, 3).map((o) => String(o).slice(0, 40)), first: o ? o.first : d, checked: d });
   }
   // 지금 목록 중 답에 없는 것: 끝남(출처 있음) → 뺌, 답 없음 → 마지막 확인 30일 안이면 그대로 둠
   const ended = new Map((Array.isArray(endedList) ? endedList : []).map((x) => [String(x.id || '').toUpperCase(), x]).filter(([, x]) => (x.sources || []).some((u) => URLRE.test(String(u)))));
@@ -82,32 +79,25 @@ export async function run({ root = ROOT, now = Date.now(), env = loadEnv(), fetc
   const model = env.GEMINI_MODEL || VOTERS.find((v) => v.id === 'gemini').def, f = join(root, 'data', 'conflicts.json'), d = today(now);
   let prev = null; try { if (existsSync(f)) prev = JSON.parse(readFileSync(f, 'utf8')); } catch (e) { prev = null; }
   const g = VOTERS.find((v) => v.id === 'gemini'), models = [model, ...((g && g.backup) || [])].filter((m, i, a) => m && a.indexOf(m) === i);
-  const usedSet = new Set(), queries = [], refs = [], fails = [];
-  // 검색한 답만 받음: 검색 없이 답하면(기억으로 쓴 답 → 링크가 지어낸 것일 수 있음) 버리고 다음 모델. retry: 같은 모델에 한 번 더 물어볼지
-  let diag = null, noSearch = 0; // 검색 없는 답이 계속되면(6번) 남은 질문은 건너뜀 — 호출·시간 낭비 방지
-  const askGrounded = async (q, retry) => { const tried = []; if (noSearch >= 6) throw new Error('앞 질문들이 모두 검색 없이 답해서 건너뜀');
-    for (const m of models) { for (let k = 0; k < 2; k++) { try { let r = await askGeminiSearch(key, m, q, fetchImpl);
-          if (!r.grounded && retry) r = await askGeminiSearch(key, m, q, fetchImpl);
-          if (!r.grounded) { noSearch++; if (!diag) diag = r.diag; throw new Error('구글 검색 없이 답함'); }
-          noSearch = 0;
-          usedSet.add(m); queries.push(...r.queries); refs.push(...r.refs); return r;
-        } catch (e) { tried.push(m + ': ' + e.message.slice(0, 80)); if (!/HTTP (429|5\d\d)/.test(e.message)) break; if (k === 0) await new Promise((ok) => setTimeout(ok, opts.wait ?? 10000)); } } }
-    throw new Error(tried.join(' / ')); };
-  const active = [], ended = [], items0 = (prev && prev.items) || [];
-  // ① 지금 목록 하나씩 다시 확인 (답이 없으면 clean 이 30일까지 그대로 둠)
-  for (const x of items0) { try { const j = parseObj((await askGrounded(PROMPT_ONE(d, x), false)).text), src = (j.sources || []).map(String).filter((u) => URLRE.test(u));
-      if (j.active && src.length) active.push({ a: x.a, b: x.b, kind: x.kind, name: x.name, since: x.since, summary: j.summary || x.summary, sources: src });
-      else if (j.active === false && src.length) ended.push({ id: x.id, reason: j.reason, sources: src });
-    } catch (e) { fails.push((x.name || x.id) + ': ' + e.message.slice(0, 100)); } }
-  // ② 새 분쟁 찾기
-  let newOk = false; try { const P0 = parseList((await askGrounded(PROMPT_NEW(d, items0.map((x) => x.id + ' ' + (x.name || ''))), true)).text); active.push(...P0.active); newOk = true; } catch (e) { fails.push('새 분쟁 찾기: ' + e.message.slice(0, 120)); }
-  if (diag) log('진단(검색 없이 답한 첫 응답): ' + JSON.stringify(diag));
-  if (!newOk && fails.length === items0.length + 1) throw new Error('Gemini 모두 실패 — ' + fails.join(' / '));
-  if (fails.length) log('검색한 답을 못 받은 질문 ' + fails.length + '개: ' + fails.join(' / '));
-  const used = [...usedSet].join(', '), grounded = true, res = { queries };
-  log('질문 ' + (items0.length + 1) + '개 · 구글 검색 ' + queries.length + '번 · 검색 결과 ' + refs.length + '개를 보고 답함: ' + [...new Set(refs.map((r) => r.title))].slice(0, 10).join(', '));
+  const items0 = (prev && prev.items) || [], cut = now - 30 * 864e5, ev = [], seen = new Set(), errs = [];
+  const add = (list, n) => { let k = 0; for (const e of list) { if (k >= n) break; if (e.t && e.t < cut) continue; const key = e.title.slice(0, 40); if (seen.has(key)) continue; seen.add(key); ev.push(e); k++; } };
+  // ① 지금 목록 분쟁마다 6개 ② 새 분쟁 찾기 검색마다 12개
+  for (const x of items0) { try { add(await news((x.name || x.id).replace(/\s*(분쟁|전쟁)$/, '') + ' when:30d', 'ko', fetchImpl, opts.newsWait), 6); } catch (e) { errs.push((x.name || x.id) + ': ' + e.message); } }
+  for (const [q, l] of FIND) { try { add(await news(q, l, fetchImpl, opts.newsWait), 12); } catch (e) { errs.push('찾기 ' + l + ': ' + e.message); } }
+  if (errs.length) log('뉴스 못 받은 검색 ' + errs.length + '개: ' + errs.join(' / '));
+  if (ev.length < 10) throw new Error('뉴스 기사를 ' + ev.length + '개밖에 못 모음 — 구글 뉴스 RSS 확인 필요');
+  let text = null, used = null; const tried = [];
+  for (const m of models) { try { text = await askGemini(key, m, PROMPT(d, items0, ev), fetchImpl, SYSTEM); used = m; break; } catch (e) { tried.push(m + ': ' + e.message.slice(0, 90)); } }
+  if (!text) throw new Error('Gemini 모두 실패 — ' + tried.join(' / '));
+  const j = parseObj(text), pick = (nums) => [...new Set((Array.isArray(nums) ? nums : []).map((n) => parseInt(String(n).replace(/\D/g, ''), 10)).filter((n) => n >= 1 && n <= ev.length))].slice(0, 3).map((n) => ev[n - 1]);
+  const active = [], ended = [];
+  for (const x of Array.isArray(j.existing) ? j.existing : []) { const o = items0.find((y) => y.id === String(x.id || '').toUpperCase()), E = pick(x.evidence); if (!o || !E.length) continue;
+    if (x.active === true) active.push({ a: o.a, b: o.b, kind: o.kind, name: o.name, since: o.since, summary: x.summary || o.summary, sources: E.map((e) => e.link), outlets: E.map((e) => e.src || '') });
+    else if (x.active === false) ended.push({ id: o.id, reason: x.reason, sources: E.map((e) => e.link) }); }
+  for (const x of Array.isArray(j.new) ? j.new : []) { const E = pick(x.evidence); if (!E.length) continue; active.push({ ...x, sources: E.map((e) => e.link), outlets: E.map((e) => e.src || '') }); }
+  log('기사 ' + ev.length + '개 (지금 목록 ' + items0.length + '개 검색 + 새 분쟁 찾기 ' + FIND.length + '개) → Gemini(' + used + ')가 근거 기사 번호와 함께 정리');
   const r = clean(active, prev, d, ended);
-  const out = { v: 1, updated: d, model: used, grounded, queries: res.queries.slice(0, 10), note: '사람이 PR 을 읽고 합친 목록만 앱에 나타남', items: r.items };
+  const out = { v: 2, updated: d, model: used, method: '구글 뉴스 RSS 기사 + Gemini 정리(근거 기사 번호)', articles: ev.length, note: '사람이 PR 을 읽고 합친 목록만 앱에 나타남', items: r.items };
   const summary = `분쟁 ${r.items.length}개 · 새로 ${r.added.length}${r.added.length ? ' (' + r.added.join(', ') + ')' : ''} · 빠짐 ${r.gone.length}${r.gone.length ? ' (' + r.gone.join(' / ') + ')' : ''}${r.kept.length ? ' · 이번에 확인 못 해 그대로 둠 ' + r.kept.length + ' (' + r.kept.join(', ') + ')' : ''}${r.drop.length ? ' · 버림 ' + r.drop.join(' / ') : ''}`;
   // 내용(확인 날짜 빼고)이 같으면 파일을 안 바꿈 → 매일 PR 이 생기지 않게
   const sig = (items) => JSON.stringify((items || []).map((x) => ({ ...x, checked: undefined })));
