@@ -1,9 +1,9 @@
 {
  "v": 2,
- "updated": "2026-11-27",
+ "updated": "2026-11-28",
  "model": "gemini-3.6-flash",
  "method": "구글 뉴스 RSS 기사 + Gemini 정리(근거 기사 번호)",
- "articles": 82,
+ "articles": 89,
  "note": "사람이 PR 을 읽고 합친 목록만 앱에 나타남",
  "items": [
   {
@@ -13,19 +13,19 @@
    "kind": "war",
    "name": "러시아-우크라이나 전쟁",
    "since": "2022",
-   "summary": "러시아가 우크라이나의 주요 도시와 민간 시설에 공습을 이어가고 있습니다.",
+   "summary": "러시아가 우크라이나의 전력·난방 시설 및 주요 도시와 민간 기반 시설에 공습과 포격을 이어가고 있습니다.",
    "sources": [
+    "https://news.google.com/rss/articles/CBMikAFBVV95cUxPdVRkOU53X0RYS1BkSFZCQUtjZjlfT0VFTVZwWU00b0pxWUxFXy1JYnJXZXVHYmFjd19ZTHpQSFNRQi1LbGRNTWRHLUZaZ0hHa2VEdTdpalM1elNnVFk3aFlXcjljbHRselV6dlBZVk15bi1JY0NLOW1Hc29zaFVENUlhOXFRMFgzWjd2ZXdDaVY?oc=5",
     "https://news.google.com/rss/articles/CBMipwFBVV95cUxPTGlNOVlsbTJmZFFRZ2xsbGFaVzMzTElHdkh1ajUyQ2RXQVZaWTctbWNDOEs1YnJUNzFKeEVmNV9FWW5mZ01fNHVBY2JXcnc5em56RVlfT2R0eWt5alZIb011MWNQWEZJZ0oxWkEydUVjWkh0QllRQlpYUmFTS0JHeHhHS3ZFZWItZmlsUUw1eE93bWxMNXk1cVdVWU1EM25TSXNrVl9RVdIBrAFBVV95cUxPZ0o0UFhZaDdFcTBNMVFRajhabmRDZEpEa1ZtRDVzdjkzaEFKQ29DTXY3N3FCRnNybGlxVEZvaW1JWkVmYV9mNUtSV3JxaWxCZjMwOUUzN0xQc1E2NTd1U1dhSHZINzJCNWZmZFg1cm44SExHVTRsWEJKUEg1OWJhWFNUREswY08wSXQyNng3RTRJZ0dGTkpaX2h6OTJUcnFqbTAyTkQzZDQzblZU?oc=5",
-    "https://news.google.com/rss/articles/CBMiwwFBVV95cUxPNVcyZ0hkU0dhQUVmWGo3NWZqS1JRVDZPa2RWMG1VVnNjR2NvdDdwQk5mLV95ejlyVTg0dENtYURJeXFKRVI5UzcyV3hsR0xkUFk0UGFUUEtieU5QUkRtNGgtODdEQ0RjdGNUT0o1RFVoVV9BSGd2MFVYS0k3b0xSc2QyVGg2b2FvMHdURHlXREs5S255aktaVllpUzctbGI2bUhKYVo3RzFuT1dtNVFQdzZzVTZMV29uWWhCR3FNTmc2RzTSAcgBQVVfeXFMTS0xdnJIdDk3RzlVY3ZQczFJSzlSQ2VOdVk5WkVLUkwtWUpxNjNGc01pX1RkSHNFY3FjdWIyNnhPYWJ2ZVgzMmoyUFpxc0VSRGZ0RXp3azNxa1FRWXcwTWFGZHM5eEtMM3NOQU5VTTlTR2pUc1ZvNk5DclZhdk9EU2NReEpmczNMaWY0TUl2MXQyVWtjYm5abGVDUzllenNER0g5NE15YnFOTWhnOE55akhmNGdQN0pHU29TWXQwUnpfTlV0b0pRUWg?oc=5",
-    "https://news.google.com/rss/articles/CBMicEFVX3lxTE4xTWFaNElLcUdraGxMS2FscW5RS3pTd01iTzh1U2NSZ1FibV92S0kwa0x2anp0M29PLTBIYzJEcy1DMW9EeHRkakV0amYxaG9rNmdWOWRFU1ZmT040YjBBenZGSmJaSHpjTzl5VGNqSU8?oc=5"
+    "https://news.google.com/rss/articles/CBMiwwFBVV95cUxPNVcyZ0hkU0dhQUVmWGo3NWZqS1JRVDZPa2RWMG1VVnNjR2NvdDdwQk5mLV95ejlyVTg0dENtYURJeXFKRVI5UzcyV3hsR0xkUFk0UGFUUEtieU5QUkRtNGgtODdEQ0RjdGNUT0o1RFVoVV9BSGd2MFVYS0k3b0xSc2QyVGg2b2FvMHdURHlXREs5S255aktaVllpUzctbGI2bUhKYVo3RzFuT1dtNVFQdzZzVTZMV29uWWhCR3FNTmc2RzTSAcgBQVVfeXFMTS0xdnJIdDk3RzlVY3ZQczFJSzlSQ2VOdVk5WkVLUkwtWUpxNjNGc01pX1RkSHNFY3FjdWIyNnhPYWJ2ZVgzMmoyUFpxc0VSRGZ0RXp3azNxa1FRWXcwTWFGZHM5eEtMM3NOQU5VTTlTR2pUc1ZvNk5DclZhdk9EU2NReEpmczNMaWY0TUl2MXQyVWtjYm5abGVDUzllenNER0g5NE15YnFOTWhnOE55akhmNGdQN0pHU29TWXQwUnpfTlV0b0pRUWg?oc=5"
    ],
    "outlets": [
+    "국제앰네스티 한국지부",
     "Daily Sabah",
-    "Ukrinform",
-    "Boston Herald"
+    "Ukrinform"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-27"
+   "checked": "2026-11-28"
   },
   {
    "id": "IL-PS",
@@ -34,19 +34,19 @@
    "kind": "war",
    "name": "이스라엘-가자지구 전쟁",
    "since": "2023",
-   "summary": "이스라엘이 가자지구의 병원, 민간인 거주지, 하마스 고위 간부 등을 대상으로 공습을 지속하고 있습니다.",
+   "summary": "이스라엘군이 가자지구의 병원과 민간 시설, 하마스 고위 관리 등을 겨냥해 지속적인 공습을 가하고 있습니다.",
    "sources": [
     "https://news.google.com/rss/articles/CBMiWkFVX3lxTE81NDRhN2ZQdWhxT19KbXJNYU9RdnB2VmtyaThlWEp3YjVjajhaOFJscFdOUlNtWEtsNHZlSklqMUpUUGFaM3ZDcHNiMnNyM3hyVXRSQXNlZ2U4d9IBX0FVX3lxTE4zMGQxQWdqWkxqYm1uZThDektsRWo4RUs0UFNmT2Z3STA1U3JBUlFyY0dWRXBfTDJVRU1QTHZ6Q1VLSkU5VUg0X0tUaDBwZTBKMER4cXpyeHpLajBKcWpn?oc=5",
-    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1rczdKNkgwd3Rldkt3c3VoZDRHSFlSM2REbnFIRTYyOXE1TTRQUDY4SWIyNHlHaUFZZTRFOTI1WW9pMzZMVXA3QmFLZFJ3Qi1pUER6NE5sQWZDVjg?oc=5",
-    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1UcUhiRTJQcEJtRndhZEVWQU45Ql9takFoTVA4MEctZW9oSHI3U2ZUbmdpV2pYTENVcjZqcEI2UlYtTHlWTm9Pbm9DVmsxRHB5RlpvZ3hTUHlRbzjSAWBBVV95cUxNOGtrYlhpTEJHOUFKRWRqcTEyalpwRks1V0cxLTl4eFh4SFJLZjhlblZ3OWQ0SHRFd3V5RGZab0tWYWI2YkZ0OThhZjJxaVNQTGh1c1lsR29xOGQyTnd6TzU?oc=5"
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1UcUhiRTJQcEJtRndhZEVWQU45Ql9takFoTVA4MEctZW9oSHI3U2ZUbmdpV2pYTENVcjZqcEI2UlYtTHlWTm9Pbm9DVmsxRHB5RlpvZ3hTUHlRbzjSAWBBVV95cUxNOGtrYlhpTEJHOUFKRWRqcTEyalpwRks1V0cxLTl4eFh4SFJLZjhlblZ3OWQ0SHRFd3V5RGZab0tWYWI2YkZ0OThhZjJxaVNQTGh1c1lsR29xOGQyTnd6TzU?oc=5",
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1rczdKNkgwd3Rldkt3c3VoZDRHSFlSM2REbnFIRTYyOXE1TTRQUDY4SWIyNHlHaUFZZTRFOTI1WW9pMzZMVXA3QmFLZFJ3Qi1pUER6NE5sQWZDVjg?oc=5"
    ],
    "outlets": [
     "경향신문",
-    "KBS 뉴스",
-    "연합뉴스"
+    "연합뉴스",
+    "KBS 뉴스"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-27"
+   "checked": "2026-11-28"
   },
   {
    "id": "SD",
@@ -55,7 +55,7 @@
    "kind": "civil",
    "name": "수단 내전",
    "since": "2023",
-   "summary": "수단 내전에서 드론 공습이 지속되며 민간인 사망자가 잇따르고 있습니다.",
+   "summary": "수단 내전에서 드론 공습으로 인한 민간인 피해와 무력 충돌이 계속해서 격화되고 있습니다.",
    "sources": [
     "https://news.google.com/rss/articles/CBMiW0FVX3lxTE1TTWF2U2FKOW02UER0UDY2QW1tdElHZmQ1SUFVVEx0eGRjRWJzcHNrVjl0a1hUQ1hEcm41NWlueWIyTlZCYUlKdFJ2T19xN1JRT2kyRzFXSTdBa00?oc=5",
     "https://news.google.com/rss/articles/CBMiYkFVX3lxTE41VTFGdnFkQ3BLRUl5bmxZd3A5SXp1WUhfTWUwTEc2Rzk0OU00akQ1YlFzdDg5RDEzU0dHQ3k0MVR2XzI2V2duejc4UUFMR1ctZ0VuNk1mWDU3eTk2MFZSN0tR?oc=5",
@@ -67,7 +67,7 @@
     "연합뉴스"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-27"
+   "checked": "2026-11-28"
   },
   {
    "id": "SA-YE",
@@ -76,19 +76,19 @@
    "kind": "war",
    "name": "예멘 후티-사우디아라비아 분쟁",
    "since": "2015",
-   "summary": "예멘 후티 반군의 사우디 정유시설 및 건물 피격과 사우디 연합군의 반격 공습으로 양측 충돌이 격화하고 있습니다.",
+   "summary": "후티 반군이 사우디아라비아의 정유 시설과 초고층 빌딩을 공격하고 사우디군의 공습이 이어지는 등 양측의 교전이 가열되고 있습니다.",
    "sources": [
-    "https://news.google.com/rss/articles/CBMidEFVX3lxTFB1My1KZVluMGxRb2VFQnVTdjVGci1hV1dvbTV1ZmN2VXhzSnJfTHhFMTE3aWVTUDhfU0hxd2NUTS1jaHhYcmN4UlJ6V2FjNkI2ZFZZNEF1aWlWR3J2VHVEdmhWYlJYTThsSlVlYXdGM2d1LTFy0gF0QVVfeXFMT0ZlSFBUbTE3SlRSMXFGcDJxOFpWVE5na3JsbVl5WDdDU20wWkMya1JKaHV5Tm5RX3c0MEhzZzZIVDRuTlNMWFpMMzBrZGFpb0w4S05OQlkyaWdyLVd0Vi1QeWt5X2VzdUpTbGRHVUU5aXp1YkM?oc=5",
-    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE95QW1WeVBKRHZrdFhuU2J1MmFmcjcyZHNQd0otbV9ldDZHMDZ3ZDRUeUtyTlV0MW9CQ0gtaE5venFkWUhwRi1KVHBfOXpQblEzZ0lIQTFQajdDaGfSAWBBVV95cUxQODFDekRhRVlhZGhKa3ZYOFRuRVk3cENFX3FhOVpjYVZ0aFdxS2JuV09xT0tMZW9Ubi1SU1NCNUlYTTRwdV9zdFphOEV0YkV4TmQ2QXdoLXEtUW9TcEt4VDE?oc=5",
-    "https://news.google.com/rss/articles/CBMic0FVX3lxTE1ENnFVUk02UjA3R2czRWkxVThxVElpVklwZnBzZXBqU1BKdkxpdHJzVEZGc1VNN2ZuZmVHMEpjSGJwajM4THp4eVZvZ3FMeERNM3Z3ZDJMdWRXUXhUVVFIc2RZcDd6Qzl0TVRVVG5JTUZLbEHSAXNBVV95cUxNRDZxVVJNNlIwN0dnM0VpMVU4cVRJaVZJcGZwc2VwalNQSnZMaXRyc1RGRnNVTTdmbmZlRzBKY0hicGozOEx6eHlWb2dxTHhETTN2d2QyTHVkV1F4VFVRSHNkWXA3ekM5dE1UVVRuSU1GS2xB?oc=5"
+    "https://news.google.com/rss/articles/CBMiVkFVX3lxTE4wSjRLV2xMMkhrMVJKMVlFQi1yZmZxVnpfVVltQVNxay0tM0l0Y0E5ckI5cmJmVVhFU3lUd0xHaW14UWE0QThUZHpaQmwzVWoySWV4Uk5R?oc=5",
+    "https://news.google.com/rss/articles/CBMidEFVX3lxTE4tUnFtLURvNlVrRFBMQjhqMlA0UFhWS3ZoQkdvVmRpcVEtQnBicDRGWmxwMlIxeUtuazg5WmZwS2Q2Wi14WFJmMWNKclRSWlpkek5HeEszOXFoT3B4cEVmWnc1Zzd4RmFzUS0xMTZ0bUdmLVlD0gF0QVVfeXFMTUI0TUk3TmkyNFB0ZnMtRHJLVThkUGVnVkF1TlZXSnlfQS12VVlzbXhaR2x2MmxhQ3k0c1psNnktdklPQWZrajZGdDNPZU1uUXJjdUlWc1RRcU5XYm9veG9JdXR5Z0owWEM1MFBFSDhNUEV0bTQ?oc=5",
+    "https://news.google.com/rss/articles/CBMingFBVV95cUxQM0g0THlSeG1TOEsyZDhBd2xSdmFNcnZpVHNVNmhKc0h3U0phS2ZHRC1lUDBXcFVxSUdibE9RdkdXSVZhRE1qdjB6Qzh0TUdFeV9PWGx5amRhdTByUVZhOTdJdUFTRTVELVdCX0VyYjZKelEzR1BIVUFXS0tWNHVEZnhwd2Q2U3AxZFpaY1FYdmRwOWhHaHg0eWJqYVBldw?oc=5"
    ],
    "outlets": [
+    "중앙일보",
     "MBC 뉴스",
-    "연합뉴스",
-    "여성신문"
+    "조선일보"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-27"
+   "checked": "2026-11-28"
   },
   {
    "id": "ET",
@@ -97,15 +97,15 @@
    "kind": "civil",
    "name": "에티오피아 내전",
    "since": "2020",
-   "summary": "에티오피아군이 티그라이 지역에 포격을 가하는 등 무력 충돌이 이어지고 있습니다.",
+   "summary": "에티오피아군이 티그라이 지역에 포격을 가하는 등 군사적 긴장이 이어지고 있습니다.",
    "sources": [
-    "https://news.google.com/rss/articles/CBMitgFBVV95cUxQRUZuNTROT1Y1Q0pTWEtuSWQ5V0tPV2o4X1VlUkhnQkRJaWF3bWtRUTloNW5tQ2xLbV9kMUxWYTUycGhkekFLWGtCXzQ0dVN3TS0yZmItbEM0X3loQUdXeFhwM2p1MXZDck5TT2pJdmNOYVFmZEtaNjdIeGZuZHk0Wk1xOTFfaklzS3JaZ1FtelVLaG5CX0xVWDFpUjNqZXdqdndMcDJ2ZnVaSXhmczhWT25ZRFZNQdIBuwFBVV95cUxPRnMyTmt0UFVNXzNISzFrbXFYWU1KcXU2Z2JiSk00QXFPbmN5bzJrNmpBeE81dmxzTXI5RjlINjFFbHQ1dWhFbnVIenRvQ2ROSlBSWEZCM0NHSy13RUJ1YzhDOHNTT1o4c18tWlRHcWlGUG0wdU8xeFc1Qmk3NUI1dDB5cXh5cUNYRW9MWE5wNXJ1WmZlenB1ajhfQ3JYaktBWDJMTV95YzF3SE1KS004VEExeDNsS2o2Z0U4?oc=5"
+    "https://news.google.com/rss/articles/CBMiugFBVV95cUxPaVBhcThUYl9UZXJzYTB5RFdDREtzVGs2VUJ5OG9DRjNOTGJMbUFXdzdYT0tBT1JncFVwQ25sNzlvZTR3ck93UW5rMWswRHNBbUNsczN0aS14SUtXQi1uT1ctZE1BTVYwY2xWLWZSTGN4NFBHRXJTS3hWUEhvUWR3cDg2V1FnQXFmX1I1Nkc3TW5uWHN1WGtQTDBTbzhEbjRDZFAwNjMxWDdTaG93ZjIxUmFEUDdoMFZlVHc?oc=5"
    ],
    "outlets": [
-    "ABC News - Breaking News, Latest News an"
+    "Reuters"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-27"
+   "checked": "2026-11-28"
   },
   {
    "id": "BH-IR",
@@ -114,19 +114,19 @@
    "kind": "war",
    "name": "이란-바레인 무력 충돌",
    "since": "2026",
-   "summary": "이란이 바레인 내 미군 시설 및 민간 시설을 공습하여 부상자가 발생했습니다.",
+   "summary": "이란이 바레인 내 미군 기지와 민간 시설에 드론 및 미사일 공습을 감행했습니다.",
    "sources": [
     "https://news.google.com/rss/articles/CBMiVkFVX3lxTE4wSjRLV2xMMkhrMVJKMVlFQi1yZmZxVnpfVVltQVNxay0tM0l0Y0E5ckI5cmJmVVhFU3lUd0xHaW14UWE0QThUZHpaQmwzVWoySWV4Uk5R?oc=5",
-    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE9jWm1lSHZoZmltTGpSNGFKenhjRXpQaTBoTXpXbDVyNEVaeWpIaTBRZzJwTTZGbVB1eWZfM1lxZEFkaEdfZl9SWHJvbkhDT1pfWEZpOUpfQUgxU1HSAWBBVV95cUxPRV90aXEzaDlQd3EyRjdUSE5HVkZ0eHpRSUV2VmY4VmxtS0NfSDVmS0RTYkFkenNmeWUtMV85czBydUhKSk9GZGYxcmRqdS1DakRmZlI1Y0dSZm1URjM5UUI?oc=5",
-    "https://news.google.com/rss/articles/CBMiXkFVX3lxTFBPNFMzTHB0MlFmako1YWFhTGRhNkhvY0FVTmNsbFNJSU0zY2RfMDNjSmIzXy1iZEdmUVJmRmJJZUwtWDJFZm1aRW45aTJicmcxMTFYOG51LWM1bFJiTWc?oc=5"
+    "https://news.google.com/rss/articles/CBMidEFVX3lxTE1fYmVCMkdSNVR1S29NVmRLeGlZNF9VV1N6Nks5b1BBNjJkYlJmRURrVkRCaVgyOUoyMTdXRTNqNXNhbHZKdmV1emlIZVNMUWxyX2F0RnZQbElhc2sxZEZpR1cxVjVpeFoyWkx0U0x1dlNHOFVy0gF0QVVfeXFMUE15VGhBMkFXMTUxTmFBOXF4ZXNua2IzVlk0SnZaTUUxMUg2ZjFIelJGMkFkVjlBY24yb1dRb05FNk1RZkczQlp1RzVIYXpGLXVGY3ZJaXdqWVludGxjMHVNNjE4aFNpdDlOV1N6bXJITjhkUzA?oc=5",
+    "https://news.google.com/rss/articles/CBMiU0FVX3lxTE14Nk4wekZwcEFYczl3anpJRkNaXzZrYkx2cFROUXdjd05QN1RhaVZsSUNydF9PS2ljWTdKR05Rc2liODBzcndLNGItTXZSbTlxdkdn?oc=5"
    ],
    "outlets": [
     "중앙일보",
-    "연합뉴스",
-    "YTN"
+    "MBC 뉴스",
+    "뉴닉"
    ],
    "first": "2026-11-27",
-   "checked": "2026-11-27"
+   "checked": "2026-11-28"
   },
   {
    "id": "YE",
@@ -135,17 +135,19 @@
    "kind": "civil",
    "name": "예멘 내전",
    "since": "2014",
-   "summary": "예멘 정부군과 후티 반군이 타이즈 공항 등에 대규모 공습을 실시하는 등 상호 교전을 벌이고 있습니다.",
+   "summary": "예멘 정부군과 후티 반군 간의 대규모 공습 및 교전으로 내전 피해가 심화되고 있습니다.",
    "sources": [
-    "https://news.google.com/rss/articles/CBMiW0FVX3lxTFBvUEZhTGRHUVRuTFFkSFNtcjhkLTNHckcwS1BPRWVjR1BNWG1reDktdHhuakpOeWZFOUpFT1R1ZjVDOXJsTXhyejNUZnVpTWlVbDd6aUY2cENDM1nSAWBBVV95cUxQYWFIX3hiYjczSUFuZ3RuaUZvV3p1TlZMeXJ2d3Y4RWt5b3FyOGM3M01IRzA1UlhKMjZMelBRZTltRjJpN3FYSUFtc3NoQmU2R1E5SXFLMGFlSW05V2U5M2o?oc=5",
-    "https://news.google.com/rss/articles/CBMiYEFVX3lxTE1Ob3MtRVQyMFg1cnVKTGVlejU5WjdhbmFrUzE2MHc5bGUxRnJxWDA2czk4LVJrOVlGdU9xbG5kSlN0MTY0UTlXUmQtSjBMeUI3MUJtX0FoQVJQRTRBeTlQctIBeEFVX3lxTE9rX3c2X0pzZ2k2OVp3LUl3TFNUOF8wQUtqZ2k4aVZDNFJYLTRoTC03TlpuTXVvQmR0MDVRd0lsdHlaRzZUTEhmNEd2N2dtaUM2UEkwS2JJOV9PTnhIOUNVT2hPYnZnaEhDUVhZeWh2XzBrbTg4Ml95LQ?oc=5"
+    "https://news.google.com/rss/articles/CBMiZ0FVX3lxTE9EZ1pFRFl4RWhTN0VyYTgzTjhpLWl1MklyMFEzR2pNUFhsZm9KZkdyNjFtcVhyV1FjNWZLNHE3cVpValNYWkpjbXRlM3B4dE9OUnM0SEJfZm81X3dxNlhrNW5lbXpoR3M?oc=5",
+    "https://news.google.com/rss/articles/CBMiWkFVX3lxTFBCczhoWHRyZm1UTnpNU2M2ZDhYeGI4S0NyaXpMUnRibWI5QTlYT2pHNXAyMDlkYXg0NmwyWVE0em1FR3NWbkUzUkIwdGVVek5rRzJWbTRaTzN2d9IBX0FVX3lxTFB3WEdaLXozNE93RlhwdnZUTWQyRGRTZmx0ZlVUUE5DbzEyODFsd2R4T2w5ZDc0VXEyQ3N2Z2FxaU5abzBUOHBFelJfTTJBYmVrR0tJRTJXS3VXdGN6UXdB?oc=5",
+    "https://news.google.com/rss/articles/CBMiW0FVX3lxTE9BQnI5S3MwRDlINWhJa3pFQTlpVUc3VmtKRDU0QmJOdmdtOGkwcnRBSFkyYUh0aV9ZV2VXdEtkcG5qakhQcGs3RDJPUDZMLVlNdHNTR1FCTDRqNXfSAWBBVV95cUxQaDJzY1ZyN3Y2X0tEMGJENzlRRTYxcnRKZll6MTNlUnBrWkt3dXAxTV9wWUZ3ZlpaYnZFa2oyVUpkTEc0X1JDT0RtN3lKbWU5Z09RcUl3U0lfcTEtdnZNUVI?oc=5"
    ],
    "outlets": [
-    "연합뉴스",
-    "뉴시스"
+    "연합뉴스TV",
+    "경향신문",
+    "연합뉴스"
    ],
    "first": "2026-11-27",
-   "checked": "2026-11-27"
+   "checked": "2026-11-28"
   },
   {
    "id": "IL-LB",
@@ -154,13 +156,19 @@
    "kind": "war",
    "name": "이스라엘-레바논 분쟁",
    "since": "2023",
-   "summary": "이스라엘군과 레바논 헤즈볼라 무장세력 간 레바논 남부 및 국경 지대에서 공습과 포격전이 지속 전개되고 있습니다.",
+   "summary": "이스라엘군이 레바논 영토 일부를 점령하고 남부 지역 병원과 민간 시설에 미사일 공격을 가하고 있습니다.",
    "sources": [
-    "https://en.mehrnews.com/news/249707/Blasts-rock-southern-Lebanon-as-Israel-s-occupation-continues",
-    "https://news.un.org/en/story/2026/11/1157982"
+    "https://news.google.com/rss/articles/CBMic0FVX3lxTFBXS1VsR0d0N3ZDS3JzbDZKYUUzLUVQRHI2S0tLaEpYX0VQb1AtWmRvNF9jX212N08wUDEzdVFyWE5pMllCVTNRaFhkRGdCSlV3Z3Q4Uy11WjY2RFV3aHBaRFRlazdGZkRTUkx2RkJ1ZzFuVDDSAWZBVV95cUxNQWlrbjlRcUxpTXFMN2dLeGpaN25ET1JZQ3FoSWZvLVlwc2pLNURRWVlyOHBLbHVUQktkV3dDb296WGJkdk11NlZDLXFyQndZSkFwSnF1SVNEaDJocEUyQklwa25TM0E?oc=5",
+    "https://news.google.com/rss/articles/CBMiYEFVX3lxTE1hc1RmN1RkQ3VkQ2VJLS1EamJLUHAtWTU2YlpaVGNpSGc5Ym1uLWp1NjB2QWNyZGFqNzd5R2xQUENRZDdWMXYxRHYxYzZPcnR5eWtIaUJiRElKVk9nOS1uMtIBeEFVX3lxTE1DRHQwWVdMNDJBeTNpNXZaYUhCWC1VamJ5ZHVzZDFpOFd4VFk2YWppWHd3OWMwRTdJWkNuZ0lEM0JwZXEwNHZOdEdpbC1qUVctNTE4XzZxUXMzRjhaYTJNeXl1SmcxelJMZVlGV0FhSTdIUzN0eGFpNg?oc=5",
+    "https://news.google.com/rss/articles/CBMiUkFVX3lxTFB4Zy1Ebk9NbEZyOHlySkxCNUNlV1Qza1lnYmh1NGQ0X2RCb1RlUFhqR2ZRNmsyWVNIR0FOU1VTTVF6VTdQTm1JYjY0Rk52aHNvRXc?oc=5"
+   ],
+   "outlets": [
+    "동아일보",
+    "뉴시스",
+    "매일경제"
    ],
    "first": "2026-11-26",
-   "checked": "2026-11-26"
+   "checked": "2026-11-28"
   },
   {
    "id": "CD",
